@@ -1,0 +1,54 @@
+# Hệ thống đặt vé xem phim Full Stack với AI
+
+## 👤 User (Khách hàng)
+- **Đăng ký/Đăng nhập**: tạo tài khoản, lưu thông tin cá nhân.  
+- **Xem phim & lịch chiếu**: duyệt danh sách phim, trailer, suất chiếu.  
+- **Đặt vé**: chọn phim, suất chiếu, ghế ngồi, số lượng vé.  
+- **Thanh toán**: tích hợp ví điện tử, thẻ ngân hàng.  
+- **Quản lý vé**: lưu vé điện tử, QR code, lịch sử đặt vé.  
+- **AI gợi ý**: đề xuất phim/suất chiếu phù hợp sở thích.  
+
+---
+
+## 🛠️ Admin Website (Quản trị tổng)
+- **Quản lý hệ thống**: tạo/sửa/xóa chi nhánh rạp.  
+- **Quản lý phim**: thêm phim mới, cập nhật thông tin, trailer.  
+- **Quản lý người dùng**: theo dõi hoạt động, hỗ trợ khách hàng.  
+- **Thống kê tổng**: doanh thu toàn hệ thống, báo cáo chi nhánh.  
+- **Quản lý AI**: tinh chỉnh thuật toán gợi ý, chatbot.  
+
+---
+
+## 🎬 Admin Chi nhánh Rạp
+- **Quản lý suất chiếu**: lên lịch chiếu phim cho rạp của mình.  
+- **Quản lý phòng chiếu**: cấu hình số ghế, sơ đồ phòng.  
+- **Theo dõi vé bán**: thống kê vé bán ra theo suất chiếu.  
+- **Khuyến mãi tại rạp**: tạo mã giảm giá riêng cho chi nhánh.  
+- **Quản lý nhân viên**: phân quyền nhân viên hỗ trợ tại rạp.  
+
+---
+
+# 🤖 Chức năng AI
+
+## AI cho User (Khách hàng)
+- **Gợi ý phim cá nhân hóa**: dựa trên lịch sử đặt vé, thể loại yêu thích, xu hướng.  
+- **Chatbot hỗ trợ**: trả lời câu hỏi về phim, lịch chiếu, hướng dẫn đặt vé.  
+- **Tìm kiếm ngữ nghĩa**: ví dụ: “phim tình cảm tối nay” → AI lọc suất chiếu phù hợp.  
+- **Đặt vé bằng giọng nói**: hỗ trợ voice command để đặt vé nhanh.  
+- **Phân tích cảm xúc**: dựa trên review, AI gợi ý phim phù hợp tâm trạng.  
+
+---
+
+## AI cho Admin Website (Quản trị tổng)
+- **Phân tích xu hướng**: dự đoán phim hot, thể loại được ưa chuộng.  
+- **Tối ưu lịch chiếu**: gợi ý suất chiếu hợp lý để tăng doanh thu.  
+- **Phát hiện gian lận**: kiểm tra giao dịch bất thường, bảo mật hệ thống.  
+- **Quản lý dữ liệu lớn**: phân tích hành vi người dùng toàn hệ thống.  
+
+---
+
+## AI cho Admin Chi nhánh Rạp
+- **Dự đoán lượng vé bán**: giúp rạp chuẩn bị nhân sự, dịch vụ.  
+- **Quản lý khuyến mãi thông minh**: AI gợi ý chương trình giảm giá phù hợp từng chi nhánh.  
+- **Phân tích hiệu suất suất chiếu**: đánh giá suất nào bán chạy, suất nào cần cải thiện.  
+- **Quản lý trải nghiệm khách hàng**: phân tích feedback để nâng cao dịch vụ.  
