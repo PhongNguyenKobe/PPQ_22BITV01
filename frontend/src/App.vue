@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import ProductList from './components/ProductList.vue'
+
 type MovieCard = {
   title: string
   rating: string
@@ -21,33 +23,29 @@ const movieCards: MovieCard[] = [
     rating: '4.8',
     format: 'IMAX',
     label: 'Đặt chỗ',
-    image:
-      'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1925&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1925&auto=format&fit=crop',
   },
   {
     title: 'John Wick: Chapter 4',
     rating: '4.9',
     format: '4DX',
     label: 'Đặt chỗ',
-    image:
-      'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=2070&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=2070&auto=format&fit=crop',
   },
   {
     title: 'The Batman',
     rating: '4.5',
     format: '2D',
     label: 'Đặt chỗ',
-    image:
-      'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1980&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1980&auto=format&fit=crop',
   },
   {
     title: 'Interstellar Re-release',
     rating: '5.0',
     format: 'AI Choice',
     label: 'Đặt chỗ',
-    image:
-      'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?q=80&w=2070&auto=format&fit=crop',
     featured: true,
+    image: 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?q=80&w=2070&auto=format&fit=crop',
   },
 ]
 
@@ -55,27 +53,23 @@ const featureCards: FeatureCard[] = [
   {
     icon: 'chair',
     title: 'Đặt vé trực tuyến',
-    description:
-      'Chọn chỗ ngồi theo thời gian thực tại mọi cụm rạp trên toàn quốc với độ chính xác tuyệt đối.',
+    description: 'Chọn chỗ ngồi theo thời gian thực tại mọi cụm rạp trên toàn quốc với độ chính xác tuyệt đối.',
   },
   {
     icon: 'smart_toy',
     title: 'Trợ lý AI Chatbot',
-    description:
-      'Tìm phim bằng ngôn ngữ tự nhiên, nhận đề xuất cá nhân hóa dựa trên sở thích của bạn.',
+    description: 'Tìm phim bằng ngôn ngữ tự nhiên, nhận đề xuất cá nhân hóa dựa trên sở thích của bạn.',
     accent: true,
   },
   {
     icon: 'payments',
     title: 'Thanh toán đa kênh',
-    description:
-      'Hỗ trợ thanh toán nhanh chóng qua Momo, VNPAY, thẻ tín dụng hoặc quét mã QR an toàn.',
+    description: 'Hỗ trợ thanh toán nhanh chóng qua Momo, VNPAY, thẻ tín dụng hoặc quét mã QR an toàn.',
   },
   {
     icon: 'qr_code',
     title: 'Quản lý vé điện tử',
-    description:
-      'Lưu trữ vé thông minh, quét mã QR tại rạp không cần in giấy, thân thiện với môi trường.',
+    description: 'Lưu trữ vé thông minh, quét mã QR tại rạp không cần in giấy, thân thiện với môi trường.',
   },
 ]
 
@@ -195,6 +189,9 @@ const chatQuickReplies = ['19:30', '20:15', '21:00']
         </div>
       </section>
 
+      <!-- Vé & Combo từ products.json -->
+      <ProductList />
+
       <section id="ai" class="section section--muted">
         <div class="container">
           <div class="section__center">
@@ -268,7 +265,12 @@ const chatQuickReplies = ['19:30', '20:15', '21:00']
                   Chào bạn! Tôi tìm thấy 3 suất chiếu phim <strong>'John Wick 4'</strong> tại
                   <strong>CGV SC VivoCity</strong>:
                   <div class="chips">
-                    <span v-for="reply in chatQuickReplies" :key="reply" class="chip" :class="{ 'chip--active': reply === '19:30' }">{{ reply }}</span>
+                    <span
+                      v-for="reply in chatQuickReplies"
+                      :key="reply"
+                      class="chip"
+                      :class="{ 'chip--active': reply === '19:30' }"
+                    >{{ reply }}</span>
                   </div>
                   Giá vé đang ưu đãi chỉ từ <strong>120k</strong>. Bạn có muốn đặt vé ngay không?
                 </div>
