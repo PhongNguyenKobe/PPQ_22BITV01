@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CineAI | Chọn Trải Nghiệm Của Bạn</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(31, 31, 31, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .red-glow {
+            box-shadow: 0 0 20px -5px rgba(229, 9, 20, 0.4);
+        }
+        .ai-border {
+            position: relative;
+            background: linear-gradient(to right, #1a1c1c, #1a1c1c) padding-box,
+                        linear-gradient(45deg, #e50914, #7701d0) border-box;
+            border: 2px solid transparent;
+        }
+        .screen-curve {
+            perspective: 500px;
+        }
+        .screen-glow {
+            background: linear-gradient(to bottom, rgba(229, 9, 20, 0.2), transparent);
+            filter: blur(20px);
+            height: 60px;
+            width: 100%;
+            border-radius: 50% 50% 0 0;
+            transform: rotateX(45deg);
+        }
+        @keyframes pulse-ai {
+            0% { box-shadow: 0 0 5px rgba(119, 1, 208, 0.4); }
+            50% { box-shadow: 0 0 20px rgba(119, 1, 208, 0.8); }
+            100% { box-shadow: 0 0 5px rgba(119, 1, 208, 0.4); }
+        }
+        .animate-ai {
+            animation: pulse-ai 3s infinite ease-in-out;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-highest": "#333535",
+                      "secondary-container": "#7701d0",
+                      "on-surface": "#e2e2e2",
+                      "primary-fixed": "#ffdad5",
+                      "tertiary": "#c8c6c5",
+                      "on-error-container": "#ffdad6",
+                      "surface": "#121414",
+                      "glass-stroke": "rgba(255, 255, 255, 0.1)",
+                      "surface-container-lowest": "#0d0f0f",
+                      "surface-container-low": "#1a1c1c",
+                      "inverse-primary": "#c0000c",
+                      "primary-fixed-dim": "#ffb4aa",
+                      "error-container": "#93000a",
+                      "on-secondary-fixed-variant": "#6700b5",
+                      "secondary-fixed": "#efdbff",
+                      "on-secondary-container": "#dcb7ff",
+                      "background": "#121414",
+                      "secondary": "#dcb8ff",
+                      "on-tertiary-container": "#fbf8f8",
+                      "on-secondary-fixed": "#2c0051",
+                      "tertiary-fixed-dim": "#c8c6c5",
+                      "surface-variant": "#333535",
+                      "primary-container": "#e50914",
+                      "tertiary-fixed": "#e5e2e1",
+                      "surface-container": "#1e2020",
+                      "outline": "#af8782",
+                      "on-primary-container": "#ffffff",
+                      "on-tertiary-fixed": "#1b1b1c",
+                      "on-primary": "#690003",
+                      "inverse-on-surface": "#2f3131",
+                      "inverse-surface": "#e2e2e2",
+                      "surface-dim": "#121414",
+                      "on-error": "#690005",
+                      "error": "#ffb4ab",
+                      "on-primary-fixed": "#410001",
+                      "tertiary-container": "#737272",
+                      "on-background": "#e2e2e2",
+                      "surface-container-high": "#282a2a",
+                      "on-tertiary-fixed-variant": "#474746",
+                      "secondary-fixed-dim": "#dcb8ff",
+                      "primary": "#ffb4aa",
+                      "on-primary-fixed-variant": "#930007",
+                      "on-tertiary": "#303030",
+                      "surface-tint": "#ffb4aa",
+                      "on-surface-variant": "#b3b3b3",
+                      "surface-bright": "#383939",
+                      "ai-accent": "#8a2be2",
+                      "on-secondary": "#480081",
+                      "outline-variant": "#5e3f3b"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-desktop": "48px",
+                      "gutter": "24px",
+                      "margin-mobile": "16px",
+                      "section-padding": "96px",
+                      "unit": "8px",
+                      "container-max": "1280px"
+              },
+              "fontFamily": {
+                      "body-lg": ["Inter"],
+                      "body-md": ["Inter"],
+                      "headline-lg": ["Montserrat"],
+                      "headline-md": ["Montserrat"],
+                      "label-md": ["Inter"],
+                      "label-sm": ["Inter"],
+                      "headline-xl": ["Montserrat"],
+                      "headline-xl-mobile": ["Montserrat"]
+              },
+              "fontSize": {
+                      "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "headline-xl-mobile": ["36px", {"lineHeight": "44px", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface selection:bg-primary-container selection:text-white font-body-md overflow-x-hidden">
+<!-- TopNavBar (Shared Component) -->
+<header class="fixed top-0 left-0 w-full z-50 flex items-center justify-between px-margin-desktop h-[80px] bg-surface/60 backdrop-blur-[32px] border-b border-glass-stroke">
+<div class="flex items-center gap-8">
+<h1 class="font-headline-md text-headline-md font-bold text-primary-container">CineAI</h1>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" href="#">Phim</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" href="#">Lịch chiếu</a>
+<a class="font-body-md text-body-md text-on-surface dark:text-on-surface border-b-2 border-primary-container font-bold pb-1" href="#">Khám phá AI</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" href="#">Rạp phim</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-on-surface">search</button>
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-lg font-label-md text-label-md font-bold hover:scale-95 transition-transform">Đăng nhập</button>
+</div>
+</header>
+<main class="pt-[120px] pb-section-padding max-w-container-max mx-auto px-margin-desktop grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Seat Selection Interface -->
+<section class="lg:col-span-8 flex flex-col gap-12">
+<!-- Movie Brief Header -->
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-3">
+<span class="bg-secondary-container/20 text-secondary text-label-sm px-3 py-1 rounded-full border border-secondary/30">AI DỰ ĐOÁN SIÊU PHẨM</span>
+<h2 class="font-headline-lg text-headline-lg">Interstellar: Resonance</h2>
+</div>
+<p class="text-on-surface-variant font-label-md">Thứ Sáu, 24 Tháng 5 • 20:30 • Cinema 4 • IMAX Laser</p>
+</div>
+<!-- Interactive Seat Map Container -->
+<div class="glass-panel p-12 rounded-xl flex flex-col items-center">
+<!-- Screen Indicator -->
+<div class="w-full max-w-2xl mb-24 relative screen-curve">
+<div class="w-full h-2 bg-gradient-to-r from-primary-container/10 via-primary-container to-primary-container/10 rounded-full shadow-[0_0_20px_rgba(229,9,20,0.5)]"></div>
+<div class="screen-glow mx-auto mt-2"></div>
+<p class="text-center text-label-sm tracking-widest text-on-surface-variant/50 mt-4 uppercase">Màn hình</p>
+</div>
+<!-- Seat Grid -->
+<div class="grid grid-cols-12 gap-3 mb-12" id="seat-grid">
+<script>
+                        // Simplified generation of seats
+                        const rows = 8;
+                        const cols = 12;
+                        const gridContainer = document.getElementById('seat-grid');
+                        
+                        for (let r = 0; r < rows; r++) {
+                            for (let c = 0; c < cols; c++) {
+                                const seat = document.createElement('button');
+                                seat.className = 'w-8 h-8 rounded-t-lg transition-all duration-200 focus:outline-none flex items-center justify-center group';
+                                
+                                // Logic for seat types
+                                const isGap = (c === 2 || c === 9);
+                                const isVIP = r < 2;
+                                const isBooked = Math.random() < 0.2;
+                                
+                                if (isGap) {
+                                    const spacer = document.createElement('div');
+                                    spacer.className = 'w-8 h-8';
+                                    gridContainer.appendChild(spacer);
+                                    continue;
+                                }
+
+                                if (isBooked) {
+                                    seat.className += ' bg-surface-container-highest text-on-surface-variant/20 cursor-not-allowed';
+                                    seat.disabled = true;
+                                    seat.innerHTML = '<span class="material-symbols-outlined text-[14px]">close</span>';
+                                } else if (isVIP) {
+                                    seat.className += ' border border-secondary/50 bg-secondary-container/10 hover:bg-secondary-container/30 text-secondary';
+                                    seat.setAttribute('data-type', 'vip');
+                                    seat.onclick = () => toggleSeat(seat);
+                                } else {
+                                    seat.className += ' bg-surface-container-low border border-glass-stroke hover:border-primary-container/50 hover:bg-surface-container-high text-on-surface-variant';
+                                    seat.setAttribute('data-type', 'regular');
+                                    seat.onclick = () => toggleSeat(seat);
+                                }
+                                
+                                gridContainer.appendChild(seat);
+                            }
+                        }
+
+                        function toggleSeat(el) {
+                            const isSelected = el.classList.contains('bg-primary-container');
+                            if (isSelected) {
+                                if (el.dataset.type === 'vip') {
+                                    el.className = 'w-8 h-8 rounded-t-lg transition-all duration-200 border border-secondary/50 bg-secondary-container/10 hover:bg-secondary-container/30 text-secondary';
+                                } else {
+                                    el.className = 'w-8 h-8 rounded-t-lg transition-all duration-200 bg-surface-container-low border border-glass-stroke hover:border-primary-container/50 hover:bg-surface-container-high text-on-surface-variant';
+                                }
+                            } else {
+                                el.className = 'w-8 h-8 rounded-t-lg transition-all duration-200 bg-primary-container text-white border border-primary-container red-glow scale-110 z-10';
+                            }
+                            updateSummary();
+                        }
+                    </script>
+</div>
+<!-- Legend -->
+<div class="flex flex-wrap justify-center gap-8 border-t border-glass-stroke pt-8 w-full">
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-t-sm bg-surface-container-low border border-glass-stroke"></div>
+<span class="text-label-sm text-on-surface-variant">Còn trống</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-t-sm bg-primary-container red-glow"></div>
+<span class="text-label-sm text-on-surface-variant">Đang chọn</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-t-sm bg-surface-container-highest flex items-center justify-center"><span class="material-symbols-outlined text-[10px]">close</span></div>
+<span class="text-label-sm text-on-surface-variant">Đã đặt</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-t-sm border border-secondary/50 bg-secondary-container/10"></div>
+<span class="text-label-sm text-on-surface-variant">Hạng VIP</span>
+</div>
+</div>
+</div>
+<!-- Smart Suggestion AI Component -->
+<div class="ai-border p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden">
+<div class="flex items-center gap-4 relative z-10">
+<div class="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center animate-ai">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">psychology</span>
+</div>
+<div>
+<h4 class="font-headline-md text-body-lg font-bold text-white">Gợi ý chỗ ngồi thông minh</h4>
+<p class="text-on-surface-variant text-label-sm">Góc nhìn tối ưu bởi AI dựa trên âm học của rạp.</p>
+</div>
+</div>
+<button class="relative z-10 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-lg font-label-md transition-all flex items-center gap-2">
+                    Tìm vị trí tốt nhất
+                    <span class="material-symbols-outlined text-[18px]">auto_awesome</span>
+</button>
+</div>
+</section>
+<!-- Right Column: Summary Sidebar -->
+<aside class="lg:col-span-4 flex flex-col gap-6">
+<div class="glass-panel p-8 rounded-xl sticky top-[120px] flex flex-col gap-8">
+<h3 class="font-headline-md text-headline-md">Tóm tắt đơn hàng</h3>
+<!-- Ticket Counter -->
+<div class="flex flex-col gap-4">
+<label class="text-label-sm text-on-surface-variant uppercase tracking-widest">Số lượng vé</label>
+<div class="flex items-center justify-between bg-surface-container p-4 rounded-lg border border-glass-stroke">
+<button class="w-10 h-10 rounded-full border border-glass-stroke flex items-center justify-center hover:bg-surface-container-highest transition-colors">-</button>
+<span class="font-headline-md" id="ticket-count">2</span>
+<button class="w-10 h-10 rounded-full border border-glass-stroke flex items-center justify-center hover:bg-surface-container-highest transition-colors">+</button>
+</div>
+</div>
+<!-- Selected Seats Display -->
+<div class="flex flex-col gap-4">
+<label class="text-label-sm text-on-surface-variant uppercase tracking-widest">Ghế đã chọn</label>
+<div class="flex flex-wrap gap-2" id="seat-list">
+<span class="px-3 py-1 bg-surface-container-highest rounded-md text-label-md border border-glass-stroke">Hàng C, Ghế 4</span>
+<span class="px-3 py-1 bg-surface-container-highest rounded-md text-label-md border border-glass-stroke">Hàng C, Ghế 5</span>
+</div>
+</div>
+<!-- Price Breakdown -->
+<div class="border-t border-glass-stroke pt-6 flex flex-col gap-3">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="text-body-md">Tạm tính (2x Thường)</span>
+<span class="text-body-md font-body-lg">$32.00</span>
+</div>
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="text-body-md">Phí dịch vụ</span>
+<span class="text-body-md font-body-lg">$1.50</span>
+</div>
+<div class="flex justify-between items-center pt-3 border-t border-glass-stroke/50">
+<span class="font-bold text-headline-md">Tổng cộng</span>
+<span class="font-bold text-headline-md text-primary-container">$33.50</span>
+</div>
+</div>
+<!-- CTA -->
+<button class="w-full bg-primary-container text-on-primary-container py-4 rounded-xl font-headline-md text-body-lg font-bold red-glow hover:scale-[1.02] active:scale-95 transition-all">
+                    Xác nhận lựa chọn
+                </button>
+<p class="text-center text-label-sm text-on-surface-variant px-4">
+                    Bằng cách tiếp tục, bạn đồng ý với <a class="underline" href="#">Điều khoản dịch vụ</a> của chúng tôi. Không hoàn tiền trong vòng 1 giờ trước giờ chiếu.
+                </p>
+</div>
+<!-- Ad/Promo Area -->
+<div class="rounded-xl h-48 overflow-hidden relative group">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" data-alt="A futuristic cinematic movie poster background with deep blacks, neon red accents, and blurred space nebula effects. High resolution, 8k, cinematic lighting." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAkn2XwfXn33ohlVGCuC4b1Tc0eiyaDK5ZUtrjDVKndEpo3xqXaj90SiHJG2nEgL9o7MiW0JdmrGhaHbG6BgZ5cWjN0BqV1Wusv-5hLbwJrEbgRobtwdbhA6kXNMgmnY-I5cNmPkMUNo8TTHJN0RS6tnpB1Chy41PCdiOysuymoAODLKh0m5BAHWDvmuYfiGsaA9OMdxYPqvc8FuAvmx_HucT_N3Laveu8Z_uv-ujUQKdQIDlhtLCGR-5Ho-o_OZ8iQxNaY0hjsT7Bq')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<p class="text-secondary font-bold text-label-sm">CineAI PLUS</p>
+<p class="text-white font-bold">Nhận bắp rang miễn phí khi đặt ghế VIP.</p>
+</div>
+</div>
+</aside>
+</main>
+<!-- Footer (Shared Component) -->
+<footer class="bg-surface-container-lowest border-t border-glass-stroke w-full py-12 px-margin-desktop flex flex-col md:flex-row justify-between items-center max-w-container-max mx-auto mt-24">
+<div class="flex flex-col gap-2 mb-8 md:mb-0">
+<span class="font-headline-md text-headline-md text-primary-container">CineAI</span>
+<p class="text-on-surface-variant text-label-sm">© 2026 CineAI. Trí tuệ điện ảnh.</p>
+</div>
+<div class="flex flex-wrap justify-center gap-8">
+<a class="text-label-sm text-on-surface-variant hover:text-primary-container transition-colors" href="#">Chính sách bảo mật</a>
+<a class="text-label-sm text-on-surface-variant hover:text-primary-container transition-colors" href="#">Điều khoản dịch vụ</a>
+<a class="text-label-sm text-on-surface-variant hover:text-primary-container transition-colors" href="#">Trung tâm trợ giúp</a>
+<a class="text-label-sm text-on-surface-variant hover:text-primary-container transition-colors" href="#">Liên hệ</a>
+</div>
+</footer>
+<script>
+        // Micro-interactions for seat selection summary update
+        function updateSummary() {
+            const selected = document.querySelectorAll('button.bg-primary-container');
+            const countDisplay = document.getElementById('ticket-count');
+            const seatList = document.getElementById('seat-list');
+            
+            countDisplay.innerText = selected.length;
+            
+            if (selected.length === 0) {
+                seatList.innerHTML = '<span class="text-label-sm text-on-surface-variant/50 italic">Chưa chọn ghế nào</span>';
+                return;
+            }
+
+            seatList.innerHTML = '';
+            selected.forEach((seat, index) => {
+                const badge = document.createElement('span');
+                badge.className = 'px-3 py-1 bg-primary-container/20 text-primary border border-primary/30 rounded-md text-label-md';
+                badge.innerText = `Ghế ${index + 1}`;
+                seatList.appendChild(badge);
+            });
+        }
+        
+        // Initial call
+        updateSummary();
+    </script>
+</body></html>

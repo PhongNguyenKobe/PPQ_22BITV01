@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CineAI | Hồ Sơ Vé Điện Tử</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(31, 31, 31, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .red-glow-hover:hover {
+            box-shadow: 0 0 20px -5px rgba(229, 9, 20, 0.5);
+            background-color: rgba(229, 9, 20, 0.1);
+        }
+        .ticket-cutout {
+            position: relative;
+        }
+        .ticket-cutout::before, .ticket-cutout::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: #121414;
+            border-radius: 50%;
+            left: -12px;
+            z-index: 10;
+        }
+        .ticket-cutout::before { top: 70%; }
+        .ticket-cutout-right::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: #121414;
+            border-radius: 50%;
+            right: -12px;
+            top: 70%;
+            z-index: 10;
+        }
+        .qr-gradient {
+            background: linear-gradient(135deg, #e50914 0%, #7701d0 100%);
+            padding: 8px;
+            border-radius: 12px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#333535",
+                        "secondary-container": "#7701d0",
+                        "on-surface": "#e2e2e2",
+                        "primary-fixed": "#ffdad5",
+                        "tertiary": "#c8c6c5",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#121414",
+                        "glass-stroke": "rgba(255, 255, 255, 0.1)",
+                        "surface-container-lowest": "#0d0f0f",
+                        "surface-container-low": "#1a1c1c",
+                        "inverse-primary": "#c0000c",
+                        "primary-fixed-dim": "#ffb4aa",
+                        "error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#6700b5",
+                        "secondary-fixed": "#efdbff",
+                        "on-secondary-container": "#dcb7ff",
+                        "background": "#121414",
+                        "secondary": "#dcb8ff",
+                        "on-tertiary-container": "#fbf8f8",
+                        "on-secondary-fixed": "#2c0051",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "surface-variant": "#333535",
+                        "primary-container": "#e50914",
+                        "tertiary-fixed": "#e5e2e1",
+                        "surface-container": "#1e2020",
+                        "outline": "#af8782",
+                        "on-primary-container": "#ffffff",
+                        "on-tertiary-fixed": "#1b1b1c",
+                        "on-primary": "#690003",
+                        "inverse-on-surface": "#2f3131",
+                        "inverse-surface": "#e2e2e2",
+                        "surface-dim": "#121414",
+                        "on-error": "#690005",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed": "#410001",
+                        "tertiary-container": "#737272",
+                        "on-background": "#e2e2e2",
+                        "surface-container-high": "#282a2a",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "secondary-fixed-dim": "#dcb8ff",
+                        "primary": "#ffb4aa",
+                        "on-primary-fixed-variant": "#930007",
+                        "on-tertiary": "#303030",
+                        "surface-tint": "#ffb4aa",
+                        "on-surface-variant": "#b3b3b3",
+                        "surface-bright": "#383939",
+                        "ai-accent": "#8a2be2",
+                        "on-secondary": "#480081",
+                        "outline-variant": "#5e3f3b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "48px",
+                        "gutter": "24px",
+                        "margin-mobile": "16px",
+                        "section-padding": "96px",
+                        "unit": "8px",
+                        "container-max": "1280px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Montserrat"],
+                        "headline-md": ["Montserrat"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["Montserrat"],
+                        "headline-xl-mobile": ["Montserrat"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-xl-mobile": ["36px", {"lineHeight": "44px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary-container selection:text-white">
+<!-- TopNavBar -->
+<nav class="fixed top-0 left-0 w-full z-50 flex items-center justify-between px-margin-desktop h-[80px] bg-surface/60 backdrop-blur-[32px] border-b border-glass-stroke max-w-container-max mx-auto">
+<div class="font-headline-md text-headline-md font-bold text-primary-container">CineAI</div>
+<div class="hidden md:flex items-center gap-8 font-body-md text-body-md">
+<a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Phim</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Lịch Chiếu</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Khám Phá AI</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Rạp Chiếu</a>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="bg-surface-container-high border-none rounded-full pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary-container w-64" placeholder="Tìm kiếm phim..." type="text"/>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container cursor-pointer">
+<img class="w-full h-full object-cover" data-alt="Close-up portrait of a tech-savvy movie enthusiast with subtle neon red and purple rim lighting. The background is a soft-focus cinema lobby with futuristic glass partitions and dark metallic surfaces. The person has a friendly, engaged expression, reflecting the premium CineAI brand identity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDAq3Ng_339WB6mfv_mphK39dGLHMFszhx-AgYKMNAvdIBLaztowKDKDJpjtfA1Hc4jtWnPWz-O1b3Xl4xNoHEyMW1Bf6zs9uyhZGSAweY4AhvQFeh3HyIasFX6W2bT7swfWEEUAQj4wOEWFCuLZR-tYeEf6icRjw1AX3rtxEilO1_XTlXh7u73vegugRIYMB-OuZT8VKVaoS3YbMPNSw30Kyi-OSCHogqRKyoYdEVuLlJOEqJo2UTT1aXKfDROvvaMuTmh2lPPsUsn"/>
+</div>
+</div>
+</nav>
+<main class="pt-[120px] pb-section-padding px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto min-h-screen">
+<!-- Header Section -->
+<header class="mb-12">
+<h1 class="font-headline-xl text-headline-xl mb-2">Ví Điện Ảnh Của Tôi</h1>
+<p class="text-on-surface-variant font-body-lg">Truy cập vé điện tử và lịch sử xem phim của bạn.</p>
+</header>
+<!-- Tabs -->
+<div class="flex gap-8 border-b border-glass-stroke mb-10 overflow-x-auto whitespace-nowrap scrollbar-hide">
+<button class="pb-4 text-on-surface border-b-2 border-primary-container font-bold flex items-center gap-2">
+<span class="material-symbols-outlined">confirmation_number</span>
+                Vé Đang Sử Dụng
+            </button>
+<button class="pb-4 text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined">history</span>
+                Lịch Sử Đặt Vé
+            </button>
+<button class="pb-4 text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined">favorite</span>
+                Danh Sách Yêu Thích
+            </button>
+</div>
+<!-- Active Tickets Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Ticket Card 1 -->
+<div class="glass-panel rounded-2xl overflow-hidden flex flex-col md:flex-row relative group ticket-cutout ticket-cutout-right">
+<!-- Movie Poster Side -->
+<div class="md:w-1/3 h-48 md:h-auto relative overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="A cinematic, high-contrast poster of a futuristic sci-fi city under a crimson sky. Deep blacks and vibrant red lighting dominate the scene, with sleek glass towers and neural-network-like light patterns stretching across the landscape. The aesthetic is sophisticated cyberpunk, matching the CineAI dark mode style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_y6Tg3m2eWpzTJ12VBgWmgcBLRlZdnj2yvVHB2U8y7XYjecu7fzjAMuwTCNSDRBcfL0M-5K8eHJg_3JgrJ4GoIl3XTpPL0rDPaSTPTNc8gi0NNwYtzPN0krYQxw41Chsd3qDHXb7QtYT6NtthiVqLjNHeomRoEXRO5dC_m7Po9YwDbYCfGrDgWIZgr8IJ4a4t3TytdTJzvflpKnW1tJcUj9GkND9iP58XHCL8tyah3c2TLMZei4NjPpkpC3d-4_aT58AWIxRDJrZC"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent md:bg-gradient-to-r"></div>
+</div>
+<!-- Ticket Details Side -->
+<div class="flex-1 p-6 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="font-headline-md text-headline-md leading-tight mb-1">Neon Nexus: 2049</h3>
+<p class="text-primary-container font-label-md">IMAX 4K • Chiếu Laser</p>
+</div>
+<div class="bg-surface-container-highest px-3 py-1 rounded-lg text-xs font-bold text-on-surface uppercase tracking-wider">
+                                Đã Xác Nhận
+                            </div>
+</div>
+<div class="grid grid-cols-2 gap-y-4 gap-x-2 mb-6">
+<div>
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Ngày</p>
+<p class="font-bold">24 Tháng 10, 2024</p>
+</div>
+<div>
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Giờ</p>
+<p class="font-bold">08:45 PM</p>
+</div>
+<div>
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Phòng Chiếu</p>
+<p class="font-bold">Sảnh 7, Hàng G</p>
+</div>
+<div>
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Ghế</p>
+<p class="font-bold">12, 13, 14</p>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between border-t border-glass-stroke pt-6">
+<div class="qr-gradient cursor-pointer hover:scale-105 transition-transform">
+<img class="w-16 h-16 bg-white p-1 rounded-lg" data-alt="A minimalist, high-contrast QR code generated with clean white lines on a dark background. The surrounding border features a subtle red and purple gradient glow, symbolizing secure AI-driven digital ticketing. The overall look is modern, sleek, and high-tech, fitting for a premium cinema app." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrZMD3NvWs4qsM22frs6f7Yoj0PWipyJpc1ESp1c8nAlZY2DGxGsGNSn2z3EVFm0Oz6mILzgo-sxPzrZ2INYoXPxNtMVduk9Vuzt4cXzb9ZkBYds8K7f-Dr3xojfhVZTQ2fJIk14RYe7Lo0wyvjhTk0B3gVTlVS3lvVSh4hWgI_UdIG_X7ws7E3uZElxFSNiKXg1pQFiklqOuWi-fpCaZIj0cDWOrqDtIv8j7CW9wHzTzBLGSmYQ6QFXQ26ky7RWPzL57FFC6HAL2i"/>
+</div>
+<div class="flex flex-col gap-2">
+<button class="bg-primary-container text-white px-4 py-2 rounded-xl font-label-md flex items-center gap-2 hover:brightness-110 transition-all red-glow-hover">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">add_to_home_screen</span>
+                                Thêm vào Ví
+                            </button>
+<button class="bg-white/5 text-on-surface px-4 py-2 rounded-xl font-label-md flex items-center gap-2 hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-[18px]">share</span>
+                                Gửi bạn bè
+                            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Ticket Card 2 -->
+<div class="glass-panel rounded-2xl overflow-hidden flex flex-col md:flex-row relative group ticket-cutout ticket-cutout-right">
+<div class="md:w-1/3 h-48 md:h-auto relative overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="A stylized film poster for a moody noir thriller set in a futuristic obsidian-walled mansion. The lighting is low-key with intense purple and deep red accents reflecting off polished dark surfaces. A mysterious figure stands in silhouette against a massive panoramic window showing a rain-slicked city. Professional dark mode aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyzxURBGHNTADignQGnRU-9_BDrioy94_EHN1LX_EXJLmQrbImndCeSKMOnM30Xk1f1Szv_pmohbOHut6xV_HddXkIU6AqqgHOFpjvfPwXAc_N6OjberB1B5vxeK2ceKcOCXnnu4eOBqaGoNBhuO_lrn-W3qXaS5Ekxt1Ja-i78Pg4zj-TaEuwsTql9Y2WD5qLOfRVmn8794td0pa0rOQ8hpy_-tV-kgFrlbXN0_CwIbHX00tOtgCDMwHeFJamd3gBzai36Lrf9z4j"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent md:bg-gradient-to-r"></div>
+</div>
+<div class="flex-1 p-6 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="font-headline-md text-headline-md leading-tight mb-1">The AI Paradox</h3>
+<p class="text-secondary-container font-label-md">Dolby Cinema • Atmos</p>
+</div>
+<div class="bg-surface-container-highest px-3 py-1 rounded-lg text-xs font-bold text-on-surface uppercase tracking-wider">
+                                Đã Xác Nhận
+                            </div>
+</div>
+<div class="grid grid-cols-2 gap-y-4 gap-x-2 mb-6">
+<div>
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Ngày</p>
+<p class="font-bold">28 Tháng 10, 2024</p>
+</div>
+<div>
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Giờ</p>
+<p class="font-bold">10:15 PM</p>
+</div>
+<div>
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Phòng Chiếu</p>
+<p class="font-bold">Sảnh 3, Hàng B</p>
+</div>
+<div>
+<p class="text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Ghế</p>
+<p class="font-bold">04, 05</p>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between border-t border-glass-stroke pt-6">
+<div class="qr-gradient cursor-pointer hover:scale-105 transition-transform">
+<img class="w-16 h-16 bg-white p-1 rounded-lg" data-alt="Digital QR code for a movie ticket, displayed with high contrast on a glass-morphism surface. The QR code is crisp and white, set against a dark background that catches faint glimmers of red and purple light. The design feels futuristic and exclusive, perfectly aligned with the dark mode high-end UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8davR4H_0R4Qv9VFsuAI93NOwahxUdNR3rrkDCJvVgdMki06bsZqW1kFMOc0LfG9Hxs9GUWLfTGHjo-SCOV1CPU_aW24KEHdRRLA9J1sUCL_1MT79l4V48THBwyWpJ19hGaGrCb_roM4TjiCmXzFvWjNp5zZJGri8aXYzc4Mj7-6M_x-pGmEerYouSDVoNLRyCDYDDH4Qu6_c9zy1uq_L_NluctRdzDIFgScjtKgHzIXgl7sf_wD41BoTUAAXuPmcIDhx4LLnsxmP"/>
+</div>
+<div class="flex flex-col gap-2">
+<button class="bg-primary-container text-white px-4 py-2 rounded-xl font-label-md flex items-center gap-2 hover:brightness-110 transition-all red-glow-hover">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">add_to_home_screen</span>
+                                Thêm vào Ví
+                            </button>
+<button class="bg-white/5 text-on-surface px-4 py-2 rounded-xl font-label-md flex items-center gap-2 hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-[18px]">share</span>
+                                Gửi bạn bè
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Past Bookings Section -->
+<section class="mt-section-padding">
+<div class="flex justify-between items-end mb-8">
+<h2 class="font-headline-lg text-headline-lg">Trải Nghiệm Trước Đây</h2>
+<button class="text-primary-container font-label-md hover:underline">Xem Tất Cả Lịch Sử</button>
+</div>
+<div class="space-y-4">
+<!-- Past Ticket Item 1 -->
+<div class="glass-panel p-4 rounded-xl flex items-center gap-6 hover:bg-white/5 transition-colors cursor-pointer">
+<div class="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all" data-alt="Miniature movie poster for a drama film featuring a lone observer watching a vast starfield. Deep blues, blacks, and purples are punctuated by brilliant white starlight. High-end cinematic aesthetic, minimalist and clean for a dark mode interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkvHwHhYH9TylXWCh3ENja2s1rH0_UXM8B5dkd1cesFlWFcq7qiu-owL3qhnUcjZ70uqYjpBKZdvUAHdpqyl7q9-EQ6ervjRfD1eFcMteyNBj2LFxajkpT1Z1qhHGN9ztY-gn_wsWeXRcZOi9JcJ_wufZbzfSDYTrVcnu4EEoDfgkOI6vJusHWFtIe45GEVex7lHTgkF1TYg6X1ugoQjBLW6KYnESk9Bjc3Mt40Ksh9rNfrasjC8tmAbHFq8BqgpP-8uuWCIBd3noP"/>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-lg">Beyond the Horizon</h4>
+<p class="text-on-surface-variant text-sm">12 Tháng 10, 2024 • CineAI Downtown</p>
+<p class="text-on-surface-variant text-xs mt-1">Ghế: D1, D2</p>
+</div>
+<div class="text-right">
+<p class="text-on-surface-variant font-label-md">Tổng Cộng</p>
+<p class="font-bold">$34.50</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+</div>
+<!-- Past Ticket Item 2 -->
+<div class="glass-panel p-4 rounded-xl flex items-center gap-6 hover:bg-white/5 transition-colors cursor-pointer">
+<div class="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all" data-alt="Dark, atmospheric film poster for a psychological thriller. A maze of shadows and sharp light angles creates a sense of mystery. The color palette is restricted to deep blacks, grays, and a single striking red accent. High contrast, minimalist dark mode style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0z6kyoReRuZhpJEycK96bbZ1qpkN2jdPOprjNOcWP-Oyt-ZsLdj1LhncYQK2SYadNTK4cClvkaB0h5B7hZhMnEh5hDU3bZQUvZydfAisZqSbhUEToisgsUrUYcXGhC03JE_146ThGeRn3qfdoK0d4jp9nBlR2PKr3dnrPpDEL022pzSUy1x1MWNSOG_iAfF8MPlOQSh_CC-rGOZn_UZ-yB3yr5xfKZXOL_mGGRPvplV9TmbkFZjA2l7NYBV_zsr5__r1OBUNUv_9v"/>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-lg">Midnight Echo</h4>
+<p class="text-on-surface-variant text-sm">28 Tháng 9, 2024 • IMAX Grand</p>
+<p class="text-on-surface-variant text-xs mt-1">Ghế: J14</p>
+</div>
+<div class="text-right">
+<p class="text-on-surface-variant font-label-md">Tổng Cộng</p>
+<p class="font-bold">$22.00</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+</div>
+</div>
+</section>
+<!-- AI Concierge Prompt -->
+<div class="mt-section-padding p-8 rounded-3xl relative overflow-hidden glass-panel border-ai-accent/30">
+<div class="absolute top-0 right-0 w-64 h-64 bg-ai-accent/10 blur-[100px] rounded-full"></div>
+<div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+<div class="max-w-lg text-center md:text-left">
+<div class="flex items-center gap-2 mb-2 justify-center md:justify-start">
+<span class="material-symbols-outlined text-ai-accent" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<span class="text-ai-accent font-bold uppercase tracking-widest text-xs">Khám Phá AI</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg mb-4">Dựa trên vé của bạn, bạn sẽ thích 'Solaris Rebirth'.</h2>
+<p class="text-on-surface-variant">AI của chúng tôi đã phân tích sở thích của bạn với các bộ phim khoa học viễn tưởng ý tưởng cao và các suất chiếu IMAX. Bạn muốn tôi đặt chỗ cho buổi ra mắt tuần sau không?</p>
+</div>
+<button class="bg-white text-black px-8 py-4 rounded-full font-bold hover:scale-105 transition-transform flex items-center gap-3">
+                    Khám Phá Ngay
+                    <span class="material-symbols-outlined">auto_awesome</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="w-full py-section-padding px-margin-desktop bg-surface-container-lowest border-t border-glass-stroke max-w-container-max mx-auto">
+<div class="flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="text-center md:text-left">
+<div class="font-headline-md text-headline-md text-primary-container mb-2">CineAI</div>
+<p class="text-on-surface-variant text-label-sm">© 2026 CineAI. Trí tuệ Điện ảnh.</p>
+</div>
+<div class="flex gap-8 text-label-sm text-on-surface-variant">
+<a class="hover:text-primary-container transition-colors" href="#">Chính Sách Bảo Mật</a>
+<a class="hover:text-primary-container transition-colors" href="#">Điều Khoản Dịch Vụ</a>
+<a class="hover:text-primary-container transition-colors" href="#">Trung Tâm Trợ Giúp</a>
+<a class="hover:text-primary-container transition-colors" href="#">Liên Hệ</a>
+</div>
+</div>
+</footer>
+<!-- Interactive script for some micro-interactions -->
+<script>
+        document.querySelectorAll('.glass-panel').forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                card.style.setProperty('--mouse-x', `${x}px`);
+                card.style.setProperty('--mouse-y', `${y}px`);
+            });
+        });
+    </script>
+</body></html>

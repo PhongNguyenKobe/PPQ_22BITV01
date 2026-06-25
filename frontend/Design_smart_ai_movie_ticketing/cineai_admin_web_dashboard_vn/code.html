@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bảng Điều Khiển Quản Trị CineAI</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#333535",
+                        "secondary-container": "#7701d0",
+                        "on-surface": "#e2e2e2",
+                        "primary-fixed": "#ffdad5",
+                        "tertiary": "#c8c6c5",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#121414",
+                        "glass-stroke": "rgba(255, 255, 255, 0.1)",
+                        "surface-container-lowest": "#0d0f0f",
+                        "surface-container-low": "#1a1c1c",
+                        "inverse-primary": "#c0000c",
+                        "primary-fixed-dim": "#ffb4aa",
+                        "error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#6700b5",
+                        "secondary-fixed": "#efdbff",
+                        "on-secondary-container": "#dcb7ff",
+                        "background": "#121414",
+                        "secondary": "#dcb8ff",
+                        "on-tertiary-container": "#fbf8f8",
+                        "on-secondary-fixed": "#2c0051",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "surface-variant": "#333535",
+                        "primary-container": "#e50914",
+                        "tertiary-fixed": "#e5e2e1",
+                        "surface-container": "#1e2020",
+                        "outline": "#af8782",
+                        "on-primary-container": "#ffffff",
+                        "on-tertiary-fixed": "#1b1b1c",
+                        "on-primary": "#690003",
+                        "inverse-on-surface": "#2f3131",
+                        "inverse-surface": "#e2e2e2",
+                        "surface-dim": "#121414",
+                        "on-error": "#690005",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed": "#410001",
+                        "tertiary-container": "#737272",
+                        "on-background": "#e2e2e2",
+                        "surface-container-high": "#282a2a",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "secondary-fixed-dim": "#dcb8ff",
+                        "primary": "#ffb4aa",
+                        "on-primary-fixed-variant": "#930007",
+                        "on-tertiary": "#303030",
+                        "surface-tint": "#ffb4aa",
+                        "on-surface-variant": "#b3b3b3",
+                        "surface-bright": "#383939",
+                        "ai-accent": "#8a2be2",
+                        "on-secondary": "#480081",
+                        "outline-variant": "#5e3f3b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "48px",
+                        "gutter": "24px",
+                        "margin-mobile": "16px",
+                        "section-padding": "96px",
+                        "unit": "8px",
+                        "container-max": "1280px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Montserrat"],
+                        "headline-md": ["Montserrat"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["Montserrat"],
+                        "headline-xl-mobile": ["Montserrat"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-xl-mobile": ["36px", {"lineHeight": "44px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #121414;
+            color: #e2e2e2;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .glass-panel {
+            background: rgba(31, 31, 31, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .red-glow {
+            box-shadow: 0 0 20px -5px rgba(229, 9, 20, 0.3);
+        }
+
+        .ai-border {
+            position: relative;
+            background: linear-gradient(to right, #1a1c1c, #1a1c1c) padding-box,
+                        linear-gradient(45deg, #e50914, #7701d0) border-box;
+            border: 2px solid transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .active-tab-indicator {
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: #e50914;
+        }
+    </style>
+</head>
+<body class="custom-scrollbar overflow-x-hidden">
+<!-- Điều hướng bên -->
+<aside class="fixed left-0 top-0 h-full z-40 flex flex-col p-4 bg-surface-container-low border-r border-glass-stroke w-64 shadow-xl">
+<div class="mb-10 px-4">
+<h1 class="font-headline-sm text-headline-sm font-black text-primary-container">CineAI</h1>
+<div class="mt-4 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden border border-glass-stroke">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a senior system administrator in a dark studio. The lighting is dramatic with deep blacks and sharp highlights, featuring a subtle red rim light reflecting the brand's aesthetic. The subject has a sophisticated, tech-focused expression, appearing as a leader in cinematic technology." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJB4NH44Fgcq9UNLnUbaO1BZvDNGf32t-dMa45OzcJn8W5EiAPq1rr9TUxB3hsqrugmcJcFskvA6JX48T6PagkKofoYCLE7wmwRCM7ODiaphQqiY2DDKhQcNm1gcoe1e3nOYbiONlZ3xCOXR8eKz9axjluXffS-MZ4-ZnihTjSLphrdS4UsWwYS6-gM20Y9pMW6u4Ycqwi7E5RIWxH2xoCktzGLJzWmmD1iJME_dtdyg0hc3gTBrh_ZmlHjsN0uAS3ZqBqjGcCouQg"/>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Bảng Quản Trị</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Tổng Quan Hệ Thống</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-2">
+<a class="flex items-center gap-3 bg-secondary-container text-on-secondary-container rounded-lg px-4 py-3 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+            Tổng Quan
+        </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-variant rounded-lg px-4 py-3 transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">store</span>
+            Nhà Cung Cấp
+        </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-variant rounded-lg px-4 py-3 transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">rocket</span>
+            Đơn Đặt Vé
+        </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-variant rounded-lg px-4 py-3 transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">psychology</span>
+            Phân Tích AI
+        </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-variant rounded-lg px-4 py-3 transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">settings</span>
+            Cài Đặt
+        </a>
+</nav>
+<div class="mt-auto flex flex-col gap-2 pt-4 border-t border-glass-stroke">
+<button class="bg-primary-container text-on-primary-container rounded-lg py-3 font-label-md text-label-md red-glow transition-transform active:scale-95">
+            Tạo Báo Cáo
+        </button>
+<a class="flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2 text-sm" href="#">
+<span class="material-symbols-outlined">help</span> Trợ Giúp
+        </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:text-primary px-4 py-2 text-sm transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span> Đăng Xuất
+        </a>
+<div class="px-4 py-2 mt-2">
+<p class="text-[10px] text-on-surface-variant/60">© 2026 CineAI</p>
+</div>
+</div>
+</aside>
+<!-- Nội dung chính -->
+<main class="ml-64 p-margin-desktop min-h-screen">
+<!-- Tiêu đề -->
+<header class="flex justify-between items-center mb-10">
+<div>
+<h2 class="font-headline-lg text-headline-lg">Bảng Điều Khiển Điều Hành</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Trí tuệ điện ảnh thời gian thực và các chỉ số hiệu suất toàn cầu.</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center glass-panel px-4 py-2 rounded-full border border-glass-stroke">
+<span class="material-symbols-outlined text-primary text-xl">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48 text-on-surface placeholder:text-on-surface-variant" placeholder="Tìm kiếm nhật ký hệ thống..." type="text"/>
+</div>
+<button class="glass-panel w-10 h-10 flex items-center justify-center rounded-full border border-glass-stroke hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+</header>
+<!-- Lưới Chỉ số -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-12">
+<!-- Thẻ Chỉ số 1 -->
+<div class="glass-panel p-6 rounded-xl border border-glass-stroke">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 rounded-lg bg-primary-container/10 border border-primary-container/20">
+<span class="material-symbols-outlined text-primary-container">payments</span>
+</div>
+<span class="text-green-500 font-label-md text-xs flex items-center gap-1">
+                        +12.5% <span class="material-symbols-outlined text-xs">trending_up</span>
+</span>
+</div>
+<p class="text-on-surface-variant font-label-md text-xs uppercase tracking-widest">Tổng Doanh Thu</p>
+<h3 class="font-headline-md text-headline-md mt-1">$4,892,100</h3>
+<div class="h-1 w-full bg-surface-container-highest mt-4 rounded-full overflow-hidden">
+<div class="bg-primary-container h-full w-3/4"></div>
+</div>
+</div>
+<!-- Thẻ Chỉ số 2 -->
+<div class="glass-panel p-6 rounded-xl border border-glass-stroke">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 rounded-lg bg-secondary-container/10 border border-secondary-container/20">
+<span class="material-symbols-outlined text-secondary">confirmation_number</span>
+</div>
+<span class="text-green-500 font-label-md text-xs flex items-center gap-1">
+                        +8.2% <span class="material-symbols-outlined text-xs">trending_up</span>
+</span>
+</div>
+<p class="text-on-surface-variant font-label-md text-xs uppercase tracking-widest">Vé Đã Bán</p>
+<h3 class="font-headline-md text-headline-md mt-1">128.4k</h3>
+<div class="h-1 w-full bg-surface-container-highest mt-4 rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-1/2"></div>
+</div>
+</div>
+<!-- Thẻ Chỉ số 3 -->
+<div class="glass-panel p-6 rounded-xl border border-glass-stroke">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 rounded-lg bg-ai-accent/10 border border-ai-accent/20">
+<span class="material-symbols-outlined text-ai-accent">group</span>
+</div>
+<span class="text-primary font-label-md text-xs flex items-center gap-1">
+                        -2.4% <span class="material-symbols-outlined text-xs">trending_down</span>
+</span>
+</div>
+<p class="text-on-surface-variant font-label-md text-xs uppercase tracking-widest">Tăng Trưởng Người Dùng</p>
+<h3 class="font-headline-md text-headline-md mt-1">12,302</h3>
+<div class="h-1 w-full bg-surface-container-highest mt-4 rounded-full overflow-hidden">
+<div class="bg-ai-accent h-full w-1/3"></div>
+</div>
+</div>
+<!-- Thẻ Chỉ số 4 -->
+<div class="glass-panel p-6 rounded-xl border border-glass-stroke">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 rounded-lg bg-on-tertiary-fixed-variant/10 border border-on-tertiary-fixed-variant/20">
+<span class="material-symbols-outlined text-tertiary">location_on</span>
+</div>
+<span class="text-green-500 font-label-md text-xs flex items-center gap-1">
+                        Hoạt động <span class="material-symbols-outlined text-xs">check_circle</span>
+</span>
+</div>
+<p class="text-on-surface-variant font-label-md text-xs uppercase tracking-widest">Hiệu Suất Chi Nhánh</p>
+<h3 class="font-headline-md text-headline-md mt-1">94.2%</h3>
+<div class="h-1 w-full bg-surface-container-highest mt-4 rounded-full overflow-hidden">
+<div class="bg-tertiary h-full w-[94%]"></div>
+</div>
+</div>
+</section>
+<!-- Phần Bảng Điều Khiển Chính -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<!-- Biểu đồ Doanh thu & Các Tab -->
+<div class="lg:col-span-2 flex flex-col gap-gutter">
+<div class="glass-panel rounded-2xl border border-glass-stroke overflow-hidden flex flex-col">
+<div class="flex justify-between items-center p-6 border-b border-glass-stroke">
+<h4 class="font-headline-md text-headline-md">Xu Hướng Doanh Thu</h4>
+<div class="flex gap-2">
+<button class="px-3 py-1 rounded-full text-xs font-label-md bg-primary-container text-white">Ngày</button>
+<button class="px-3 py-1 rounded-full text-xs font-label-md hover:bg-surface-variant transition-colors">Tuần</button>
+<button class="px-3 py-1 rounded-full text-xs font-label-md hover:bg-surface-variant transition-colors">Tháng</button>
+</div>
+</div>
+<div class="p-6 h-[400px] relative">
+<!-- Simulated Chart SVG -->
+<svg class="w-full h-full overflow-visible" viewbox="0 0 800 300">
+<defs>
+<lineargradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#e50914" stop-opacity="0.3"></stop>
+<stop offset="100%" stop-color="#e50914" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<path d="M0,250 Q100,220 200,240 T400,100 T600,150 T800,50 L800,300 L0,300 Z" fill="url(#chartGradient)"></path>
+<path d="M0,250 Q100,220 200,240 T400,100 T600,150 T800,50" fill="none" stroke="#e50914" stroke-linecap="round" stroke-width="3"></path>
+<!-- Data points -->
+<circle cx="200" cy="240" fill="#e50914" r="4"></circle>
+<circle cx="400" cy="100" fill="#e50914" r="4"></circle>
+<circle cx="600" cy="150" fill="#e50914" r="4"></circle>
+<circle cx="800" cy="50" fill="#e50914" r="4"></circle>
+</svg>
+<!-- Chart Axis Labels -->
+<div class="absolute bottom-4 left-6 right-6 flex justify-between text-[10px] font-label-sm text-on-surface-variant tracking-widest uppercase">
+<span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+</div>
+</div>
+</div>
+<!-- Các Tab Quản Lý Bento Grid -->
+<div class="glass-panel rounded-2xl border border-glass-stroke">
+<div class="flex border-b border-glass-stroke relative">
+<button class="flex-1 py-4 font-headline-sm text-sm text-on-surface relative" onclick="switchTab('movies')">
+                        Phim Ảnh
+                        <div class="active-tab-indicator" id="tab-movies-indicator"></div>
+</button>
+<button class="flex-1 py-4 font-headline-sm text-sm text-on-surface-variant relative" onclick="switchTab('users')">
+                        Người Dùng
+                        <div class="active-tab-indicator hidden" id="tab-users-indicator"></div>
+</button>
+<button class="flex-1 py-4 font-headline-sm text-sm text-on-surface-variant relative" onclick="switchTab('branches')">
+                        Chi Nhánh
+                        <div class="active-tab-indicator hidden" id="tab-branches-indicator"></div>
+</button>
+</div>
+<div class="p-6">
+<div class="space-y-4" id="content-movies">
+<div class="flex items-center justify-between p-4 rounded-xl bg-surface-container-high border border-glass-stroke hover:border-primary/40 transition-colors cursor-pointer group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-16 rounded bg-surface overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A cinematic movie poster of a futuristic cyberpunk thriller. A lone silhouette walks through a neon-drenched Tokyo street at night, with giant holograms of dragons flying above. The color palette is heavy on electric blues and the brand's primary red. High contrast, sharp detail." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB8ITNpM8ES62TfheJ0Ct6u0TnHM84BdHB-prtJSqVq3NMiMdjX3EiQQvKz9Wt8DfPbm8DWPW5MIJx6PbO2qwStqoyJqnmTUpm4zZEU3pxmMXXWdQqJZ1z_QznKF-rhKtIDDHAojnOGzQR2AxojYIq_cT6W2bF5iesh_Wu_6CmRInKmPq16vdLuiKZNvZKbjCJ0BcnCy6wiLinw8uVCmicBaMreU6rCeR0ZANI6q8i8VsrQcooEwUkqWGAYiySTHTYavj6489aDqdRZ"/>
+</div>
+<div>
+<h5 class="font-bold text-on-surface">Chân Trời Neon: 2099</h5>
+<p class="text-xs text-on-surface-variant">Khoa Học Viễn Tưởng • 2h 15p • PG-13</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xs font-bold text-green-500">$1.2M Tổng thu</p>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">edit</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-4 rounded-xl bg-surface-container-high border border-glass-stroke hover:border-primary/40 transition-colors cursor-pointer group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-16 rounded bg-surface overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A movie poster for an epic dark fantasy film. A massive obsidian throne sits in a desolate, snowy landscape. Ethereal purple neural-network-inspired glows emanate from the ground. The atmosphere is cold, majestic, and mysterious. Heavy cinematic grain and professional color grading." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXTAi2oDhr1pHwvNX0wDe9qUxptT-o51cYE-hFPdXpGIoY_012D9yT1yrzroJd8xGsk0ZwJA0-KGcH0HKJuUHzfBIgRdo_tN_PXAtnET07VkqLyFs6yLv5Cq0lLy3m3_mTsuHlByUNovORMnmoovj7DDd0BHVu3KnlE2vWuLkyq1xcMdxl9ejuHlDC_Dv5U_XR-v7IjJJwYqJR-EojB6UEdbC4u_i166v2-w3odn6jhNCO6F5VYfyKUfaves1l3nl_G4OOuC570n1d"/>
+</div>
+<div>
+<h5 class="font-bold text-on-surface">Ngai Vàng Hắc Thạch</h5>
+<p class="text-xs text-on-surface-variant">Kỳ Ảo • 2h 45p • R</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xs font-bold text-green-500">$840k Tổng thu</p>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">edit</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bảng Thông Tin AI -->
+<div class="lg:col-span-1 flex flex-col gap-gutter">
+<div class="ai-border rounded-2xl p-6 flex flex-col h-full shadow-2xl relative overflow-hidden">
+<!-- Subtle background pulse -->
+<div class="absolute -top-10 -right-10 w-40 h-40 bg-ai-accent/20 rounded-full blur-[60px] animate-pulse"></div>
+<div class="flex items-center gap-3 mb-8">
+<div class="w-10 h-10 rounded-full bg-ai-accent flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">psychology</span>
+</div>
+<div>
+<h4 class="font-headline-md text-lg">Thông Tin AI</h4>
+<p class="text-[10px] text-ai-accent font-bold uppercase tracking-widest">Xu Hướng Dự Đoán</p>
+</div>
+</div>
+<div class="space-y-6 flex-1">
+<div class="bg-surface/40 p-4 rounded-xl border border-glass-stroke">
+<h5 class="font-label-md text-sm text-on-surface mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">show_chart</span>
+                            Dự Báo Cuối Tuần
+                        </h5>
+<p class="text-body-md text-sm text-on-surface-variant">AI dự đoán mức <span class="text-green-500 font-bold">tăng 15%</span> doanh số vé cho "Chân Trời Neon" dựa trên tâm lý xã hội và dữ liệu đặt trước.</p>
+</div>
+<div class="bg-surface/40 p-4 rounded-xl border border-glass-stroke">
+<h5 class="font-label-md text-sm text-on-surface mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-sm">theater_comedy</span>
+                            Khung Giờ Chiếu Tối Ưu
+                        </h5>
+<p class="text-body-md text-sm text-on-surface-variant">Tăng các suất chiếu lúc 21:00 tại <span class="text-secondary font-bold">Chi Nhánh Trung Tâm</span> có thể cải thiện tỷ lệ lấp đầy thêm 22%.</p>
+</div>
+<div class="bg-surface/40 p-4 rounded-xl border border-glass-stroke">
+<h5 class="font-label-md text-sm text-on-surface mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-ai-accent text-sm">auto_awesome</span>
+                            Cảnh Báo Giá Năng Động
+                        </h5>
+<p class="text-body-md text-sm text-on-surface-variant">Giá tăng cường đang áp dụng cho các suất chiếu IMAX. Mức chênh lệch trung bình: <span class="font-bold">+$4.50</span> mỗi ghế.</p>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-glass-stroke">
+<button class="w-full py-3 rounded-lg bg-surface-variant text-on-surface font-label-md text-xs uppercase tracking-tighter hover:bg-ai-accent/20 transition-all border border-glass-stroke">
+                        Khám Phá Phân Tích Đầy Đủ
+                    </button>
+</div>
+</div>
+<!-- Thông tin phụ -->
+<div class="glass-panel p-6 rounded-2xl border border-glass-stroke flex flex-col items-center justify-center text-center">
+<span class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 opacity-50">data_exploration</span>
+<h5 class="font-headline-md text-sm">Phát Hiện Bất Thường</h5>
+<p class="text-xs text-on-surface-variant mt-2 px-4">Phát hiện sự gia tăng đột biến người dùng bất thường tại khu vực thị trường Châu Á. Xác minh chiến dịch khu vực.</p>
+<button class="mt-4 text-xs font-bold text-primary hover:underline">Xem Chi Tiết Nhật Ký</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Simple Tab Interactivity -->
+<script>
+    function switchTab(tab) {
+        // Cập nhật nhãn
+        const tabs = ['movies', 'users', 'branches'];
+        const container = document.getElementById('content-movies');
+        
+        tabs.forEach(t => {
+            const btn = document.querySelector(`button[onclick="switchTab('${t}')"]`);
+            const indicator = document.getElementById(`tab-${t}-indicator`);
+            if (t === tab) {
+                btn.classList.add('text-on-surface');
+                btn.classList.remove('text-on-surface-variant');
+                indicator.classList.remove('hidden');
+            } else {
+                btn.classList.remove('text-on-surface');
+                btn.classList.add('text-on-surface-variant');
+                indicator.classList.add('hidden');
+            }
+        });
+
+        // Giả lập cập nhật nội dung
+        if (tab === 'users') {
+            container.innerHTML = `
+                <div class="p-8 text-center opacity-60">
+                    <span class="material-symbols-outlined text-4xl mb-2">person_search</span>
+                    <p class="text-sm font-body-md">Đang tải cơ sở dữ liệu người dùng...</p>
+                </div>
+            `;
+        } else if (tab === 'branches') {
+             container.innerHTML = `
+                <div class="p-8 text-center opacity-60">
+                    <span class="material-symbols-outlined text-4xl mb-2">map</span>
+                    <p class="text-sm font-body-md">Đang khởi tạo bản đồ mạng lưới chi nhánh...</p>
+                </div>
+            `;
+        } else {
+            location.reload(); // Đặt lại nhanh cho bản demo
+        }
+    }
+</script>
+</body></html>

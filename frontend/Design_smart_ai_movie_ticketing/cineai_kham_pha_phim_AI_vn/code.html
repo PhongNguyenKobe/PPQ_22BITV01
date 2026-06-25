@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Phim | CineAI</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-highest": "#333535",
+                    "secondary-container": "#7701d0",
+                    "on-surface": "#e2e2e2",
+                    "primary-fixed": "#ffdad5",
+                    "tertiary": "#c8c6c5",
+                    "on-error-container": "#ffdad6",
+                    "surface": "#121414",
+                    "glass-stroke": "rgba(255, 255, 255, 0.1)",
+                    "surface-container-lowest": "#0d0f0f",
+                    "surface-container-low": "#1a1c1c",
+                    "inverse-primary": "#c0000c",
+                    "primary-fixed-dim": "#ffb4aa",
+                    "error-container": "#93000a",
+                    "on-secondary-fixed-variant": "#6700b5",
+                    "secondary-fixed": "#efdbff",
+                    "on-secondary-container": "#dcb7ff",
+                    "background": "#121414",
+                    "secondary": "#dcb8ff",
+                    "on-tertiary-container": "#fbf8f8",
+                    "on-secondary-fixed": "#2c0051",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "surface-variant": "#333535",
+                    "primary-container": "#e50914",
+                    "tertiary-fixed": "#e5e2e1",
+                    "surface-container": "#1e2020",
+                    "outline": "#af8782",
+                    "on-primary-container": "#ffffff",
+                    "on-tertiary-fixed": "#1b1b1c",
+                    "on-primary": "#690003",
+                    "inverse-on-surface": "#2f3131",
+                    "inverse-surface": "#e2e2e2",
+                    "surface-dim": "#121414",
+                    "on-error": "#690005",
+                    "error": "#ffb4ab",
+                    "on-primary-fixed": "#410001",
+                    "tertiary-container": "#737272",
+                    "on-background": "#e2e2e2",
+                    "surface-container-high": "#282a2a",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "secondary-fixed-dim": "#dcb8ff",
+                    "primary": "#ffb4aa",
+                    "on-primary-fixed-variant": "#930007",
+                    "on-tertiary": "#303030",
+                    "surface-tint": "#ffb4aa",
+                    "on-surface-variant": "#b3b3b3",
+                    "surface-bright": "#383939",
+                    "ai-accent": "#8a2be2",
+                    "on-secondary": "#480081",
+                    "outline-variant": "#5e3f3b"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-desktop": "48px",
+                    "gutter": "24px",
+                    "margin-mobile": "16px",
+                    "section-padding": "96px",
+                    "unit": "8px",
+                    "container-max": "1280px"
+            },
+            "fontFamily": {
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-lg": ["Montserrat"],
+                    "headline-md": ["Montserrat"],
+                    "label-md": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "headline-xl": ["Montserrat"],
+                    "headline-xl-mobile": ["Montserrat"]
+            },
+            "fontSize": {
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-xl-mobile": ["36px", {"lineHeight": "44px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #121414;
+            color: #e2e2e2;
+            overflow-x: hidden;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(31, 31, 31, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .ai-glow {
+            box-shadow: 0 0 20px -5px rgba(229, 9, 20, 0.3);
+        }
+        .gradient-border {
+            position: relative;
+            background: #1a1c1c;
+            background-clip: padding-box;
+            border: 2px solid transparent;
+        }
+        .gradient-border::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            z-index: -1;
+            margin: -2px;
+            border-radius: inherit;
+            background: linear-gradient(45deg, #e50914, #7701d0);
+            animation: border-rotate 4s linear infinite;
+        }
+        @keyframes border-rotate {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+        .movie-card-hover:hover .hover-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .hover-content {
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md antialiased">
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-50 bg-surface/60 backdrop-blur-[32px] border-b border-glass-stroke h-[80px]">
+<div class="max-w-container-max mx-auto px-margin-desktop h-full flex items-center justify-between">
+<div class="flex items-center gap-8">
+<a class="font-headline-md text-headline-md font-bold text-primary-container" href="/">CineAI</a>
+<nav class="hidden md:flex items-center gap-6">
+<a class="font-body-md text-body-md text-on-surface border-b-2 border-primary-container font-bold pb-1" href="/movies">Phim</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" href="/showtimes">Lịch Chiếu</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" href="/ai-discovery">Khám Phá AI</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" href="/theaters">Rạp Phim</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="bg-surface-container-low border border-glass-stroke rounded-full py-2 pl-10 pr-4 text-on-surface focus:outline-none focus:ring-1 focus:ring-primary-container w-64" placeholder="Tìm kiếm phim..." type="text"/>
+</div>
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-label-md text-label-md font-bold hover:scale-105 active:scale-95 transition-all ai-glow">
+                Đăng Nhập
+            </button>
+</div>
+</div>
+</header>
+<main class="pt-[80px]">
+<!-- Hero Search Section -->
+<section class="relative h-[400px] flex items-center overflow-hidden">
+<div class="relative z-10 max-w-container-max mx-auto px-margin-desktop w-full text-center">
+<h1 class="font-headline-xl text-headline-xl mb-6 text-on-surface">Trải Nghiệm Trí Tuệ <span class="text-primary-container">Điện Ảnh</span></h1>
+<div class="max-w-2xl mx-auto relative group">
+<div class="absolute -inset-1 bg-gradient-to-r from-primary-container to-secondary-container rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+<div class="relative flex items-center glass-panel rounded-full p-2">
+<span class="material-symbols-outlined ml-4 text-primary-container" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<input class="bg-transparent border-none focus:ring-0 w-full text-on-surface px-4 py-3 placeholder:text-on-surface-variant" placeholder="Thử 'Tìm phim trinh thám về AI'..." type="text"/>
+<button class="bg-primary-container text-on-primary-container px-8 py-3 rounded-full font-bold hover:bg-opacity-90 transition-all flex items-center gap-2">
+                        Khám Phá
+                    </button>
+</div>
+</div>
+<div class="mt-8 flex flex-wrap justify-center gap-3">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Xu hướng:</span>
+<a class="px-4 py-1 rounded-full glass-panel text-on-surface text-label-md hover:bg-white/10 transition-colors" href="#">Interstellar 2</a>
+<a class="px-4 py-1 rounded-full glass-panel text-on-surface text-label-md hover:bg-white/10 transition-colors" href="#">Mạng Lưới Thần Kinh</a>
+<a class="px-4 py-1 rounded-full glass-panel text-on-surface text-label-md hover:bg-white/10 transition-colors" href="#">Neo-Tokyo</a>
+</div>
+</div>
+</section>
+<!-- Filters Section -->
+<section class="py-12 sticky top-[80px] z-40 bg-surface/80 backdrop-blur-md">
+<div class="max-w-container-max mx-auto px-margin-desktop">
+<div class="flex items-center gap-4 overflow-x-auto hide-scrollbar pb-2">
+<button class="flex-shrink-0 px-6 py-2 rounded-lg bg-primary-container text-on-primary-container font-bold">Tất Cả Phim</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-lg glass-panel text-on-surface hover:bg-white/10 transition-colors">Hành Động</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-lg glass-panel text-on-surface hover:bg-white/10 transition-colors">Viễn Tưởng</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-lg glass-panel text-on-surface hover:bg-white/10 transition-colors">Tâm Lý</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-lg glass-panel text-on-surface hover:bg-white/10 transition-colors">Kịch Tính</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-lg glass-panel text-on-surface hover:bg-white/10 transition-colors">Cyberpunk</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-lg glass-panel text-on-surface hover:bg-white/10 transition-colors">Neon-Noir</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-lg glass-panel text-on-surface hover:bg-white/10 transition-colors">Phim Tài Liệu</button>
+<div class="ml-auto flex items-center gap-2 pl-4">
+<span class="font-label-md text-label-md text-on-surface-variant">Sắp xếp:</span>
+<select class="bg-transparent border border-glass-stroke rounded-lg text-on-surface font-label-md py-1 px-3 outline-none">
+<option>Độ Phù Hợp AI</option>
+<option>Ngày Phát Hành</option>
+<option>Phổ Biến</option>
+</select>
+</div>
+</div>
+</div>
+</section>
+<!-- Recommended Section -->
+<section class="py-section-padding bg-surface-container-lowest">
+<div class="max-w-container-max mx-auto px-margin-desktop">
+<div class="flex items-center justify-between mb-12">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface flex items-center gap-3">
+<span class="material-symbols-outlined text-ai-accent" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                        Gợi Ý Cho Bạn
+                    </h2>
+<p class="text-on-surface-variant mt-2">Tuyển tập được AI lựa chọn dựa trên hồ sơ xem phim của bạn.</p>
+</div>
+<a class="text-primary-container font-label-md hover:underline" href="#">Xem Tất Cả</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Featured AI Rec 1 -->
+<div class="group relative rounded-2xl overflow-hidden aspect-[16/9] gradient-border">
+<img alt="Techno-Dystopia: Final Signal" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuApX8V3ac0arkT6yk4kzv8Yw7ILjPdcDl879XQvy3C9I2bt0qO4ksMSkGKyM4yQnmcCtTvEX1oDLfr1O2aZnTYg3wQ9VBnBBnl4KLMfkg0R_LqPzSH-YxlvxiLSyXrVFUTbbKBCS2gWfT2o7SGmREu5rzFkfKAPJc6ZqlgQ1-ZjWchKP5pRsXzqGX90XfLy7FPQicSCMja312CH216FNHMpZ61TdiwsL7akjZZ-CGT-4de7l6oc9iVO8UoAQCJHsjIOzD_ki3m0VQHU"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent p-8 flex flex-col justify-end">
+<div class="flex items-center gap-2 mb-4">
+<span class="bg-secondary-container text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">AI Lựa Chọn Hàng Đầu</span>
+<span class="text-white/80 text-sm">98% Tương Thích</span>
+</div>
+<h3 class="font-headline-lg text-headline-lg text-white mb-2">Techno-Dystopia: Tín Hiệu Cuối</h3>
+<p class="text-on-surface-variant text-body-md line-clamp-2 mb-6">Trong một thế giới nơi ký ức được giao dịch như tiền tệ, một thám tử đã khám phá ra một âm mưu đe dọa chính sự tồn tại của con người.</p>
+<div class="flex items-center gap-4">
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-lg font-bold">Xem Trailer</button>
+<button class="glass-panel text-white px-6 py-2 rounded-lg font-bold">Chi Tiết</button>
+</div>
+</div>
+</div>
+<!-- Featured AI Rec 2 -->
+<div class="group relative rounded-2xl overflow-hidden aspect-[16/9] gradient-border">
+<img alt="The Algorithm's Echo" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBKGmSMrGByy2OJMqN0m9EMoxzjyatedzRHy4_2jzbNm103d-rNfYmTRIsK9aCUl6vDhdxoxHJ8r4ebmTn9qw5frwtVPSDwa0ZzGwJtryO-Ai17TtL9_vmfCsXTtJaRkG5b1A_94BaAd2MZwoXRgfKSH0qKUMJrDO8-DcSjqd7vcOE44R6GmmUzhQRfcZJ_ldfXW4Xz2oZCT-J5MrMjI9WZO2HrXUZmgEW-k6a5Qu_KJGqP4FgU4AGiG7x8CGJWtcWx0FFmUMOKUn7"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent p-8 flex flex-col justify-end">
+<div class="flex items-center gap-2 mb-4">
+<span class="bg-secondary-container text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">Tuyệt Tác</span>
+<span class="text-white/80 text-sm">95% Tương Thích</span>
+</div>
+<h3 class="font-headline-lg text-headline-lg text-white mb-2">Tiếng Vang Của Thuật Toán</h3>
+<p class="text-on-surface-variant text-body-md line-clamp-2 mb-6">Một bộ phim tâm lý ly kỳ về một trợ lý AI bắt đầu có cảm xúc, dẫn đến trò chơi mèo vờn chuột chết chóc với người tạo ra nó.</p>
+<div class="flex items-center gap-4">
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-lg font-bold">Xem Trailer</button>
+<button class="glass-panel text-white px-6 py-2 rounded-lg font-bold">Chi Tiết</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Movie Grid Section -->
+<section class="py-section-padding">
+<div class="max-w-container-max mx-auto px-margin-desktop">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-12">Khám Phá Phim</h2>
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-gutter">
+<!-- Movie Card 1 -->
+<div class="movie-card-hover relative aspect-[2/3] rounded-xl overflow-hidden group">
+<img alt="Android Dreams" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAIzDZyiO4JqUEg_LDomlwA8haE6bBgMLvOdO2ZRHCvG-oBi841ymz-C4vv7lEiHWaVmWXDbOpdb-IgAVOtUH7vlK70p2ZQqzrXOKn6rjL3n8gobVlVpLNvG1rbUqGd_iGTA1fSJfbeTeWNAQ3LXP2uFuC6oXp78nqR4fu9g_jnAOvHpz8Cv1gUZQ5-HGv3SntcXdHwwFNcu_pqjLzzpe3hoXP9K7liTJ7p_zW6rnF9aZJ8y0wMljdK0cGR2Ph-tQPBWoEFyvYcIq9G"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent p-4 flex flex-col justify-end">
+<div class="hover-content">
+<div class="flex justify-between items-center mb-2">
+<span class="text-ai-accent text-xs font-bold uppercase">Viễn Tưởng</span>
+<div class="flex items-center gap-1 bg-surface-container-highest px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-white text-[12px] font-bold">8.9</span>
+</div>
+</div>
+<h4 class="font-headline-md text-body-lg text-white mb-4">Giấc Mơ Robot</h4>
+<button class="w-full bg-primary-container text-on-primary-container py-2 rounded-lg text-label-md font-bold mb-2">Chi Tiết</button>
+</div>
+</div>
+</div>
+<!-- Movie Card 2 -->
+<div class="movie-card-hover relative aspect-[2/3] rounded-xl overflow-hidden group">
+<img alt="Midnight Protocol" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBQq3hjbey9QuVRAqHjbPlDMs9o_2uoS10vTEd1QhtEllHdwofE4dh0ptob2HmxdsRQ3iDtUSXZlUjnJULEgLkkZE85JYw-8GE7PRm1yRDJe2khrlM9p8coOaZXwGcjBPyWLLDHrMoYwVxxd3B-1p01MrmsvbDvlNu9Uns-uMS4K14VdxG0oqROAkMCv3OXDEA_ymtSj9llU82oWJdQP3WInOCg7rik16amMlDIxFMN_z0A_2CDse0dw7J67PERqdqPcZ8_3Lkiq9N"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent p-4 flex flex-col justify-end">
+<div class="hover-content">
+<div class="flex justify-between items-center mb-2">
+<span class="text-ai-accent text-xs font-bold uppercase">Noir</span>
+<div class="flex items-center gap-1 bg-surface-container-highest px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-white text-[12px] font-bold">9.2</span>
+</div>
+</div>
+<h4 class="font-headline-md text-body-lg text-white mb-4">Giao Thức Nửa Đêm</h4>
+<button class="w-full bg-primary-container text-on-primary-container py-2 rounded-lg text-label-md font-bold mb-2">Chi Tiết</button>
+</div>
+</div>
+</div>
+<!-- Movie Card 3 -->
+<div class="movie-card-hover relative aspect-[2/3] rounded-xl overflow-hidden group">
+<img alt="Orbital Ring" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuChjS6uOkjk5FW6yAeEfkxSlMWrNv01Qsuy_hQOc29WIbwdXHrBUdZ2_LjE57cfm9Rq_zzg1DQTeiiDHXtv4Ad1TZUeyzeKz6qgfKudSwflwrjNDnB6j-mofVELGWKUvdeYO4kPa2JgWql6SOEG1YZqrgDs5mPw-GENRaEn0ldGJqDWWsGROOL0gK7uaED7sOmRZgLYbEkrUMi6TCcEPva25ZNAr2iB0eP_pSfsW0EUfxR23GKVz9I1EG2QuNKBWYwD16xXzg5E3g0n"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent p-4 flex flex-col justify-end">
+<div class="hover-content">
+<div class="flex justify-between items-center mb-2">
+<span class="text-ai-accent text-xs font-bold uppercase">Sử Thi</span>
+<div class="flex items-center gap-1 bg-surface-container-highest px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-white text-[12px] font-bold">8.7</span>
+</div>
+</div>
+<h4 class="font-headline-md text-body-lg text-white mb-4">Vành Đai Quỹ Đạo</h4>
+<button class="w-full bg-primary-container text-on-primary-container py-2 rounded-lg text-label-md font-bold mb-2">Chi Tiết</button>
+</div>
+</div>
+</div>
+<!-- Movie Card 4 -->
+<div class="movie-card-hover relative aspect-[2/3] rounded-xl overflow-hidden group">
+<img alt="Velocity Core" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKEUo2eg26JqYI-U7JOe7bbTRbqcPBpxBdtpxaAfOK_nn6LT5ddL2utyqqKpNJHc1mFtEzN8ZZYAMu_oVmF-h6lLxgNFouRoge1S8lODdXCkxoQhVNMDCHSEeJn35gEGZ1gkQeKPQ4Zf8BWZDrmDkrgWuzwbAcolBBgqjtyW7bC2VKMJQak-qmr6HgVFGpOR995YaLGQH5NKJpjS_a6iqpyc3sVKu-QUBozasbsWzC8sm-AIOSRXl4B6eLnakZegiqh_83bCH4HDUt"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent p-4 flex flex-col justify-end">
+<div class="hover-content">
+<div class="flex justify-between items-center mb-2">
+<span class="text-ai-accent text-xs font-bold uppercase">Hành Động</span>
+<div class="flex items-center gap-1 bg-surface-container-highest px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-white text-[12px] font-bold">7.5</span>
+</div>
+</div>
+<h4 class="font-headline-md text-body-lg text-white mb-4">Lõi Tốc Độ</h4>
+<button class="w-full bg-primary-container text-on-primary-container py-2 rounded-lg text-label-md font-bold mb-2">Chi Tiết</button>
+</div>
+</div>
+</div>
+<!-- Movie Card 5 -->
+<div class="movie-card-hover relative aspect-[2/3] rounded-xl overflow-hidden group">
+<img alt="Fracture Point" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbMyNSFUEVGuh7jS8oe4LLT2azu65JNzDhdj85wJbdJRIn48wHJGvFNXu0dK6yf6_0nw7JxcGHZh5vxlZlmfvOOvTEQJknCspzAqWP7JRcOMleXZeT8AVj5v7YFKXtLNGXXvKWgJZsYy1YnMA2nPkxYhZKk6Qn4EJJTIlK5FgMXjUjG-DPXrEWccTWsYQG2Dsch_NC1fl-wnuIvvM39a-DQucHfWEkdlMBUFmtNbieZci8l3ZT3vDfgdOL7w4NbnMUtnuDXYINjKcv"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent p-4 flex flex-col justify-end">
+<div class="hover-content">
+<div class="flex justify-between items-center mb-2">
+<span class="text-ai-accent text-xs font-bold uppercase">Kịch Tính</span>
+<div class="flex items-center gap-1 bg-surface-container-highest px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-white text-[12px] font-bold">8.1</span>
+</div>
+</div>
+<h4 class="font-headline-md text-body-lg text-white mb-4">Điểm Rạn Nứt</h4>
+<button class="w-full bg-primary-container text-on-primary-container py-2 rounded-lg text-label-md font-bold mb-2">Chi Tiết</button>
+</div>
+</div>
+</div>
+<!-- Row 2 Card 6 -->
+<div class="movie-card-hover relative aspect-[2/3] rounded-xl overflow-hidden group">
+<img alt="Iron Skies" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlOLnW-XJQZeEEWQLdGX4FJxHULjKbEMggITA7XxOuJlk5kb1i65qOrT-nCna6VyNz3Vl0_j5i8F9Ct1_ThONBPj8tcrLtZCJQ_4Cd3710TH2t1o6bL33lmuYG5iZbwJJEcyjaU-UiLCbC0qeLewQrnKygQQbS9h6cPP2TS9Tx7YxcWq_Zy31PxuSYPYIIeX5NFi4hGL0H9RmIWKstgvRXCg0TApe0PJsFPLLOjBCVFrCAPK8Or5niQZTWggd16AwmqkA_L77x4SkS"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent p-4 flex flex-col justify-end">
+<div class="hover-content">
+<div class="flex justify-between items-center mb-2">
+<span class="text-ai-accent text-xs font-bold uppercase">Steampunk</span>
+<div class="flex items-center gap-1 bg-surface-container-highest px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-white text-[12px] font-bold">8.4</span>
+</div>
+</div>
+<h4 class="font-headline-md text-body-lg text-white mb-4">Bầu Trời Sắt</h4>
+<button class="w-full bg-primary-container text-on-primary-container py-2 rounded-lg text-label-md font-bold mb-2">Chi Tiết</button>
+</div>
+</div>
+</div>
+<!-- Movie Card 7 -->
+<div class="movie-card-hover relative aspect-[2/3] rounded-xl overflow-hidden group">
+<img alt="Ghost in the Shell" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDS7dO-GXBxqLwUT2aGkBC_7wlsp9-wPiafTqI6Kn15Zipxdx-yD6Ga_-DmOFUoo5E7MClWa1QgIMMCTuSozYxGnSEWR1XyuEH00piyfI_OF1F0I1i5I5TcSiBW5DHCQA8Stqpd2noeQBjvorcke-YieYdRw6KfJV9k5NMFrlUolyMbs6QceO4x30iATGSSiepK_TwKNkZUi1SEX_FhXbJ8xVkr08CPMMxbo5uAmD6dy7N-P7kGQupJkEaMhfsPbEX_ibwoWuECbB2V"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent p-4 flex flex-col justify-end">
+<div class="hover-content">
+<div class="flex justify-between items-center mb-2">
+<span class="text-ai-accent text-xs font-bold uppercase">Kinh Dị</span>
+<div class="flex items-center gap-1 bg-surface-container-highest px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-white text-[12px] font-bold">6.8</span>
+</div>
+</div>
+<h4 class="font-headline-md text-body-lg text-white mb-4">Vỏ Bọc Linh Hồn</h4>
+<button class="w-full bg-primary-container text-on-primary-container py-2 rounded-lg text-label-md font-bold mb-2">Chi Tiết</button>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-16 flex justify-center">
+<button class="px-8 py-3 rounded-full border border-glass-stroke text-on-surface hover:bg-white/10 transition-all font-bold">Tải Thêm Trải Nghiệm</button>
+</div>
+</div>
+</section>
+<!-- AI Assistant Mini-Teaser -->
+<section class="py-section-padding px-margin-desktop">
+<div class="max-w-4xl mx-auto glass-panel rounded-3xl p-8 md:p-12 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-64 h-64 bg-primary-container/10 blur-[100px]"></div>
+<div class="relative z-10 flex flex-col md:flex-row items-center gap-8">
+<div class="w-24 h-24 rounded-full bg-surface-container flex items-center justify-center border-2 border-primary-container ai-glow">
+<span class="material-symbols-outlined text-5xl text-primary-container" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div class="text-center md:text-left flex-1">
+<h3 class="font-headline-lg text-headline-lg mb-2">Bạn không biết xem gì?</h3>
+<p class="text-on-surface-variant text-body-lg">Hãy trò chuyện với CineAI. Công cụ thần kinh của chúng tôi hiểu rõ tâm trạng, sở thích và mong muốn điện ảnh tiềm thức của bạn.</p>
+</div>
+<button class="bg-primary-container text-on-primary-container px-8 py-4 rounded-full font-bold hover:scale-105 transition-transform whitespace-nowrap">
+                    Bắt Đầu Trợ Lý
+                </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-section-padding px-margin-desktop bg-surface-container-lowest border-t border-glass-stroke">
+<div class="max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="flex flex-col items-center md:items-start gap-4">
+<span class="font-headline-md text-headline-md text-primary-container font-black">CineAI</span>
+<p class="font-label-sm text-label-sm text-on-surface-variant max-w-xs text-center md:text-left">
+                Định nghĩa lại trải nghiệm điện ảnh thông qua lăng kính của trí tuệ nhân tạo.
+            </p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">© 2026 CineAI. Trí Tuệ Điện Ảnh.</span>
+</div>
+<div class="flex flex-wrap justify-center gap-8">
+<div class="flex flex-col gap-3">
+<span class="text-white font-bold text-label-md">Nền Tảng</span>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary-container transition-colors" href="#">Chính Sách Bảo Mật</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary-container transition-colors" href="#">Điều Khoản Dịch Vụ</a>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-white font-bold text-label-md">Hỗ Trợ</span>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary-container transition-colors" href="#">Trung Tâm Trợ Giúp</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary-container transition-colors" href="#">Liên Hệ</a>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-white font-bold text-label-md">Xã Hội</span>
+<div class="flex gap-4">
+<a class="text-on-surface-variant hover:text-primary-container" href="#"><span class="material-symbols-outlined">brand_awareness</span></a>
+<a class="text-on-surface-variant hover:text-primary-container" href="#"><span class="material-symbols-outlined">connected_tv</span></a>
+<a class="text-on-surface-variant hover:text-primary-container" href="#"><span class="material-symbols-outlined">podcasts</span></a>
+</div>
+</div>
+</div>
+</div>
+</footer>
+<script>
+    // Micro-interaction for hover states and button scales
+    document.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('mousedown', () => btn.classList.add('scale-95'));
+        btn.addEventListener('mouseup', () => btn.classList.remove('scale-95'));
+        btn.addEventListener('mouseleave', () => btn.classList.remove('scale-95'));
+    });
+
+    // Filter button toggle
+    const filterBtns = document.querySelectorAll('.flex-shrink-0');
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            filterBtns.forEach(b => {
+                b.classList.remove('bg-primary-container', 'text-on-primary-container', 'font-bold');
+                b.classList.add('glass-panel', 'text-on-surface');
+            });
+            btn.classList.add('bg-primary-container', 'text-on-primary-container', 'font-bold');
+            btn.classList.remove('glass-panel', 'text-on-surface');
+        });
+    });
+</script>
+</body></html>

@@ -1,22 +1,28 @@
 {
-  "name": "frontend",
+  "name": "cineai-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "vue": "^3.5.34"
+    "@pinia/nuxt": "^0.5.1",
+    "axios": "^1.7.2",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.29",
+    "vue-router": "^4.3.3"
   },
   "devDependencies": {
-    "@types/node": "^24.12.3",
-    "@vitejs/plugin-vue": "^6.0.6",
-    "@vue/tsconfig": "^0.9.1",
-    "typescript": "~6.0.2",
-    "vite": "^8.0.12",
-    "vue-tsc": "^3.2.8"
+    "@nuxtjs/tailwindcss": "^6.12.0",
+    "@tailwindcss/forms": "^0.5.7",
+    "@types/node": "^20.14.9",
+    "nuxt": "^3.12.2",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.2"
   }
 }

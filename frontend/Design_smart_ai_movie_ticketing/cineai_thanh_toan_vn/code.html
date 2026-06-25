@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Thanh toán | CineAI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(31, 31, 31, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .red-glow-hover:hover {
+            box-shadow: 0 0 20px -5px rgba(229, 9, 20, 0.5);
+            background-color: rgba(229, 9, 20, 0.9);
+        }
+        .ai-border-gradient {
+            position: relative;
+            background: #121414;
+            border-radius: 12px;
+            padding: 2px;
+        }
+        .ai-border-gradient::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            padding: 2px;
+            background: linear-gradient(90deg, #e50914, #7701d0, #e50914);
+            background-size: 200% 100%;
+            animation: moveGradient 3s linear infinite;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+        }
+        @keyframes moveGradient {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+        .step-active {
+            color: #e50914;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#333535",
+                        "secondary-container": "#7701d0",
+                        "on-surface": "#e2e2e2",
+                        "primary-fixed": "#ffdad5",
+                        "tertiary": "#c8c6c5",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#121414",
+                        "glass-stroke": "rgba(255, 255, 255, 0.1)",
+                        "surface-container-lowest": "#0d0f0f",
+                        "surface-container-low": "#1a1c1c",
+                        "inverse-primary": "#c0000c",
+                        "primary-fixed-dim": "#ffb4aa",
+                        "error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#6700b5",
+                        "secondary-fixed": "#efdbff",
+                        "on-secondary-container": "#dcb7ff",
+                        "background": "#121414",
+                        "secondary": "#dcb8ff",
+                        "on-tertiary-container": "#fbf8f8",
+                        "on-secondary-fixed": "#2c0051",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "surface-variant": "#333535",
+                        "primary-container": "#e50914",
+                        "tertiary-fixed": "#e5e2e1",
+                        "surface-container": "#1e2020",
+                        "outline": "#af8782",
+                        "on-primary-container": "#ffffff",
+                        "on-tertiary-fixed": "#1b1b1c",
+                        "on-primary": "#690003",
+                        "inverse-on-surface": "#2f3131",
+                        "inverse-surface": "#e2e2e2",
+                        "surface-dim": "#121414",
+                        "on-error": "#690005",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed": "#410001",
+                        "tertiary-container": "#737272",
+                        "on-background": "#e2e2e2",
+                        "surface-container-high": "#282a2a",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "secondary-fixed-dim": "#dcb8ff",
+                        "primary": "#ffb4aa",
+                        "on-primary-fixed-variant": "#930007",
+                        "on-tertiary": "#303030",
+                        "surface-tint": "#ffb4aa",
+                        "on-surface-variant": "#b3b3b3",
+                        "surface-bright": "#383939",
+                        "ai-accent": "#8a2be2",
+                        "on-secondary": "#480081",
+                        "outline-variant": "#5e3f3b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "48px",
+                        "gutter": "24px",
+                        "margin-mobile": "16px",
+                        "section-padding": "96px",
+                        "unit": "8px",
+                        "container-max": "1280px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Montserrat"],
+                        "headline-md": ["Montserrat"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["Montserrat"],
+                        "headline-xl-mobile": ["Montserrat"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-xl-mobile": ["36px", {"lineHeight": "44px", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-md overflow-x-hidden">
+<!-- TopNavBar -->
+<nav class="fixed top-0 left-0 w-full z-50 flex items-center justify-between px-margin-desktop h-[80px] bg-surface/60 backdrop-blur-[32px] border-b border-glass-stroke max-w-container-max mx-auto">
+<div class="flex items-center gap-8">
+<span class="font-headline-md text-headline-md font-bold text-primary-container dark:text-primary">CineAI</span>
+<div class="hidden md:flex items-center gap-6">
+<a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" href="#">Phim</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" href="#">Lịch chiếu</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" href="#">Khám phá AI</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" href="#">Rạp phim</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant">search</button>
+<div class="h-10 w-10 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-glass-stroke">
+<img class="w-full h-full object-cover" data-alt="Ảnh đại diện người dùng hiện đại và chuyên nghiệp cho một người đam mê điện ảnh am hiểu công nghệ. Ảnh đại diện là bản dựng 3D cách điệu, tối giản của một người, đặt trên nền tối với ánh sáng đỏ và tím huyền ảo." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBa5mTUeVrcVCBdL2oIfnbX44eJ1sPArGd0hZDBL946eHmULadyU23ntqvKl0PaPFS02ETIJkQljiCResuQZ6-lcDmU_3JGhH-TDdJ1cw2EgtZ3spzpoaYH0cQRriND5AvCHeq1uY0zXeDPfh8J_DVwM7hZcFeP0mAaAyqmx_5sdweDwkdztdC24QZfj6MWGpn7HaEUgo3whCqgvKCTAeVz8facIOa9WRWqY-JYsfVUyCARcVAUgvs81nbSTXXdizVMAK195lH08Ais"/>
+</div>
+</div>
+</nav>
+<main class="pt-[120px] pb-section-padding px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto min-h-screen">
+<!-- Checkout Progress -->
+<div class="flex items-center justify-center gap-4 mb-12">
+<div class="flex items-center gap-2 text-on-surface/40">
+<span class="font-label-md text-label-md bg-surface-container-highest w-8 h-8 rounded-full flex items-center justify-center">1</span>
+<span class="font-label-md text-label-md">Ghế ngồi</span>
+</div>
+<div class="w-12 h-px bg-glass-stroke"></div>
+<div class="flex items-center gap-2 text-primary-container">
+<span class="font-label-md text-label-md bg-primary-container text-on-primary-container w-8 h-8 rounded-full flex items-center justify-center">2</span>
+<span class="font-label-md text-label-md">Thanh toán</span>
+</div>
+<div class="w-12 h-px bg-glass-stroke"></div>
+<div class="flex items-center gap-2 text-on-surface/40">
+<span class="font-label-md text-label-md bg-surface-container-highest w-8 h-8 rounded-full flex items-center justify-center">3</span>
+<span class="font-label-md text-label-md">Thành công</span>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Payment Selection (Left Column) -->
+<div class="lg:col-span-7 space-y-8">
+<section>
+<h1 class="font-headline-lg text-headline-lg mb-6">Phương thức thanh toán</h1>
+<div class="space-y-4">
+<!-- E-Wallets -->
+<div class="glass-panel p-6 rounded-xl border-l-4 border-transparent hover:border-primary-container transition-all cursor-pointer group">
+<label class="flex items-center justify-between cursor-pointer">
+<div class="flex items-center gap-4">
+<input checked="" class="w-5 h-5 text-primary-container bg-surface-container-highest border-glass-stroke focus:ring-primary-container" name="payment" type="radio"/>
+<div class="flex flex-col">
+<span class="font-headline-md text-body-lg font-bold">Ví điện tử</span>
+<span class="text-on-surface-variant font-label-sm">MoMo, VNPay, ZaloPay</span>
+</div>
+</div>
+<div class="flex gap-2">
+<div class="w-10 h-6 bg-white/10 rounded flex items-center justify-center p-1">
+<img class="h-full object-contain" data-alt="Logo ví điện tử MoMo màu hồng đặc trưng." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBzQr4D26xJxoNDzWG5Vcu8uZWjyweG9sybb-5Q7RsIHoGmZEDLKGRlWOldofb1yh8EGOQXQxTzN4cMajOmilTGEZqQpIflasxRa64iqooEn-dGtEmbQzKVi3pd6R_GOGXAmFrrs64smSmdEd-hj7df7e_b43fLaqCx3S81pBLbVcD7HAhpAxGIEGXnMkHYWkiJ2qxvY3JUHqu7WYvKyLPOnTKa7LI3ivVA9MUOlQpniA3I_NjxKVT9Ni6wzRYDsGwWC8XgpNeSdoPR"/>
+</div>
+<div class="w-10 h-6 bg-white/10 rounded flex items-center justify-center p-1">
+<img class="h-full object-contain" data-alt="Logo cổng thanh toán VNPay." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxXdZm_PT9a8a1-M1cna9PPhtj9IeaxbslRAtWVTt76ICKV6ESDJ1PotyquEl0pyYDvw3DA-mbQK78-MZUtNRZq9YD8redk8jLXxyeMHF-nxRytsa0sCG-lraCsyhlHMGCc2IPcb5VNIurftGQ7kh6gVtetOR9mHIvDgZQHChzxbr6kWPg0zBuqu2DEf2jv2za0Dv65OFQmcCKjWQHT-uzZe9ulBxWU7mMuGVKwuRaisT3XavLPiP_FvfMXenkbwDxC6HzqbR5c0DB"/>
+</div>
+</div>
+</label>
+</div>
+<!-- Credit Cards -->
+<div class="glass-panel p-6 rounded-xl border-l-4 border-transparent hover:border-primary-container transition-all cursor-pointer">
+<label class="flex items-center justify-between cursor-pointer">
+<div class="flex items-center gap-4">
+<input class="w-5 h-5 text-primary-container bg-surface-container-highest border-glass-stroke focus:ring-primary-container" name="payment" type="radio"/>
+<div class="flex flex-col">
+<span class="font-headline-md text-body-lg font-bold">Thẻ tín dụng / Thẻ ghi nợ</span>
+<span class="text-on-surface-variant font-label-sm">Visa, Mastercard, JCB</span>
+</div>
+</div>
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-on-surface-variant">credit_card</span>
+</div>
+</label>
+<!-- Card Inputs -->
+<div class="mt-6 pt-6 border-t border-glass-stroke space-y-4">
+<div>
+<label class="block font-label-sm mb-2 text-on-surface-variant">Số thẻ</label>
+<input class="w-full bg-surface-container-low border-glass-stroke rounded-lg py-3 px-4 focus:border-primary-container focus:ring-0 text-body-md" placeholder="0000 0000 0000 0000" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-label-sm mb-2 text-on-surface-variant">Ngày hết hạn</label>
+<input class="w-full bg-surface-container-low border-glass-stroke rounded-lg py-3 px-4 focus:border-primary-container focus:ring-0 text-body-md" placeholder="MM/YY" type="text"/>
+</div>
+<div>
+<label class="block font-label-sm mb-2 text-on-surface-variant">CVV</label>
+<input class="w-full bg-surface-container-low border-glass-stroke rounded-lg py-3 px-4 focus:border-primary-container focus:ring-0 text-body-md" placeholder="***" type="password"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- AI Promo Code Finder -->
+<section>
+<div class="ai-border-gradient p-1">
+<div class="bg-surface-container-low rounded-[11px] p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-primary-container/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">psychology</span>
+</div>
+<div>
+<h3 class="font-headline-md text-body-lg font-bold">Tìm mã ưu đãi bằng AI</h3>
+<p class="text-on-surface-variant font-label-sm">Đang tìm kiếm các phần thưởng điện ảnh tốt nhất...</p>
+</div>
+</div>
+<button class="px-6 py-3 bg-primary-container text-white rounded-lg font-label-md red-glow-hover transition-all flex items-center gap-2" id="findPromo">
+<span class="material-symbols-outlined text-sm">auto_awesome</span>
+                            Tìm ưu đãi tốt nhất
+                        </button>
+</div>
+</div>
+<div class="mt-4 px-4 hidden" id="promoStatus">
+<div class="flex items-center gap-2 text-primary-container animate-pulse">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+<span class="font-label-sm">Đang quét cơ sở dữ liệu để tìm mã giảm giá tại rạp...</span>
+</div>
+</div>
+</section>
+</div>
+<!-- Booking Summary (Right Column) -->
+<div class="lg:col-span-5">
+<div class="glass-panel rounded-2xl p-8 sticky top-24">
+<h2 class="font-headline-md text-headline-md mb-6 border-b border-glass-stroke pb-4">Tóm tắt đặt vé</h2>
+<!-- Movie Mini Card -->
+<div class="flex gap-6 mb-8">
+<div class="w-24 aspect-[2/3] rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="Poster phim 'Neural Link'." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDm2de4kceqDWRfcOz4NyT5CKxgvMhXl1HVKlAirzZvZNNHBt89wmMvuoSZkuldOSOQKsymIno4noVUmXkJZvyGsLgzou6js3ZDZqTK5EINexE-AMEQzZ2FmbHgTuC8tefsTDSFcZcr_WlIiHrohgoqcByVmarewT_Mn7gdOeGlivw6NvBwZjkc7j-UYqwWTdWbqFw8JnC1Gq_A9kfLLoCMI0EKfcep-Ym7f1pt8ZCgGWCLCdfG3AmQ42zEiWA36_RB7ibneB4szA_M"/>
+</div>
+<div class="flex flex-col justify-center">
+<h3 class="font-headline-md text-body-lg font-extrabold text-on-primary-container">Neural Link</h3>
+<p class="text-on-surface-variant font-label-sm">IMAX • 2D • Phụ đề tiếng Anh</p>
+<div class="mt-2 flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-sm">event</span>
+<span class="font-label-sm">T6, 24 Th10 • 19:30</span>
+</div>
+</div>
+</div>
+<!-- Details List -->
+<div class="space-y-4 mb-8">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md">Rạp</span>
+<span class="text-on-surface font-body-md">CineAI Ultra - Phòng 4</span>
+</div>
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md">Ghế</span>
+<span class="text-on-surface font-body-md">G12, G13 (VIP)</span>
+</div>
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md">Vé (x2)</span>
+<span class="text-on-surface font-body-md">$28.00</span>
+</div>
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md">Bắp nước</span>
+<span class="text-on-surface font-body-md">$12.50</span>
+</div>
+</div>
+<div class="h-px bg-glass-stroke mb-6"></div>
+<!-- Promo Section -->
+<div class="flex gap-2 mb-8">
+<input class="flex-grow bg-surface-container-low border-glass-stroke rounded-lg px-4 py-2 focus:ring-0 focus:border-primary-container" placeholder="Mã giảm giá" type="text"/>
+<button class="px-4 py-2 bg-surface-container-highest text-on-surface rounded-lg font-label-md hover:bg-surface-variant transition-colors">Áp dụng</button>
+</div>
+<!-- Total -->
+<div class="flex justify-between items-end mb-8">
+<div class="flex flex-col">
+<span class="font-label-sm text-on-surface-variant">Tổng tiền</span>
+<span class="text-on-surface-variant font-label-sm line-through">$40.50</span>
+</div>
+<div class="text-right">
+<span class="font-headline-xl text-headline-lg text-primary-container">$36.45</span>
+<p class="text-[10px] text-primary-container font-label-sm">ĐÃ ÁP DỤNG GIẢM GIÁ AI</p>
+</div>
+</div>
+<!-- Action -->
+<button class="w-full py-4 bg-primary-container text-on-primary-container rounded-xl font-headline-md text-body-lg font-bold red-glow-hover transition-all flex items-center justify-center gap-3 active:scale-95" onclick="processPayment()">
+<span class="material-symbols-outlined">lock</span>
+                    Xác nhận &amp; Thanh toán
+                </button>
+<p class="mt-4 text-center text-on-surface-variant font-label-sm flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">verified_user</span>
+                    Mã hóa bảo mật SSL 256-bit
+                </p>
+</div>
+</div>
+</div>
+</main>
+<!-- Success Modal Overlay -->
+<div class="fixed inset-0 z-[100] hidden flex items-center justify-center p-6" id="successModal">
+<div class="absolute inset-0 bg-surface/90 backdrop-blur-md"></div>
+<div class="glass-panel w-full max-w-md rounded-3xl p-10 relative z-10 text-center scale-90 opacity-0 transition-all duration-500 transform" id="modalContent">
+<div class="w-24 h-24 bg-primary-container/20 rounded-full flex items-center justify-center mx-auto mb-8 relative">
+<div class="absolute inset-0 rounded-full border-4 border-primary-container animate-ping opacity-20"></div>
+<span class="material-symbols-outlined text-[48px] text-primary-container" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<h2 class="font-headline-xl text-headline-lg mb-2">Đặt vé thành công!</h2>
+<p class="text-on-surface-variant font-body-md mb-8">Vé của bạn đã được gửi đến email và bảng điều khiển ứng dụng CineAI.</p>
+<div class="bg-surface-container-low rounded-2xl p-6 mb-8 text-left border border-glass-stroke">
+<div class="flex justify-between mb-4">
+<span class="text-on-surface-variant font-label-sm uppercase tracking-widest">Mã đơn hàng</span>
+<span class="font-label-md">#CAI-992031</span>
+</div>
+<div class="flex justify-between">
+<span class="text-on-surface-variant font-label-sm uppercase tracking-widest">Thời gian giao dịch</span>
+<span class="font-label-md">20 Th10, 2024 • 14:15</span>
+</div>
+</div>
+<div class="space-y-4">
+<button class="w-full py-4 bg-primary-container text-white rounded-xl font-bold red-glow-hover">Xem vé của tôi</button>
+<button class="w-full py-4 bg-transparent border border-glass-stroke text-on-surface-variant rounded-xl font-bold hover:bg-white/5 transition-colors" onclick="location.reload()">Quay lại Trang chủ</button>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="w-full py-section-padding px-margin-desktop bg-surface-container-lowest border-t border-glass-stroke flex flex-col md:flex-row justify-between items-center max-w-container-max mx-auto">
+<div class="flex flex-col gap-2 mb-8 md:mb-0">
+<span class="font-headline-md text-headline-md text-primary-container">CineAI</span>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-80">© 2026 CineAI. Cinematic Intelligence.</p>
+</div>
+<div class="flex gap-8">
+<a class="text-on-surface-variant hover:text-primary-container transition-colors font-label-sm text-label-sm" href="#">Chính sách bảo mật</a>
+<a class="text-on-surface-variant hover:text-primary-container transition-colors font-label-sm text-label-sm" href="#">Điều khoản dịch vụ</a>
+<a class="text-on-surface-variant hover:text-primary-container transition-colors font-label-sm text-label-sm" href="#">Trung tâm trợ giúp</a>
+<a class="text-on-surface-variant hover:text-primary-container transition-colors font-label-sm text-label-sm" href="#">Liên hệ</a>
+</div>
+</footer>
+<script>
+    // AI Promo Finder Interaction
+    const findPromoBtn = document.getElementById('findPromo');
+    const promoStatus = document.getElementById('promoStatus');
+    
+    findPromoBtn.addEventListener('click', () => {
+        findPromoBtn.disabled = true;
+        findPromoBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-sm">sync</span> Đang xử lý...';
+        promoStatus.classList.remove('hidden');
+        
+        setTimeout(() => {
+            findPromoBtn.innerHTML = '<span class="material-symbols-outlined text-sm">check</span> Đã áp dụng ưu đãi tốt nhất';
+            findPromoBtn.classList.replace('bg-primary-container', 'bg-secondary-container');
+            promoStatus.innerHTML = '<div class="flex items-center gap-2 text-green-500 font-label-sm"><span class="material-symbols-outlined text-sm">verified</span> AI đã tìm thấy ưu đãi 10% từ thẻ thành viên MovieClub của bạn!</div>';
+        }, 2500);
+    });
+
+    // Payment Processing Logic
+    function processPayment() {
+        const btn = event.currentTarget;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Đang xác thực giao dịch...';
+        btn.classList.add('opacity-80', 'cursor-not-allowed');
+
+        // Simulate server delay
+        setTimeout(() => {
+            const modal = document.getElementById('successModal');
+            const content = document.getElementById('modalContent');
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-90', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }, 2000);
+    }
+</script>
+</body></html>

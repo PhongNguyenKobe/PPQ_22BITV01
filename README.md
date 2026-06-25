@@ -1,4 +1,5 @@
 # Hệ thống đặt vé xem phim Full Stack với AI
+# Vue 3 + TypeScript + Vite + Nuxtjs
 
 ## 👤 User (Khách hàng)
 - **Đăng ký/Đăng nhập**: tạo tài khoản, lưu thông tin cá nhân.  
