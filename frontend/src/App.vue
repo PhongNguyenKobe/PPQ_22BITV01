@@ -90,9 +90,6 @@ const chatQuickReplies = ['19:30', '20:15', '21:00']
       </div>
 
       <div class="topbar__actions">
-        <button class="icon-button" aria-label="Search">
-          <span class="material-symbols-outlined">search</span>
-        </button>
         <button class="button button--solid">Sign In</button>
       </div>
     </nav>
