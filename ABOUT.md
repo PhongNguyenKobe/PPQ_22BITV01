@@ -96,5 +96,90 @@ Sử dụng mock data:
 ## ✅ Outcome
 Danh mục sản phẩm được hiển thị dưới dạng **card format**.
 
+# ✨ Tuần 3 – Quản lý trạng thái & Điều hướng ứng dụng
 
+## 🚀 Session 04 – Search & Filter (19/06/2026)
 
+### 🎯 Objective
+Quản lý **application state**.
+
+### 📚 Theory
+- **React Hooks (cont.)**  
+- **Data handling & Axios GET**  
+- **Layout** với CSS, Bootstrap, Tailwind, CSS Modules  
+
+### 🛠️ Hands-on Practice
+- **Product Search**  
+- **Category Filtering**  
+- **Price Sorting**  
+
+### ✅ Outcome
+Catalog sản phẩm **tương tác** với khả năng lọc và sắp xếp.
+
+---
+
+## 🚀 Session 05 – Multi-Page Application (22/06/2026)
+
+### 🎯 Objective
+Triển khai **application navigation**.
+
+### 📚 Theory
+- **React Router**  
+- **Route**  
+- **Navigate**  
+- **Route Parameters**  
+
+### 🛠️ Hands-on Practice
+Tạo các trang:
+- `/`  
+- `/products`  
+- `/products/:id`  
+- `/cart`  
+- `/login`  
+
+### ✅ Outcome
+Ứng dụng có **page navigation** đầy đủ.
+
+---
+
+## 🚀 Session 06 – FastAPI Product API (25/06/2026)
+
+### 🎯 Objective
+Xây dựng **backend API** đầu tiên.
+
+### 📚 Theory
+- **FastAPI**  
+- **RESTful APIs**  
+- **GET / POST / PUT / DELETE**  
+- **Swagger Documentation**  
+
+### 🛠️ Hands-on Practice
+Triển khai các endpoint:
+- `GET /products`  
+- `GET /products/{id}`  
+- `POST /products`  
+- `PUT /products/{id}`  
+- `DELETE /products/{id}`  
+
+### ✅ Outcome
+API sản phẩm chạy và được **documented via Swagger**.
+
+---
+
+## 🚀 Session 07 – Integrating React with APIs (26/06/2026)
+
+### 🎯 Objective
+Thay thế mock data bằng **real API data**.
+
+### 📚 Theory
+- **Axios**  
+- **HTTP Requests**  
+- **Async/Await**  
+
+### 🛠️ Hands-on Practice
+Tiêu thụ API:
+- `GET /products`  
+- `GET /products/{id}`  
+
+### ✅ Outcome
+Frontend lấy dữ liệu trực tiếp từ **backend API**.
