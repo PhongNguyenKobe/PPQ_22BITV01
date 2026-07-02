@@ -59,9 +59,9 @@ async function handleConfirmPayment() {
   <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop py-12">
     <div class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <NuxtLink to="/checkout/seat" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
+        <NuxtLink to="/checkout/combo" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
           <span class="material-symbols-outlined text-sm">arrow_back</span>
-          Quay lại Chọn Ghế
+          Quay lại Bắp Nước
         </NuxtLink>
         <h1 class="font-headline-lg text-2xl md:text-3xl font-black text-on-surface">
           Thanh Toán Đơn Vé
@@ -69,12 +69,12 @@ async function handleConfirmPayment() {
       </div>
       
       <!-- Stepper Indicator -->
-      <div class="flex items-center gap-3 text-xs font-bold bg-surface-container-low border border-glass-stroke px-4 py-2.5 rounded-full">
-        <span class="text-on-surface-variant">1. Chọn Ghế</span>
+      <div class="flex items-center gap-3 text-[10px] md:text-xs font-bold bg-surface-container-low border border-white/10 px-4 py-2.5 rounded-full overflow-x-auto whitespace-nowrap hide-scrollbar max-w-full">
+        <span class="text-on-surface-variant flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">check_circle</span> Ghế</span>
         <span class="text-on-surface-variant">/</span>
-        <span class="text-primary-container">2. Thanh Toán</span>
+        <span class="text-on-surface-variant flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">check_circle</span> Combo</span>
         <span class="text-on-surface-variant">/</span>
-        <span class="text-on-surface-variant">3. Nhận Vé</span>
+        <span class="text-primary-container">3. Thanh Toán</span>
       </div>
     </div>
 

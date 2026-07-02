@@ -13,8 +13,7 @@
 
     <!-- AI Widgets (Only run on client browser) -->
     <ClientOnly>
-      <AiChatbot />
-      <AiVoiceBooking />
+      <FloatingAiChat />
     </ClientOnly>
   </div>
 </template>
