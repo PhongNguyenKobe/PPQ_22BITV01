@@ -181,3 +181,80 @@ Tiêu thụ API:
 
 ### ✅ Outcome
 Frontend lấy dữ liệu trực tiếp từ **backend API**.
+
+# 📘 README – Session 8, 9, 10
+
+---
+
+## 🚀 Session 8 – PostgreSQL Integration & Product Management (29/06/2026)
+
+### 🎯 Objective
+- Kết nối ứng dụng với cơ sở dữ liệu PostgreSQL  
+- Triển khai CRUD cho sản phẩm dành cho quản trị viên
+
+### 📖 Theory
+- [Database Design](ca://s?q=Database_Design)  
+- [Primary Keys](ca://s?q=Primary_Keys)  
+- [Foreign Keys](ca://s?q=Foreign_Keys)  
+- [SQLAlchemy ORM](ca://s?q=SQLAlchemy_ORM)  
+- [ORM Concepts](ca://s?q=ORM_Concepts)  
+- [Data Validation](ca://s?q=Data_Validation)  
+- [Pydantic](ca://s?q=Pydantic)
+
+### 🛠 Hands-on Practice
+- Tạo bảng:  
+  - [categories](ca://s?q=Create_categories_table)  
+  - [products](ca://s?q=Create_products_table)  
+- Admin Features:  
+  - [Create Product](ca://s?q=Create_Product)  
+  - [Edit Product](ca://s?q=Edit_Product)  
+  - [Delete Product](ca://s?q=Delete_Product)
+
+### ✅ Outcome
+- Dữ liệu sản phẩm được lưu trong PostgreSQL  
+- Hoàn thiện hệ thống quản lý sản phẩm
+
+---
+
+## 🔐 Session 9 – Authentication (02/07/2026)
+
+### 🎯 Objective
+- Triển khai chức năng đăng ký và đăng nhập người dùng
+
+### 📖 Theory
+- [JWT Authentication](ca://s?q=JWT_Authentication)  
+- [Password Hashing](ca://s?q=Password_Hashing)
+
+### 🛠 Hands-on Practice
+- APIs:  
+  - `POST /register`  
+  - `POST /login`  
+- Frontend:  
+  - [Login Page](ca://s?q=Login_Page)  
+  - [Registration Page](ca://s?q=Registration_Page)
+
+### ✅ Outcome
+- Người dùng có thể đăng ký và xác thực thành công
+
+---
+
+## 🛡️ Session 10 – Authorization (03/07/2026)
+
+### 🎯 Objective
+- Triển khai kiểm soát truy cập dựa trên vai trò (RBAC)
+
+### 📖 Theory
+- [RBAC](ca://s?q=RBAC) – Role-Based Access Control  
+- Roles:  
+  - [ADMIN](ca://s?q=ADMIN_Role)  
+  - [CUSTOMER](ca://s?q=CUSTOMER_Role)  
+- [Protected Routes](ca://s?q=Protected_Routes)
+
+### 🛠 Hands-on Practice
+- Hạn chế quyền:  
+  - [Create Product](ca://s?q=Restrict_Create_Product)  
+  - [Delete Product](ca://s?q=Restrict_Delete_Product)  
+- Chỉ ADMIN mới được phép truy cập
+
+### ✅ Outcome
+- Hệ thống phân quyền dựa trên vai trò được thiết lập thành công
