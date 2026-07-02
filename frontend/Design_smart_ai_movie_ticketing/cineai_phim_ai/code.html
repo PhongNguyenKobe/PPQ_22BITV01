@@ -1,0 +1,418 @@
+<!DOCTYPE html><html class="dark" lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Danh sách phim | CineAI - Trải nghiệm điện ảnh tương lai</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "inverse-on-surface": "#2f3131",
+                "on-secondary-fixed": "#2c0051",
+                "on-secondary": "#480081",
+                "surface-tint": "#ffb4aa",
+                "tertiary-container": "#737272",
+                "surface-dim": "#121414",
+                "secondary-container": "#7701d0",
+                "on-tertiary-container": "#fbf8f8",
+                "surface-container-lowest": "#0d0f0f",
+                "ai-accent": "#8a2be2",
+                "on-error-container": "#ffdad6",
+                "primary-fixed": "#ffdad5",
+                "on-primary-fixed-variant": "#930007",
+                "surface-container-highest": "#333535",
+                "on-secondary-fixed-variant": "#6700b5",
+                "on-primary-container": "#fff7f6",
+                "surface-bright": "#383939",
+                "surface-container-low": "#1a1c1c",
+                "secondary": "#dcb8ff",
+                "on-surface-variant": "#e9bcb6",
+                "inverse-surface": "#e2e2e2",
+                "on-surface": "#e3e2e2",
+                "on-error": "#690005",
+                "background": "#121414",
+                "surface-container": "#1e2020",
+                "tertiary-fixed-dim": "#c8c6c5",
+                "tertiary-fixed": "#e5e2e1",
+                "on-tertiary-fixed": "#1b1b1c",
+                "error": "#ffb4ab",
+                "error-container": "#93000a",
+                "tertiary": "#c8c6c5",
+                "on-tertiary-fixed-variant": "#474746",
+                "surface": "#121414",
+                "on-tertiary": "#303030",
+                "inverse-primary": "#c0000c",
+                "on-background": "#e2e2e2",
+                "primary": "#ffb4aa",
+                "glass-stroke": "rgba(255, 255, 255, 0.1)",
+                "secondary-fixed": "#efdbff",
+                "outline": "#af8782",
+                "surface-variant": "#333535",
+                "outline-variant": "#5e3f3b",
+                "secondary-fixed-dim": "#dcb8ff",
+                "on-primary": "#690003",
+                "primary-container": "#e50914",
+                "on-primary-fixed": "#410001",
+                "on-secondary-container": "#dcb7ff",
+                "surface-container-high": "#282a2a",
+                "primary-fixed-dim": "#ffb4aa"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "spacing": {
+                "container-max": "1280px",
+                "margin-desktop": "48px",
+                "unit": "8px",
+                "gutter": "24px",
+                "section-padding": "96px",
+                "margin-mobile": "16px"
+            },
+            "fontFamily": {
+                "headline-xl": ["Montserrat"],
+                "body-lg": ["Inter"],
+                "headline-lg": ["Montserrat"],
+                "label-md": ["Inter"],
+                "label-sm": ["Inter"],
+                "headline-md": ["Montserrat"],
+                "body-md": ["Inter"],
+                "headline-xl-mobile": ["Montserrat"]
+            },
+            "fontSize": {
+                "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                "headline-xl-mobile": ["36px", {"lineHeight": "44px", "fontWeight": "700"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body {
+            background-color: #121414;
+            color: #e3e2e2;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .glass-panel {
+            background: rgba(31, 31, 31, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .red-glow-hover:hover {
+            box-shadow: 0 0 25px -5px rgba(229, 9, 20, 0.5);
+        }
+
+        .gradient-fade-bottom {
+            background: linear-gradient(to top, rgba(18, 20, 20, 1) 0%, rgba(18, 20, 20, 0) 100%);
+        }
+
+        .ai-border-gradient {
+            position: relative;
+            background: #121414;
+            background-clip: padding-box;
+            border: 2px solid transparent;
+        }
+
+        .ai-border-gradient::before {
+            content: '';
+            position: absolute;
+            top: -2px; bottom: -2px;
+            left: -2px; right: -2px;
+            background: linear-gradient(45deg, #e50914, #8a2be2, #e50914);
+            background-size: 200% 200%;
+            z-index: -1;
+            border-radius: inherit;
+            animation: gradient-rotate 4s linear infinite;
+        }
+
+        @keyframes gradient-rotate {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .movie-card-zoom img {
+            transition: transform 0.5s ease;
+        }
+        .movie-card-zoom:hover img {
+            transform: scale(1.1);
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .stars-active {
+            color: #ffb4aa;
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="font-body-md overflow-x-hidden">
+<!-- TopNavBar -->
+<nav class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-desktop h-20 bg-surface/80 dark:bg-surface/80 backdrop-blur-[32px] border-b border-white/10 shadow-[0_8px_32px_0_rgba(229,9,20,0.1)]">
+<div class="flex items-center gap-12">
+<span class="font-headline-lg text-headline-lg font-bold text-primary-container tracking-tighter">CineAI</span>
+<div class="hidden md:flex items-center gap-8">
+<a class="font-label-md text-label-md text-primary-container font-bold border-b-2 border-primary-container pb-1" href="#">Phim</a>
+<a class="font-label-md text-label-md text-on-surface-variant font-medium hover:text-on-surface transition-colors hover:scale-105 transition-all duration-300" href="#">Khám phá AI</a>
+<a class="font-label-md text-label-md text-on-surface-variant font-medium hover:text-on-surface transition-colors hover:scale-105 transition-all duration-300" href="#">Lịch chiếu</a>
+<a class="font-label-md text-label-md text-on-surface-variant font-medium hover:text-on-surface transition-colors hover:scale-105 transition-all duration-300" href="#">Rạp phim</a>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-label-md text-label-md font-bold hover:scale-105 transition-all duration-300 active:scale-95">Đăng nhập</button>
+</div>
+</nav>
+<main class="pt-20">
+<!-- Hero Section: Semantic Search -->
+<section class="relative h-[60vh] min-h-[500px] flex flex-col items-center justify-center text-center px-margin-mobile md:px-0">
+
+<h1 class="font-headline-xl text-headline-xl md:text-headline-xl max-w-4xl mb-8">Tìm kiếm phim bằng <span class="text-primary-container">Trí tuệ nhân tạo</span></h1>
+<div class="w-full max-w-3xl glass-panel p-2 rounded-full flex items-center gap-3 border-white/20 shadow-xl focus-within:ring-2 focus-within:ring-primary-container transition-all">
+<span class="material-symbols-outlined ml-6 text-on-surface-variant">search</span>
+<input class="bg-transparent border-none focus:ring-0 flex-grow font-body-lg text-body-lg text-on-surface placeholder:text-on-surface-variant/50" placeholder="Thử nói: 'Phim hành động kịch tính có robot và bối cảnh tương lai'..." type="text">
+<button class="p-4 bg-primary-container/10 hover:bg-primary-container/20 text-primary-container rounded-full transition-colors flex items-center justify-center group" title="Voice Search">
+<span class="material-symbols-outlined text-[28px] group-active:scale-90 transition-transform">mic</span>
+</button>
+<button class="bg-primary-container text-on-primary-container px-8 py-4 rounded-full font-label-md text-label-md font-bold red-glow-hover transition-all">Tìm kiếm AI</button>
+</div>
+<p class="mt-6 text-on-surface-variant font-label-md text-label-md">Xu hướng: <span class="text-on-surface">#SciFi2026, #CyberpunkSeries, #OscarContenders</span></p>
+</section>
+<!-- Section 2: AI Recommended (Bento Layout) -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-section-padding">
+<div class="flex items-center justify-between mb-12">
+<div>
+<h2 class="font-headline-lg text-headline-lg mb-2">Phim gợi ý từ AI</h2>
+<p class="text-on-surface-variant font-body-md text-body-md">Dựa trên lịch sử xem và sở thích cá nhân của bạn.</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 border border-white/10 rounded-full hover:bg-white/5 transition-colors"><span class="material-symbols-outlined">chevron_left</span></button>
+<button class="p-2 border border-white/10 rounded-full hover:bg-white/5 transition-colors"><span class="material-symbols-outlined">chevron_right</span></button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Large Highlight Card -->
+<div class="md:col-span-8 group relative overflow-hidden rounded-[24px] aspect-[16/9] ai-border-gradient">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" data-alt="A cinematic, wide landscape shot of a futuristic cyberpunk city at night with glowing red neon lights and purple atmospheric fog. In the foreground, a sleek high-tech vehicle is parked on a wet street reflecting the neon lights. The overall mood is intense, sophisticated, and technologically advanced, matching the CineAI dark theme." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCy_q8U1fieQE3DjTaCLWjqCQwXrCZsXiBLHjmnmmQdpc2TKR3LyPghhABCJehjXUTnjJhNCXW204MFqaYE2F6SAkFM6Vcp0vNHexNphDczN1DfA7c4fQ83Pv_jeLe2omU0PmLCKdHJdLx_iKpnLYBNbgTbwQQMYq98mFTfrmA3tvGk4-TJWgr1DWg5lN4LBp0CtwANVnKNuRgWi-Dq5oCu-DNTlS1L5qxfTFgfiLAypE-U8kW4wGO2g-SRAcKQaGW6MHIKMPq5G1dl')"></div>
+<div class="absolute inset-0 gradient-fade-bottom"></div>
+<div class="absolute bottom-0 left-0 p-10 w-full flex justify-between items-end">
+<div class="max-w-xl">
+<span class="bg-primary-container text-white px-3 py-1 rounded-md text-label-sm font-label-sm mb-4 inline-block">AI MATCH: 98%</span>
+<h3 class="font-headline-xl text-headline-xl mb-2">Thành Phố Vô Hình: 2050</h3>
+<p class="text-on-surface-variant font-body-md text-body-md mb-6 line-clamp-2">Trong một thế giới nơi thực tại ảo thay thế cuộc sống thật, một lập trình viên phát hiện ra lỗ hổng có thể thay đổi nhân loại mãi mãi.</p>
+<div class="flex items-center gap-4">
+<button class="bg-primary-container text-white px-8 py-3 rounded-xl font-label-md text-label-md font-bold flex items-center gap-2 red-glow-hover transition-all">
+<span class="material-symbols-outlined">play_arrow</span> Xem ngay
+                                </button>
+<button class="glass-panel px-6 py-3 rounded-xl font-label-md text-label-md font-bold hover:bg-white/10 transition-all border-white/20">Chi tiết</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Secondary Highlight Card -->
+<div class="md:col-span-4 group relative overflow-hidden rounded-[24px] aspect-[9/10] glass-panel border-white/10">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" data-alt="A close-up portrait of a humanoid robot with intricate glowing purple neural pathways visible through a translucent shell. The robot has a serene, thoughtful expression. The lighting is high-contrast dark with deep red accents highlighting the mechanical details. Cinematic bokeh in the background." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC5YIBPGdjmKme0u144QgxhV8kFAUzB1QpOuRZIMzt8bMyzaU8hQ5DjgSFoTUmM3f04pqnUAPat8sFJslT3l9Mk392K-C10eXrEz04WIwE9EWxd8XaKP9U26ATs1zj7tdZ2UESEna1GM0Kjh71Y2obVEe5h50Aq_u8rjZ42vBtcE8OnuHEGuYp7VFfcR-Xwly_ZqfFgungKXhbizP94owkAIWGm0hU8hJ_CWKer9U-8VR9pyK5XTkG1na7YoUIIdSUbrXO3BKipdHbV')"></div>
+<div class="absolute inset-0 gradient-fade-bottom opacity-80"></div>
+<div class="absolute bottom-0 left-0 p-8">
+<span class="text-primary font-label-sm text-label-sm mb-2 block">Top đề xuất cho bạn</span>
+<h3 class="font-headline-md text-headline-md mb-4">Trí Tuệ Nhân Tạo: Khởi Nguyên</h3>
+<button class="w-full py-3 rounded-xl border border-white/20 font-label-md text-label-md font-bold hover:bg-white/10 transition-all">Xem chi tiết</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 3: Movie Grids -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12">
+<div class="flex flex-col gap-24">
+<!-- Phổ biến Category -->
+<div>
+<div class="flex items-center gap-4 mb-8">
+<div class="w-1 h-8 bg-primary-container"></div>
+<h2 class="font-headline-lg text-headline-lg">Phổ biến trên CineAI</h2>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-gutter">
+<!-- Movie Card Loop (Mental Mockup for UI Design) -->
+<div class="flex flex-col group cursor-pointer">
+<div class="relative aspect-[2/3] rounded-xl overflow-hidden mb-4 movie-card-zoom bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A professional movie poster for a sci-fi thriller. Central figure is a woman in a high-tech suit looking towards a distant red planet. Dark space background with nebulae in deep purple. High-end cinematic color grading with sharp focus and detailed textures." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsXsmNAsVQJkGnBMFt8hVCOL3StF6Rpvk3zVnk32ITcyyDxsNGnR7UtMmJAhGIFYvawOokSkMOTMYIp2CwMUaiFN9tLkWhOCmnnIAWk-sxhiUj1WelW_trFZGAOEqI9YAYiXWITCmprEIqzsP7UOqcs4aB4EBCyzYc2nW-Nrr4FpdO-_u0ItPOzjjxSua2eKTU2QlwqaWuNNFxatNAXcpYXpjLXqDLaKX1h3aYS6WFGj5baKwnkYh_CFBZj7APY2TvvZGl6XZGfo6r">
+<div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center">
+<p class="text-white font-body-md text-body-md mb-4 transform translate-y-4 group-hover:translate-y-0 transition-transform">Hành trình tới các vì sao xa xôi nhất.</p>
+<button class="bg-primary-container text-white px-4 py-2 rounded-lg font-label-sm text-label-sm font-bold red-glow-hover">Xem chi tiết</button>
+</div>
+<div class="absolute top-2 right-2 glass-panel px-2 py-1 rounded text-label-sm text-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-primary">star</span> 4.9
+                                </div>
+</div>
+<h4 class="font-label-md text-label-md group-hover:text-primary-container transition-colors">Vũ Trụ Vô Tận</h4>
+<p class="text-on-surface-variant font-label-sm text-label-sm">Khoa học viễn tưởng</p>
+</div>
+<div class="flex flex-col group cursor-pointer">
+<div class="relative aspect-[2/3] rounded-xl overflow-hidden mb-4 movie-card-zoom bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Action movie poster featuring an intense car chase through a neon-lit futuristic Tokyo. Speed blurs and lens flares in vibrant red and electric blue. Deep shadows and metallic reflections on the asphalt. Cinematic high-contrast styling." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVJ0pF6H6Q6x8A11elmfSY5U7fHjvGgD8ie8NQiRJCfHOIWBQ34Y23J-KVL9r-jo8jhHcPWtPXOkGa99bo7a39ROR_JccyD1JVn3VY-YDelSKiqKHeqY3Hnpt0CYoPjgm8LB2_-YpajUqjPoDaseOsneaBKf9F6vfwW-5ewbeouS52Y9PvlX0X3TqDJEExTkwLiDyIHMgXBtIAb_ql1S7-wO7cOk58V6X_caFWDygy3Hf-NW59nnBb6yW9Wkrl_v-lK_Uesw087ruB">
+<div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center">
+<p class="text-white font-body-md text-body-md mb-4 transform translate-y-4 group-hover:translate-y-0 transition-transform">Tốc độ là sự sống, chậm trễ là cái chết.</p>
+<button class="bg-primary-container text-white px-4 py-2 rounded-lg font-label-sm text-label-sm font-bold red-glow-hover">Xem chi tiết</button>
+</div>
+<div class="absolute top-2 right-2 glass-panel px-2 py-1 rounded text-label-sm text-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-primary">star</span> 4.7
+                                </div>
+</div>
+<h4 class="font-label-md text-label-md group-hover:text-primary-container transition-colors">Đường Đua Rực Lửa</h4>
+<p class="text-on-surface-variant font-label-sm text-label-sm">Hành động</p>
+</div>
+<!-- Card 3 -->
+<div class="flex flex-col group cursor-pointer">
+<div class="relative aspect-[2/3] rounded-xl overflow-hidden mb-4 movie-card-zoom bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A noir mystery movie poster showing a detective in a trench coat standing under a flickering street lamp in the rain. Silhouette aesthetic with strong backlighting. The atmosphere is moody, dark, and filled with suspense. Grainy cinematic texture." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrvOfBYGCh68jDrlUdA7mR9ysFqNwPqXy8FfHZDzq5IDhu1LaAKCnpZP_6r2RAuaf8U0pA2DwNq6n7-MecZPLYhOSpf4ChD3W1zkUYnn54td6jsxTo5mKTxEwHQH6lN5miOIQVr4UEz4CrvJNQyDm0vHtLxC5fC9X3sDVl80ssQ0th2KyjUgr3mJVU_PhROH7v7G_1MLeNRvdeq72eGHyz-7gFY-f2Y0-uKqqRGMgc_ZeItXtN-o45w6ufWbQfF-hzWLkYPXbjrkRa">
+<div class="absolute top-2 right-2 glass-panel px-2 py-1 rounded text-label-sm text-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-primary">star</span> 4.5
+                                </div>
+</div>
+<h4 class="font-label-md text-label-md group-hover:text-primary-container transition-colors">Bóng Đêm Thành Phố</h4>
+<p class="text-on-surface-variant font-label-sm text-label-sm">Trinh thám</p>
+</div>
+<!-- Card 4 -->
+<div class="flex flex-col group cursor-pointer">
+<div class="relative aspect-[2/3] rounded-xl overflow-hidden mb-4 movie-card-zoom bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="An animated family movie poster showing a group of whimsical colorful creatures floating in a sky filled with candy-like clouds and bright rainbows. Vibrant, high-key colors and soft lighting. Playful and magical atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtf1Bo44PrFX22Kw9z86OmCD2kSMzYvn9FIBJNyiynU9kzhCUpjS2GrJAS471OpoZbKAdwO09wRpJEYOR1hnFxQZDHbjyzpq1Xqc_a5B4j96Jpkuw8cpDXaeawTNeKvQB7QAFWiQHMCxbUNEDjCedW8_sCwXuqiEmQ51RStuuqli-Edw1FCQoAdMcLsh0NYr_rhcZw6SXoQcSn1bGffo71EUG5coAtD66fcIQ8ZFXqy6DFUytSG6-HPjA7yzx6lllCPH8zHUvbjtRJ">
+<div class="absolute top-2 right-2 glass-panel px-2 py-1 rounded text-label-sm text-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-primary">star</span> 4.8
+                                </div>
+</div>
+<h4 class="font-label-md text-label-md group-hover:text-primary-container transition-colors">Vùng Đất Kỳ Diệu</h4>
+<p class="text-on-surface-variant font-label-sm text-label-sm">Hoạt hình</p>
+</div>
+<!-- Card 5 -->
+<div class="flex flex-col group cursor-pointer">
+<div class="relative aspect-[2/3] rounded-xl overflow-hidden mb-4 movie-card-zoom bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Historical drama movie poster featuring an epic medieval battlefield at dawn. Armies clad in ornate silver and gold armor clashing under a grey, misty sky. Dramatic lighting and epic scale. Muted color palette with metallic accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBEuXmT3DJgVIS-S5qYDVSEwlpd6AJEdTm4FNE6P_hDsDeIeHw12h3cqL8KUP_ZzJ1NPplkQMXFaDixf1SpqppnIEWvdntszhk32Wxotx-kSzP_-uH2pz6Rsn7jxg6zffbpTFuB8n14uS5xBA3L5LFb69siWHFi2XJCrSxvWL0oEaEXIcib0f9KtUzo32nAlJ9elce75zDdsYybXcDVEI0hAkhEhsAraeg2jRdMadn3UYG3CPCiZSKCREGmO9jCRIiKUfZIOL67qBIA">
+<div class="absolute top-2 right-2 glass-panel px-2 py-1 rounded text-label-sm text-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-primary">star</span> 4.9
+                                </div>
+</div>
+<h4 class="font-label-md text-label-md group-hover:text-primary-container transition-colors">Vương Triều Sụp Đổ</h4>
+<p class="text-on-surface-variant font-label-sm text-label-sm">Sử thi, Hành động</p>
+</div>
+</div>
+</div>
+<!-- Mới ra mắt Category -->
+<div>
+<div class="flex items-center gap-4 mb-8">
+<div class="w-1 h-8 bg-primary-container"></div>
+<h2 class="font-headline-lg text-headline-lg">Mới ra mắt</h2>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-gutter">
+<!-- Card 1 -->
+<div class="flex flex-col group cursor-pointer">
+<div class="relative aspect-[2/3] rounded-xl overflow-hidden mb-4 movie-card-zoom bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Horror movie poster with a minimalist design. A single, creepy, Victorian-style doll sitting on a rocking chair in a dark, empty room. Shadows create long, distorted shapes. Cold blue lighting with a hint of red on the doll's eyes." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZ-h6Nj0XbbSoeaY_kdXixgd94egb9YxZivSSas-cii0Z8O85It7_UYos6EHZN4akDfzdgmU9rIsXeUS3v3Y1L0fOlBF-YR8wEEHGHge0VJ1OiVcJCsLaZLKgrWGEGzWMPO_mY-WTnCsONl3wOCknvRhxC1sFPrPbwmX8G56lH6tdGRHdO3RyPEbt6B-DqCFvCtHlCaBTMOHHX2BdNzHDuWmiQhRIyKf2mXOZD_vIsrJnm6lvQNe-ZA7N71Z7fzpuYRnSEQrf82mb4">
+<div class="absolute top-2 right-2 glass-panel px-2 py-1 rounded text-label-sm text-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-primary">star</span> 4.2
+                                </div>
+</div>
+<h4 class="font-label-md text-label-md group-hover:text-primary-container transition-colors">Lời Nguyền Của Búp Bê</h4>
+<p class="text-on-surface-variant font-label-sm text-label-sm">Kinh dị</p>
+</div>
+<!-- More cards can be duplicated similarly -->
+</div>
+</div>
+<!-- Đang chiếu Category -->
+<div>
+<div class="flex items-center gap-4 mb-8">
+<div class="w-1 h-8 bg-primary-container"></div>
+<h2 class="font-headline-lg text-headline-lg">Đang chiếu tại rạp</h2>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-gutter">
+<!-- Repeat logic for consistency -->
+<div class="flex flex-col group cursor-pointer">
+<div class="relative aspect-[2/3] rounded-xl overflow-hidden mb-4 movie-card-zoom bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Romantic comedy movie poster showing a couple laughing on a sunny beach in Italy. Mediterranean vibe with turquoise water and warm golden hour sunlight. High-key, vibrant, and airy aesthetic. Professional lifestyle photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAMSFtwCei8ZDrs4lICf_3j_TUSGR-62_yVaCzI_F_xPsPZBM8TfEzam-5eorL2CmtoinRaoyarRd9uNLCz4ZYNU83VGHY5A93LOV1bvjguYRd22aLBBDlIoF5b_Xl_MXmXYefjIbEG3KO9mQliQElFKVb91zfE67bSVea4S2vKMg8LGX5dEMhBayMvBYaoaC8mLeCcvSMKE6zLya3kaRyFrfRxnAoL_3keCFEa3QSXmEsRGGgv64V8he0mUxz4B5C6hl5kDL5p79ls">
+<div class="absolute top-2 right-2 glass-panel px-2 py-1 rounded text-label-sm text-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-primary">star</span> 4.6
+                                </div>
+</div>
+<h4 class="font-label-md text-label-md group-hover:text-primary-container transition-colors">Mùa Hè Ở Venice</h4>
+<p class="text-on-surface-variant font-label-sm text-label-sm">Lãng mạn, Hài hước</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Newsletter / Footer AI Call to action -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-section-padding">
+<div class="glass-panel p-12 rounded-[32px] flex flex-col md:flex-row items-center justify-between gap-12 overflow-hidden relative">
+
+<div class="max-w-xl text-center md:text-left">
+<h3 class="font-headline-lg text-headline-lg mb-4">Bạn chưa biết xem gì hôm nay?</h3>
+<p class="text-on-surface-variant font-body-md text-body-md">Hãy để trợ lý AI của CineAI đề xuất bộ phim hoàn hảo dành riêng cho tâm trạng của bạn ngay bây giờ.</p>
+</div>
+<button class="bg-primary-container text-white px-10 py-5 rounded-2xl font-headline-md text-headline-md font-bold flex items-center gap-4 red-glow-hover transition-all animate-pulse">
+<span class="material-symbols-outlined text-3xl">auto_awesome</span> Bắt đầu Discovery AI
+                </button>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full px-margin-desktop py-12 flex flex-col md:flex-row justify-between items-center gap-gutter bg-surface-container-lowest dark:bg-surface-container-lowest border-t border-outline-variant/30">
+<div class="flex flex-col gap-4">
+<span class="font-headline-md text-headline-md font-bold text-primary-container">CineAI</span>
+<p class="font-body-md text-body-md text-on-tertiary-fixed-variant max-w-sm">© 2026 CineAI Studios. Powered by Cinema Intelligence.</p>
+</div>
+<div class="flex flex-wrap justify-center gap-8">
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant hover:text-primary-container transition-colors" href="#">Privacy Policy</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant hover:text-primary-container transition-colors" href="#">Terms of Service</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant hover:text-primary-container transition-colors" href="#">Cookie Settings</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant hover:text-primary-container transition-colors" href="#">Help Center</a>
+</div>
+</footer>
+<script>
+        // Micro-interaction for Voice Search
+        const micBtn = document.querySelector('button[title="Voice Search"]');
+        let isListening = false;
+        
+        micBtn.addEventListener('click', () => {
+            isListening = !isListening;
+            if (isListening) {
+                micBtn.classList.add('bg-primary-container', 'text-white', 'animate-bounce');
+                micBtn.classList.remove('bg-primary-container/10', 'text-primary-container');
+                console.log("CineAI AI listening...");
+            } else {
+                micBtn.classList.remove('bg-primary-container', 'text-white', 'animate-bounce');
+                micBtn.classList.add('bg-primary-container/10', 'text-primary-container');
+                console.log("CineAI AI stopped listening.");
+            }
+        });
+
+        // Simple scroll parallax for movie cards
+        window.addEventListener('scroll', () => {
+            const cards = document.querySelectorAll('.movie-card-zoom');
+            cards.forEach(card => {
+                const rect = card.getBoundingClientRect();
+                if (rect.top < window.innerHeight && rect.bottom > 0) {
+                    const speed = 0.05;
+                    const yPos = -(rect.top * speed);
+                    card.querySelector('img').style.transform = `translateY(${yPos}px) scale(1.05)`;
+                }
+            });
+        });
+    </script>
+
+
+</body></html>

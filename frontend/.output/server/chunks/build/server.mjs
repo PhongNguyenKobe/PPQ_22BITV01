@@ -430,18 +430,20 @@ function getRouteRules(arg) {
     return {};
   }
 }
-const __nuxt_page_meta$9 = {
+const __nuxt_page_meta$d = { layout: "default" };
+const __nuxt_page_meta$c = {
   layout: "default"
 };
+const __nuxt_page_meta$b = { layout: "default" };
+const __nuxt_page_meta$a = {
+  layout: "default"
+};
+const __nuxt_page_meta$9 = { layout: "default" };
 const __nuxt_page_meta$8 = {
   layout: "default"
 };
-const __nuxt_page_meta$7 = {
-  layout: "default"
-};
-const __nuxt_page_meta$6 = {
-  layout: "default"
-};
+const __nuxt_page_meta$7 = { layout: "default" };
+const __nuxt_page_meta$6 = { layout: "default" };
 const __nuxt_page_meta$5 = {
   layout: "default"
 };
@@ -464,38 +466,62 @@ const _routes = [
   {
     name: "index",
     path: "/",
-    meta: __nuxt_page_meta$9 || {},
-    component: () => import('./index-CiDXyZr8.mjs')
+    meta: __nuxt_page_meta$d || {},
+    component: () => import('./index-z347Snmo.mjs')
   },
   {
     name: "login",
     path: "/login",
-    meta: __nuxt_page_meta$8 || {},
+    meta: __nuxt_page_meta$c || {},
     component: () => import('./login-Cjf29Kji.mjs')
+  },
+  {
+    name: "cinemas",
+    path: "/cinemas",
+    meta: __nuxt_page_meta$b || {},
+    component: () => import('./cinemas-tVbp_Gz7.mjs')
   },
   {
     name: "register",
     path: "/register",
-    meta: __nuxt_page_meta$7 || {},
+    meta: __nuxt_page_meta$a || {},
     component: () => import('./register-D0X_YQZn.mjs')
+  },
+  {
+    name: "showtimes",
+    path: "/showtimes",
+    meta: __nuxt_page_meta$9 || {},
+    component: () => import('./showtimes-BPyLSh2g.mjs')
   },
   {
     name: "movies-id",
     path: "/movies/:id()",
-    meta: __nuxt_page_meta$6 || {},
+    meta: __nuxt_page_meta$8 || {},
     component: () => import('./_id_-DvlQX7ew.mjs')
+  },
+  {
+    name: "ai-discovery",
+    path: "/ai-discovery",
+    meta: __nuxt_page_meta$7 || {},
+    component: () => import('./ai-discovery-BXZUObQt.mjs')
   },
   {
     name: "movies",
     path: "/movies",
-    meta: __nuxt_page_meta$5 || {},
-    component: () => import('./index-D_FcNIm3.mjs')
+    meta: __nuxt_page_meta$6 || {},
+    component: () => import('./index-l_g-IZMC.mjs')
   },
   {
     name: "checkout-seat",
     path: "/checkout/seat",
+    meta: __nuxt_page_meta$5 || {},
+    component: () => import('./seat-C6fxwggK.mjs')
+  },
+  {
+    name: "checkout-combo",
+    path: "/checkout/combo",
     meta: __nuxt_page_meta$4 || {},
-    component: () => import('./seat-DlENW1Vi.mjs')
+    component: () => import('./combo-BeDkDWxZ.mjs')
   },
   {
     name: "admin-dashboard",
@@ -513,13 +539,13 @@ const _routes = [
     name: "checkout-payment",
     path: "/checkout/payment",
     meta: __nuxt_page_meta$1 || {},
-    component: () => import('./payment-DDKY5JbJ.mjs')
+    component: () => import('./payment-2Sa96N7s.mjs')
   },
   {
     name: "branch-admin-dashboard",
     path: "/branch-admin/dashboard",
     meta: __nuxt_page_meta || {},
-    component: () => import('./dashboard-B33RmSc8.mjs')
+    component: () => import('./dashboard-zn7kqEva.mjs')
   }
 ];
 const _wrapInTransition = (props, children) => {
@@ -1337,7 +1363,7 @@ const plugins = [
 ];
 const layouts = {
   admin: defineAsyncComponent(() => import('./admin-D-5iwCdG.mjs').then((m) => m.default || m)),
-  default: defineAsyncComponent(() => import('./default-DGrMuwfY.mjs').then((m) => m.default || m))
+  default: defineAsyncComponent(() => import('./default-B8n-Z0gU.mjs').then((m) => m.default || m))
 };
 const routeRulesMatcher = _routeRulesMatcher;
 const LayoutLoader = defineComponent({

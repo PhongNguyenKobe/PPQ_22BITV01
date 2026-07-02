@@ -138,6 +138,54 @@ function getMovieTitle(id: string): string {
 
     </div>
 
+    <!-- AI Predictions Section -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="glass-panel border border-primary-container/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
+        <div class="absolute inset-0 bg-gradient-to-br from-primary-container/10 to-transparent"></div>
+        <div class="relative z-10 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center text-primary-container shrink-0">
+            <span class="material-symbols-outlined">weather_snowy</span>
+          </div>
+          <div>
+            <h4 class="text-sm font-bold text-on-surface mb-1">Dự báo theo thời tiết</h4>
+            <p class="text-xs text-on-surface-variant mb-2">Trời mưa lạnh vào tối mai. Dự kiến khách xem phim thể loại tình cảm tăng mạnh.</p>
+            <span class="text-lg font-black text-primary-container">+15% Doanh thu</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="glass-panel border border-[#8a2be2]/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
+        <div class="absolute inset-0 bg-gradient-to-br from-[#8a2be2]/10 to-transparent"></div>
+        <div class="relative z-10 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-[#8a2be2]/20 flex items-center justify-center text-[#8a2be2] shrink-0">
+            <span class="material-symbols-outlined">trending_up</span>
+          </div>
+          <div>
+            <h4 class="text-sm font-bold text-on-surface mb-1">Trend Mạng Xã Hội</h4>
+            <p class="text-xs text-on-surface-variant mb-2">Phim "Đường Đua Rực Lửa" đang viral top 1 Tiktok khu vực này.</p>
+            <span class="text-sm font-black text-[#8a2be2]">Gợi ý: Tăng cường suất chiếu</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel border border-green-500/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
+        <div class="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent"></div>
+        <div class="relative z-10 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 shrink-0">
+            <span class="material-symbols-outlined">tips_and_updates</span>
+          </div>
+          <div>
+            <h4 class="text-sm font-bold text-on-surface mb-1">AI Tối Ưu Giá</h4>
+            <p class="text-xs text-on-surface-variant mb-3">Khung giờ 14:00 Thứ 4 đang trống >60% ghế trống.</p>
+            <button class="text-xs font-bold text-green-500 hover:text-green-400 border border-green-500/50 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-all flex items-center gap-1 w-full justify-center">
+              <span class="material-symbols-outlined text-[14px]">bolt</span>
+              Kích hoạt Flash Sale
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Ticket Sales Bar Chart -->
     <div class="glass-panel border border-glass-stroke p-6 md:p-8 rounded-2xl shadow-lg">
       <h3 class="font-bold text-base text-on-surface mb-6 flex items-center gap-2">
