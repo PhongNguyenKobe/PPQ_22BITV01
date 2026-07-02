@@ -19,9 +19,9 @@ onMounted(() => {
   }
 })
 
-function handleProceedToPayment() {
+function handleProceedToCombo() {
   if (selectedSeats.value.length === 0) return
-  navigateTo('/checkout/payment')
+  navigateTo('/checkout/combo')
 }
 </script>
 
@@ -40,12 +40,12 @@ function handleProceedToPayment() {
       </div>
       
       <!-- Stepper Indicator -->
-      <div class="flex items-center gap-3 text-xs font-bold bg-surface-container-low border border-glass-stroke px-4 py-2.5 rounded-full">
+      <div class="flex items-center gap-3 text-[10px] md:text-xs font-bold bg-surface-container-low border border-white/10 px-4 py-2.5 rounded-full overflow-x-auto whitespace-nowrap hide-scrollbar max-w-full">
         <span class="text-primary-container">1. Chọn Ghế</span>
         <span class="text-on-surface-variant">/</span>
-        <span class="text-on-surface-variant">2. Thanh Toán</span>
+        <span class="text-on-surface-variant">2. Bắp Nước</span>
         <span class="text-on-surface-variant">/</span>
-        <span class="text-on-surface-variant">3. Nhận Vé</span>
+        <span class="text-on-surface-variant">3. Thanh Toán</span>
       </div>
     </div>
 
@@ -110,7 +110,7 @@ function handleProceedToPayment() {
             </div>
             
             <button
-              @click="handleProceedToPayment"
+              @click="handleProceedToCombo"
               :disabled="selectedSeats.length === 0"
               class="bg-primary-container text-on-primary-container px-6 py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 red-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
             >

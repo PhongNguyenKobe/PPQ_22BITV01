@@ -1,0 +1,482 @@
+<!DOCTYPE html><html class="dark" lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Lịch Chiếu | CineAI - Trải nghiệm điện ảnh tương lai</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-on-surface": "#2f3131",
+                    "on-secondary-fixed": "#2c0051",
+                    "on-secondary": "#480081",
+                    "surface-tint": "#ffb4aa",
+                    "tertiary-container": "#737272",
+                    "surface-dim": "#121414",
+                    "secondary-container": "#7701d0",
+                    "on-tertiary-container": "#fbf8f8",
+                    "surface-container-lowest": "#0d0f0f",
+                    "ai-accent": "#8a2be2",
+                    "on-error-container": "#ffdad6",
+                    "primary-fixed": "#ffdad5",
+                    "on-primary-fixed-variant": "#930007",
+                    "surface-container-highest": "#333535",
+                    "on-secondary-fixed-variant": "#6700b5",
+                    "on-primary-container": "#fff7f6",
+                    "surface-bright": "#383939",
+                    "surface-container-low": "#1a1c1c",
+                    "secondary": "#dcb8ff",
+                    "on-surface-variant": "#e9bcb6",
+                    "inverse-surface": "#e2e2e2",
+                    "on-surface": "#e3e2e2",
+                    "on-error": "#690005",
+                    "background": "#121414",
+                    "surface-container": "#1e2020",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "tertiary-fixed": "#e5e2e1",
+                    "on-tertiary-fixed": "#1b1b1c",
+                    "error": "#ffb4ab",
+                    "error-container": "#93000a",
+                    "tertiary": "#c8c6c5",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "surface": "#121414",
+                    "on-tertiary": "#303030",
+                    "inverse-primary": "#c0000c",
+                    "on-background": "#e2e2e2",
+                    "primary": "#ffb4aa",
+                    "glass-stroke": "rgba(255, 255, 255, 0.1)",
+                    "secondary-fixed": "#efdbff",
+                    "outline": "#af8782",
+                    "surface-variant": "#333535",
+                    "outline-variant": "#5e3f3b",
+                    "secondary-fixed-dim": "#dcb8ff",
+                    "on-primary": "#690003",
+                    "primary-container": "#e50914",
+                    "on-primary-fixed": "#410001",
+                    "on-secondary-container": "#dcb7ff",
+                    "surface-container-high": "#282a2a",
+                    "primary-fixed-dim": "#ffb4aa"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "container-max": "1280px",
+                    "margin-desktop": "48px",
+                    "unit": "8px",
+                    "gutter": "24px",
+                    "section-padding": "96px",
+                    "margin-mobile": "16px"
+            },
+            "fontFamily": {
+                    "headline-xl": ["Montserrat"],
+                    "body-lg": ["Inter"],
+                    "headline-lg": ["Montserrat"],
+                    "label-md": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "headline-md": ["Montserrat"],
+                    "body-md": ["Inter"],
+                    "headline-xl-mobile": ["Montserrat"]
+            },
+            "fontSize": {
+                    "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-xl-mobile": ["36px", {"lineHeight": "44px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #121414;
+            color: #e3e2e2;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .glass-panel {
+            background: rgba(31, 31, 31, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .red-glow {
+            box-shadow: 0 0 20px -5px rgba(229, 9, 20, 0.3);
+        }
+
+        .ai-gradient-border {
+            position: relative;
+            background: rgba(31, 31, 31, 0.8);
+            border-radius: 12px;
+            padding: 1px;
+        }
+        
+        .ai-gradient-border::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            padding: 2px;
+            background: linear-gradient(45deg, #e50914, #8a2be2, #e50914);
+            background-size: 200% 200%;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: gradient-move 4s linear infinite;
+        }
+
+        @keyframes gradient-move {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121414;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333535;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #e50914;
+        }
+
+        .timeline-scroll {
+            scrollbar-width: none;
+        }
+        .timeline-scroll::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-x-hidden">
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-mobile md:px-margin-desktop h-20 bg-surface/80 dark:bg-surface/80 backdrop-blur-[32px] border-b border-white/10 shadow-[0_8px_32px_0_rgba(229,9,20,0.1)]">
+<div class="flex items-center gap-12">
+<a class="font-headline-lg text-headline-lg font-bold text-primary-container tracking-tighter" href="/">CineAI</a>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-on-surface-variant font-medium hover:text-on-surface transition-colors font-label-md text-label-md hover:scale-105" href="#">Phim</a>
+<a class="text-on-surface-variant font-medium hover:text-on-surface transition-colors font-label-md text-label-md hover:scale-105" href="#">Khám phá AI</a>
+<a class="text-primary-container font-bold border-b-2 border-primary-container pb-1 font-label-md text-label-md" href="#">Lịch chiếu</a>
+<a class="text-on-surface-variant font-medium hover:text-on-surface transition-colors font-label-md text-label-md hover:scale-105" href="#">Rạp phim</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden lg:flex items-center bg-surface-container-low px-4 py-2 rounded-full border border-white/5">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-label-md font-label-md placeholder:text-on-surface-variant w-48 ml-2" placeholder="Tìm phim, rạp..." type="text">
+</div>
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-xl font-label-md text-label-md font-bold hover:scale-105 transition-all duration-300 active:scale-95 red-glow">Đăng nhập</button>
+</div>
+</header>
+<main class="mt-20 min-h-screen">
+<!-- Hero Filter Section -->
+<section class="relative pt-12 pb-8 px-margin-mobile md:px-margin-desktop bg-gradient-to-b from-surface-container-lowest to-surface">
+<div class="max-w-container-max mx-auto">
+<h1 class="font-headline-xl text-headline-xl mb-10 text-on-surface">Lịch Chiếu</h1>
+<!-- Horizontal Filters -->
+<div class="flex flex-col md:flex-row items-center gap-gutter glass-panel p-6 rounded-2xl mb-8">
+<!-- Theater Filter -->
+<div class="w-full md:w-1/4">
+<label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 px-1">Chọn Rạp</label>
+<div class="relative group">
+<select class="w-full bg-surface-container-high border-white/10 text-on-surface rounded-lg py-3 px-4 appearance-none focus:ring-primary-container focus:border-primary-container font-label-md text-label-md cursor-pointer">
+<option>Tất cả rạp</option>
+<option>CineAI Landmark 81</option>
+<option>CineAI Bitexco Financial</option>
+<option>CineAI West Lake Hanoi</option>
+<option>CineAI Da Nang Dragon</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+<!-- Movie Filter -->
+<div class="w-full md:w-1/4">
+<label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 px-1">Chọn Phim</label>
+<div class="relative group">
+<select class="w-full bg-surface-container-high border-white/10 text-on-surface rounded-lg py-3 px-4 appearance-none focus:ring-primary-container focus:border-primary-container font-label-md text-label-md cursor-pointer">
+<option>Tất cả phim</option>
+<option>Dune: Phần Hai</option>
+<option>Oppenheimer</option>
+<option>Mai</option>
+<option>Kung Fu Panda 4</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+<!-- Date Timeline -->
+<div class="w-full md:w-2/4">
+<label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 px-1">Chọn Ngày</label>
+<div class="flex gap-3 overflow-x-auto timeline-scroll pb-2">
+<button class="flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-xl bg-primary-container text-white red-glow transition-all">
+<span class="text-label-sm font-label-sm opacity-80">TH 3</span>
+<span class="text-headline-md font-bold">12</span>
+</button>
+<button class="flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-xl bg-surface-container-high border border-white/5 hover:border-primary-container transition-all">
+<span class="text-label-sm font-label-sm text-on-surface-variant">TH 4</span>
+<span class="text-headline-md font-bold text-on-surface">13</span>
+</button>
+<button class="flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-xl bg-surface-container-high border border-white/5 hover:border-primary-container transition-all">
+<span class="text-label-sm font-label-sm text-on-surface-variant">TH 5</span>
+<span class="text-headline-md font-bold text-on-surface">14</span>
+</button>
+<button class="flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-xl bg-surface-container-high border border-white/5 hover:border-primary-container transition-all">
+<span class="text-label-sm font-label-sm text-on-surface-variant">TH 6</span>
+<span class="text-headline-md font-bold text-on-surface">15</span>
+</button>
+<button class="flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-xl bg-surface-container-high border border-white/5 hover:border-primary-container transition-all">
+<span class="text-label-sm font-label-sm text-on-surface-variant">TH 7</span>
+<span class="text-headline-md font-bold text-on-surface">16</span>
+</button>
+<button class="flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-xl bg-surface-container-high border border-white/5 hover:border-primary-container transition-all">
+<span class="text-label-sm font-label-sm text-on-surface-variant">CN</span>
+<span class="text-headline-md font-bold text-on-surface">17</span>
+</button>
+<button class="flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-xl bg-surface-container-high border border-white/5 hover:border-primary-container transition-all">
+<span class="text-label-sm font-label-sm text-on-surface-variant">TH 2</span>
+<span class="text-headline-md font-bold text-on-surface">18</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- AI Recommendations Section -->
+<section class="px-margin-mobile md:px-margin-desktop py-12">
+<div class="max-w-container-max mx-auto">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-primary-container text-[32px]" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Gợi ý suất chiếu AI</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+<!-- AI Card 1 -->
+<div class="ai-gradient-border group overflow-hidden">
+<div class="p-6 bg-surface-container h-full rounded-[11px] flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-4">
+<div class="bg-primary-container/10 text-primary-container px-3 py-1 rounded-full text-label-sm font-bold uppercase tracking-wider">Trải nghiệm tốt nhất</div>
+<span class="text-on-surface-variant text-label-sm">Độ khớp: 98%</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">Dune: Phần Hai</h3>
+<p class="text-on-surface-variant font-body-md mb-6">Bạn thường xem phim sci-fi vào tối Thứ 3 tại các rạp IMAX.</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-label-sm text-on-surface-variant">Hôm nay, 20:15</span>
+<span class="text-label-md font-bold text-on-surface">CineAI Landmark 81</span>
+</div>
+<button class="bg-primary-container text-on-primary-container p-3 rounded-full hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">confirmation_number</span>
+</button>
+</div>
+</div>
+</div>
+<!-- AI Card 2 -->
+<div class="ai-gradient-border group overflow-hidden">
+<div class="p-6 bg-surface-container h-full rounded-[11px] flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-4">
+<div class="bg-ai-accent/10 text-ai-accent px-3 py-1 rounded-full text-label-sm font-bold uppercase tracking-wider">Suất chiếu vắng khách</div>
+<span class="text-on-surface-variant text-label-sm">Độ khớp: 85%</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">Oppenheimer</h3>
+<p class="text-on-surface-variant font-body-md mb-6">Dành cho bạn muốn không gian yên tĩnh để cảm thụ tác phẩm dài.</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-label-sm text-on-surface-variant">Hôm nay, 14:30</span>
+<span class="text-label-md font-bold text-on-surface">CineAI Bitexco</span>
+</div>
+<button class="bg-primary-container text-on-primary-container p-3 rounded-full hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">confirmation_number</span>
+</button>
+</div>
+</div>
+</div>
+<!-- AI Card 3 -->
+<div class="ai-gradient-border group overflow-hidden hidden lg:block">
+<div class="p-6 bg-surface-container h-full rounded-[11px] flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-4">
+<div class="bg-green-500/10 text-green-500 px-3 py-1 rounded-full text-label-sm font-bold uppercase tracking-wider">Ưu đãi thành viên</div>
+<span class="text-on-surface-variant text-label-sm">Độ khớp: 92%</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">Mai</h3>
+<p class="text-on-surface-variant font-body-md mb-6">Thành viên Diamond được giảm 30% giá vé cho suất chiếu này.</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-label-sm text-on-surface-variant">Hôm nay, 19:45</span>
+<span class="text-label-md font-bold text-on-surface">CineAI West Lake</span>
+</div>
+<button class="bg-primary-container text-on-primary-container p-3 rounded-full hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">confirmation_number</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Theater Showtimes List -->
+<section class="px-margin-mobile md:px-margin-desktop py-12 pb-section-padding">
+<div class="max-w-container-max mx-auto">
+<div class="flex justify-between items-end mb-10 border-b border-white/10 pb-4">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Danh Sách Rạp &amp; Suất Chiếu</h2>
+<div class="flex gap-4">
+<button class="flex items-center gap-2 text-label-md font-label-md text-primary-container hover:underline">
+<span class="material-symbols-outlined text-[18px]">near_me</span>
+                            Rạp gần nhất
+                        </button>
+</div>
+</div>
+<div class="space-y-12">
+<!-- Theater Block 1 -->
+<div class="flex flex-col lg:flex-row gap-8">
+<div class="lg:w-1/3">
+<div class="sticky top-24">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">CineAI Landmark 81</h3>
+<p class="text-on-surface-variant text-body-md mb-4">Tầng B1, Vincom Landmark 81, 720A Điện Biên Phủ, P.22, Q. Bình Thạnh, TP.HCM</p>
+<div class="flex gap-3">
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm border border-white/5">IMAX Laser</span>
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm border border-white/5">Dolby Atmos</span>
+</div>
+</div>
+</div>
+<div class="lg:w-2/3 space-y-8">
+<!-- Movie Row 1 -->
+<div class="glass-panel p-6 rounded-2xl flex flex-col sm:flex-row gap-6">
+<div class="w-full sm:w-24 h-36 flex-shrink-0 overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover" data-alt="A cinematic portrait poster of the movie Dune Part Two, featuring Paul Atreides against a vast orange desert background with swirling sand. The style is high-contrast, professional movie marketing photography with deep blacks and rich golden highlights, fitting the futuristic CineAI brand aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2DxRn9LX5nB6WnIAOYW9DKmmhcE6uElKuus5BETh5P_NWANMiCRx-rqmtYAxDlmZvgAlW0rr9mR3clYlocTp4sgJWWIFgiY8Egy-m9kjSdQzQefnKidmumxbH1SC9yMkJ1A1PxXkTbfQcwOPI6m6ANsupHZwga1EHmOkHe7PIiC0nuS1GtSiJXzpIxoy3xwRd24xogsNOCN8BrGsfp3cR-pSosZ4x8r2iKZc9n-CLepGxXjH2dYfNoob6raeE_deBtuqFCMduTY5Z">
+</div>
+<div class="flex-grow">
+<h4 class="font-headline-md text-headline-md text-on-surface mb-4">Dune: Phần Hai (T13)</h4>
+<!-- Format Group -->
+<div class="space-y-4">
+<div>
+<p class="text-label-sm font-label-sm text-primary-container mb-3 uppercase tracking-tighter font-bold">IMAX 2D - Phụ Đề</p>
+<div class="flex flex-wrap gap-3">
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-primary-container hover:bg-primary-container/10 transition-all font-label-md text-label-md text-on-surface">19:30</button>
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-primary-container hover:bg-primary-container/10 transition-all font-label-md text-label-md text-on-surface">22:15</button>
+</div>
+</div>
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant mb-3 uppercase tracking-tighter">2D - Phụ Đề</p>
+<div class="flex flex-wrap gap-3">
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-primary-container hover:bg-primary-container/10 transition-all font-label-md text-label-md text-on-surface">18:00</button>
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-primary-container hover:bg-primary-container/10 transition-all font-label-md text-label-md text-on-surface opacity-50 cursor-not-allowed">21:00 (Hết vé)</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Movie Row 2 -->
+<div class="glass-panel p-6 rounded-2xl flex flex-col sm:flex-row gap-6">
+<div class="w-full sm:w-24 h-36 flex-shrink-0 overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover" data-alt="A striking minimalist movie poster for Kung Fu Panda 4 featuring Po in a heroic martial arts pose. The lighting is vibrant with jade greens and warm oranges. The image is crisp, detailed, and stylized with a modern cinematic feel that aligns with the premium CineAI dark theme." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFyk6hhPTaurGx0ESma1oOTCb7jzKgdcIV_YOWBezUJQOxkweRo3cfy6tyt194tpiBGkxFkFiW4lxZJuhUkFk37lRGuoi7Ceg0rO6wNm-w6FWTG0GQzq3ws35AjPKgvUUqIP0Wdv418BqUN1-E3wmbsvMsLADShRkV33HD4X8nxqI8jx5gUM936eMTT6UeKw5GCPsQkswAb6WY1B_jR4ZqRbRxvj0zc25MCoe7vqTaw0k-3-4irDdik3GfLgjiSBujmqG_oQDjTWZB">
+</div>
+<div class="flex-grow">
+<h4 class="font-headline-md text-headline-md text-on-surface mb-4">Kung Fu Panda 4 (P)</h4>
+<!-- Format Group -->
+<div class="space-y-4">
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant mb-3 uppercase tracking-tighter">2D - Lồng Tiếng</p>
+<div class="flex flex-wrap gap-3">
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-primary-container hover:bg-primary-container/10 transition-all font-label-md text-label-md text-on-surface">15:30</button>
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-primary-container hover:bg-primary-container/10 transition-all font-label-md text-label-md text-on-surface">17:45</button>
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-primary-container hover:bg-primary-container/10 transition-all font-label-md text-label-md text-on-surface">19:15</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<hr class="border-white/5">
+<!-- Theater Block 2 -->
+<div class="flex flex-col lg:flex-row gap-8">
+<div class="lg:w-1/3">
+<div class="sticky top-24">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">CineAI Bitexco Financial</h3>
+<p class="text-on-surface-variant text-body-md mb-4">Tầng 3-4, Bitexco Financial Tower, 02 Hải Triều, Q.1, TP.HCM</p>
+<div class="flex gap-3">
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm border border-white/5">ScreenX</span>
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm border border-white/5">Gold Class</span>
+</div>
+</div>
+</div>
+<div class="lg:w-2/3 space-y-8">
+<div class="glass-panel p-6 rounded-2xl flex flex-col sm:flex-row gap-6">
+<div class="w-full sm:w-24 h-36 flex-shrink-0 overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover" data-alt="Official poster for the movie Mai, a Vietnamese romantic drama. The scene is soft and moody, with a beautiful warm interior glow, featuring high-quality cinematography. Deep shadows and rich color tones create a sophisticated look that fits perfectly within the dark UI environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBqbMiScC52ja49XVYh--CUDgZYy0IwWRe46PYLK9k2s_bgBFcmrssuAGUoqbf5YGFi9l4PEAGntTye1yjDFGUpgb8SQHqrg5-nYudCHVHy7bBOOAbTFR136ySfDIfu2oR2_4Dp8rZFGlCX451p6NCnC_7WYw7R7HRzwov7EdxDdwl4yzvJU0CjabuBUTFoL7BAe-qaexsoF7S00jIXb-j65bJxaGOIyWCreC3mnwgFuRQLSgyRl6ni9wZqTyxag7uCNoSz29VYa-8x">
+</div>
+<div class="flex-grow">
+<h4 class="font-headline-md text-headline-md text-on-surface mb-4">Mai (T18)</h4>
+<div class="space-y-4">
+<div>
+<p class="text-label-sm font-label-sm text-ai-accent mb-3 uppercase tracking-tighter font-bold">Gold Class 2D</p>
+<div class="flex flex-wrap gap-3">
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-ai-accent hover:bg-ai-accent/10 transition-all font-label-md text-label-md text-on-surface">19:00</button>
+<button class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-ai-accent hover:bg-ai-accent/10 transition-all font-label-md text-label-md text-on-surface">21:45</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full px-margin-mobile md:px-margin-desktop py-12 flex flex-col md:flex-row justify-between items-center gap-gutter bg-surface-container-lowest dark:bg-surface-container-lowest border-t border-outline-variant/30">
+<div class="flex flex-col items-center md:items-start gap-4">
+<span class="font-headline-md text-headline-md font-bold text-primary-container">CineAI</span>
+<p class="font-body-md text-body-md text-on-tertiary-fixed-variant max-w-sm text-center md:text-left">© 2026 CineAI Studios. Powered by Cinema Intelligence.</p>
+</div>
+<div class="flex flex-wrap justify-center gap-8">
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant hover:text-primary-container transition-colors" href="#">Privacy Policy</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant hover:text-primary-container transition-colors" href="#">Terms of Service</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant hover:text-primary-container transition-colors" href="#">Cookie Settings</a>
+<a class="font-label-sm text-label-sm text-on-tertiary-fixed-variant hover:text-primary-container transition-colors" href="#">Help Center</a>
+</div>
+<div class="flex gap-4">
+<a class="w-10 h-10 rounded-full flex items-center justify-center border border-white/10 hover:bg-white/5 transition-all" href="#">
+<svg class="w-5 h-5 fill-on-surface-variant" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path></svg>
+</a>
+<a class="w-10 h-10 rounded-full flex items-center justify-center border border-white/10 hover:bg-white/5 transition-all" href="#">
+<svg class="w-5 h-5 fill-on-surface-variant" viewBox="0 0 24 24"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.84 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"></path></svg>
+</a>
+</div>
+</footer>
+<script>
+        // Simple Micro-interactions
+        document.querySelectorAll('button:not(:disabled)').forEach(button => {
+            button.addEventListener('mousedown', () => {
+                button.classList.add('scale-95');
+            });
+            button.addEventListener('mouseup', () => {
+                button.classList.remove('scale-95');
+            });
+            button.addEventListener('mouseleave', ()</script>
+
+</body></html>
