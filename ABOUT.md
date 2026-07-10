@@ -258,3 +258,42 @@ Frontend lấy dữ liệu trực tiếp từ **backend API**.
 
 ### ✅ Outcome
 - Hệ thống phân quyền dựa trên vai trò được thiết lập thành công
+
+# 🛡️ Session 11 – Shopping Cart (06/07/2026)
+
+### 🎯 Objective
+- Xây dựng chức năng **[Shopping Cart](ca://s?q=Shopping_Cart_Functionality)**
+
+### 📖 Theory
+- [Context API](ca://s?q=Context_API)  
+- [Global State Management](ca://s?q=Global_State_Management)
+
+### 🛠 Hands-on Practice
+- [Add to Cart](ca://s?q=Add_to_Cart)  
+- [Remove Items](ca://s?q=Remove_Items)  
+- [Update Quantity](ca://s?q=Update_Quantity)
+
+### ✅ Outcome
+- Giỏ hàng hoạt động đầy đủ, hỗ trợ thêm, xóa và cập nhật sản phẩm
+
+---
+
+# 🛡️ Session 12 – Checkout & Orders (10/07/2026)
+
+### 🎯 Objective
+- Triển khai chức năng **[Checkout](ca://s?q=Checkout_Functionality)** và quản lý **[Orders](ca://s?q=Order_Management)**
+
+### 📖 Theory
+- [Transaction Concepts](ca://s?q=Transaction_Concepts)  
+- [Order Processing Workflow](ca://s?q=Order_Processing_Workflow)
+
+### 🛠 Hands-on Practice
+- Tạo bảng:  
+  - **[orders](ca://s?q=Orders_Table)**  
+  - **[order_items](ca://s?q=Order_Items_Table)**  
+- Chức năng:  
+  - [Checkout](ca://s?q=Checkout_Process)  
+  - [Order History](ca://s?q=Order_History)
+
+### ✅ Outcome
+- Khách hàng có thể đặt hàng và xem lại lịch sử đơn hàng
