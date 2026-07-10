@@ -14,7 +14,7 @@ const showProfileDropdown = ref(false)
 function handleSearchSubmit() {
   if (!searchVal.value.trim()) return
   moviesStore.searchMovies(searchVal.value)
-  navigateTo('/movies')
+  navigateTo('/ai-discovery')
 }
 
 function handleLogout() {
@@ -51,9 +51,7 @@ onUnmounted(() => {
       </NuxtLink>
 
       <nav class="hidden md:flex items-center gap-8">
-        <NuxtLink to="/movies" class="font-label-md text-label-md font-medium text-on-surface-variant hover:text-primary-container hover:scale-105 transition-all duration-300" active-class="text-primary-container font-bold border-b-2 border-primary-container pb-1">
-          Phim
-        </NuxtLink>
+
         <NuxtLink to="/ai-discovery" class="font-label-md text-label-md font-medium text-on-surface-variant hover:text-primary-container hover:scale-105 transition-all duration-300" active-class="text-primary-container font-bold border-b-2 border-primary-container pb-1">
           Khám phá AI
         </NuxtLink>

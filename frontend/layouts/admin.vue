@@ -58,7 +58,7 @@ onMounted(() => {
           </NuxtLink>
 
           <NuxtLink
-            to="/movies"
+            to="/#"
             class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-sm transition-colors text-on-surface-variant hover:text-on-surface"
           >
             <span class="material-symbols-outlined text-lg">movie</span>

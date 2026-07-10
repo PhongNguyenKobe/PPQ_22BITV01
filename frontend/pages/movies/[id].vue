@@ -81,7 +81,7 @@ function changeBranch(branch: string) {
     <div v-else-if="!activeMovie" class="py-24 text-center text-on-surface-variant">
       ⚠️ Không tìm thấy thông tin bộ phim này trên hệ thống.
       <div class="mt-4">
-        <NuxtLink to="/movies" class="text-primary-container font-bold hover:underline">Quay lại danh mục</NuxtLink>
+        <NuxtLink to="/ai-discovery" class="text-primary-container font-bold hover:underline">Quay lại danh mục</NuxtLink>
       </div>
     </div>
 

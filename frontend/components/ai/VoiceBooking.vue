@@ -84,7 +84,7 @@ async function handleVoiceTranscript(text: string) {
       await moviesStore.searchMovies(result.data.genre)
       setTimeout(() => {
         showDialog.value = false
-        navigateTo('/movies')
+        navigateTo('/ai-discovery')
       }, 2000)
     } else if (result.parsedAction === 'VIEW_SHOWTIMES' && result.data) {
       responseText.value = 'Đang hiển thị thông tin phim John Wick...'

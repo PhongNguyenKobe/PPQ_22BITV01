@@ -9,26 +9,28 @@ definePageMeta({
 const userStore = useUserStore()
 
 const email = ref('customer@gmail.com')
+const password = ref('customer123')
 const role = ref<'customer' | 'admin' | 'branch-admin'>('customer')
 const error = ref('')
 
 const credentialsHelp = {
-  customer: { email: 'customer@gmail.com', desc: 'Tài khoản khách hàng mặc định' },
-  admin: { email: 'admin@cineai.vn', desc: 'Tài khoản Quản trị viên tổng hệ thống' },
-  'branch-admin': { email: 'branch@cineai.vn', desc: 'Tài khoản Quản lý chi nhánh Sala' }
+  customer: { email: 'customer@gmail.com', password: 'customer123', desc: 'Tài khoản khách hàng mặc định' },
+  admin: { email: 'admin@cineai.vn', password: 'admin123', desc: 'Tài khoản Quản trị viên tổng hệ thống' },
+  'branch-admin': { email: 'branch@cineai.vn', password: 'branch123', desc: 'Tài khoản Quản lý chi nhánh Sala' }
 }
 
-function handleLogin() {
+async function handleLogin() {
   error.value = ''
   
-  // Set help email automatic check
-  const testEmail = credentialsHelp[role.value].email
-  const success = userStore.login(email.value || testEmail, role.value)
+  const help = credentialsHelp[role.value]
+  const identifier = email.value || help.email
+  const secret = password.value || help.password
+  const success = await userStore.login(identifier, secret)
   
   if (success) {
-    if (role.value === 'admin') {
+    if (userStore.currentUser?.role === 'admin') {
       navigateTo('/admin/dashboard')
-    } else if (role.value === 'branch-admin') {
+    } else if (userStore.currentUser?.role === 'branch-admin') {
       navigateTo('/branch-admin/dashboard')
     } else {
       navigateTo('/movies')
@@ -41,6 +43,7 @@ function handleLogin() {
 function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
   role.value = newRole
   email.value = credentialsHelp[newRole].email
+  password.value = credentialsHelp[newRole].password
 }
 </script>
 
@@ -102,8 +105,8 @@ function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Mật khẩu</label>
           <input
+            v-model="password"
             type="password"
-            value="123456"
             class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
             placeholder="Nhập mật khẩu"
           />
@@ -126,7 +129,7 @@ function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
       <!-- Test Accounts Hint -->
       <div class="mt-8 border-t border-glass-stroke/40 pt-4">
         <div class="bg-surface-container-low/60 rounded-xl p-3 border border-glass-stroke/50">
-          <span class="text-[10px] font-bold uppercase text-secondary tracking-wider block mb-1">💡 Tài khoản thử nghiệm (Mật khẩu: 123)</span>
+          <span class="text-[10px] font-bold uppercase text-secondary tracking-wider block mb-1">💡 Tài khoản thử nghiệm backend</span>
           <p class="text-[11px] text-on-surface-variant leading-relaxed">
             <span class="font-semibold text-on-surface">{{ credentialsHelp[role].email }}</span>
             <br />{{ credentialsHelp[role].desc }}

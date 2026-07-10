@@ -64,7 +64,7 @@ const showtimeButtons = ['19:30', '20:15', '21:00']
             </p>
 
             <div class="flex flex-col sm:flex-row gap-6">
-              <NuxtLink to="/movies" class="group relative bg-primary-container text-on-primary-container font-label-md text-label-md px-10 py-5 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 overflow-hidden" style="box-shadow:0 0 25px -2px rgba(229,9,20,0.3)">
+              <NuxtLink to="/ai-discovery" class="group relative bg-primary-container text-on-primary-container font-label-md text-label-md px-10 py-5 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 overflow-hidden" style="box-shadow:0 0 25px -2px rgba(229,9,20,0.3)">
                 <div class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                 <span class="relative z-10">Đặt vé ngay</span>
                 <span class="material-symbols-outlined text-[22px] relative z-10 group-hover:translate-x-1 transition-transform">arrow_forward</span>
@@ -101,7 +101,7 @@ const showtimeButtons = ['19:30', '20:15', '21:00']
       <section class="w-full max-w-container-max mx-auto px-6 md:px-margin-desktop py-24">
         <div class="flex justify-between items-end mb-12">
           <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">Phim đang chiếu</h2>
-          <NuxtLink to="/movies" class="hidden md:flex items-center gap-1 text-primary-container font-label-md text-label-md hover:text-primary transition-colors">
+          <NuxtLink to="/ai-discovery" class="hidden md:flex items-center gap-1 text-primary-container font-label-md text-label-md hover:text-primary transition-colors">
             Xem tất cả <span class="material-symbols-outlined text-[20px]">chevron_right</span>
           </NuxtLink>
         </div>

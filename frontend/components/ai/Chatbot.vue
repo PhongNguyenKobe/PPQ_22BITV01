@@ -57,7 +57,7 @@ async function sendMessage(text: string) {
 
     // Perform specific navigation actions if requested by the AI
     if (res.action === 'NAVIGATE_TO_MOVIES') {
-      navigateTo('/movies')
+      navigateTo('/ai-discovery')
     }
   } catch (e) {
     messages.value.push({

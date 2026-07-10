@@ -9,18 +9,35 @@ definePageMeta({
 const userStore = useUserStore()
 
 const name = ref('')
+const phone = ref('')
 const email = ref('')
+const password = ref('')
+const confirmPassword = ref('')
+const dateOfBirth = ref('')
+const gender = ref('')
 const error = ref('')
 
-function handleRegister() {
+async function handleRegister() {
   error.value = ''
   
-  if (!name.value || !email.value) {
+  if (!name.value || !email.value || !password.value || !confirmPassword.value) {
     error.value = 'Vui lòng nhập đầy đủ thông tin!'
     return
   }
 
-  const success = userStore.register(name.value, email.value)
+  if (password.value !== confirmPassword.value) {
+    error.value = 'Mật khẩu xác nhận không khớp!'
+    return
+  }
+
+  const success = await userStore.register({
+    name: name.value,
+    email: email.value,
+    phone: phone.value || undefined,
+    password: password.value,
+    dateOfBirth: dateOfBirth.value || undefined,
+    gender: gender.value || undefined,
+  })
   if (success) {
     navigateTo('/movies')
   } else {
@@ -57,6 +74,16 @@ function handleRegister() {
         </div>
 
         <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Số điện thoại</label>
+          <input
+            v-model="phone"
+            type="tel"
+            class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
+            placeholder="Nhập số điện thoại"
+          />
+        </div>
+
+        <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Email cá nhân</label>
           <input
             v-model="email"
@@ -70,11 +97,47 @@ function handleRegister() {
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Mật khẩu</label>
           <input
+            v-model="password"
             type="password"
             required
             class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
             placeholder="Nhập mật khẩu"
           />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Xác nhận mật khẩu</label>
+          <input
+            v-model="confirmPassword"
+            type="password"
+            required
+            class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
+            placeholder="Nhập lại mật khẩu"
+          />
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Ngày sinh</label>
+            <input
+              v-model="dateOfBirth"
+              type="date"
+              class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Giới tính</label>
+            <select
+              v-model="gender"
+              class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
+            >
+              <option value="">Chọn giới tính</option>
+              <option value="male">Nam</option>
+              <option value="female">Nữ</option>
+              <option value="other">Khác</option>
+            </select>
+          </div>
         </div>
 
         <button
