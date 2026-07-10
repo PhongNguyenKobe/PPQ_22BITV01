@@ -1,5 +1,24 @@
 # Hệ thống đặt vé xem phim Full Stack với AI
-# Vue 3 + TypeScript + Vite + Nuxtjs
+# Vue 3 + TypeScript + Vite + Nuxtjs + Axios
+
+## Backend FastAPI
+- Backend dùng FastAPI + async SQLAlchemy + PostgreSQL.
+- Database connection local hiện tại nằm trong `backend/.env`.
+- Migration/Alembic: `backend/alembic/`
+- Script tạo bảng nhanh: `backend/scripts/create_tables.py`
+- Script seed demo auth: `backend/scripts/seed_demo_auth.py`
+
+### Chạy backend
+1. Cài dependency trong `backend/requirements.txt`.
+2. Chạy migration: `alembic upgrade head` trong thư mục `backend/`.
+3. Nếu cần dữ liệu đăng nhập demo, chạy `python scripts/seed_demo_auth.py`.
+4. Khởi động API: `uvicorn app.main:app --reload`.
+
+### API user đã nối frontend
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/users/me`
 
 ## 👤 User (Khách hàng)
 - **Đăng ký/Đăng nhập**: tạo tài khoản, lưu thông tin cá nhân.  
