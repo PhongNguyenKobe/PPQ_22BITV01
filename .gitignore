@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Nuxt
+frontend/.nuxt/
+frontend/.output/
+
+# Environment
+.env
+frontend/.env
+
+# Logs
+*.log
+
+# Build
+dist/
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db

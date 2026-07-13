@@ -12,7 +12,7 @@ export default defineNuxtConfig({
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { hid: 'description', name: 'description', content: 'Hệ thống đặt vé xem phim dạng Multi-vendor tích hợp AI gợi ý, tìm kiếm ngữ nghĩa, và đặt vé bằng giọng nói.' }
+        { content: 'Hệ thống đặt vé xem phim dạng Multi-vendor tích hợp AI gợi ý, tìm kiếm ngữ nghĩa, và đặt vé bằng giọng nói.' }
       ],
       link: [
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap' },

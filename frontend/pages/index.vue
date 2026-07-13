@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useMoviesStore } from '~/store/movies'
+import ProductList from '~/components/ProductList.vue'
 
 definePageMeta({
   layout: 'default'
@@ -9,30 +10,32 @@ definePageMeta({
 const moviesStore = useMoviesStore()
 const { movies } = storeToRefs(moviesStore)
 
-onMounted(async () => {
-  await moviesStore.fetchMovies()
-})
+await moviesStore.fetchMovies()
 
 const highlights = [
   {
     icon: 'chair',
     title: 'Đặt vé trực quan',
-    description: 'Chọn ghế ngồi thông minh theo thời gian thực tại các chi nhánh với độ chính xác cao.'
+    description:
+      'Chọn ghế ngồi thông minh theo thời gian thực tại các chi nhánh với độ chính xác cao.'
   },
   {
     icon: 'smart_toy',
     title: 'Trợ lý ảo AI',
-    description: 'Tìm kiếm bằng ngôn ngữ tự nhiên, gợi ý phim cá nhân hóa theo gu điện ảnh.'
+    description:
+      'Tìm kiếm bằng ngôn ngữ tự nhiên, gợi ý phim cá nhân hóa theo gu điện ảnh.'
   },
   {
     icon: 'payments',
     title: 'Thanh toán đa kênh',
-    description: 'Hỗ trợ Momo, VNPAY, thẻ ngân hàng quét mã QR an toàn, bảo mật tuyệt đối.'
+    description:
+      'Hỗ trợ Momo, VNPAY, thẻ ngân hàng quét mã QR an toàn.'
   },
   {
     icon: 'qr_code',
-    title: 'Vé điện tử thông minh',
-    description: 'Lưu trữ vé số hóa ngay trên tài khoản, check-in quét mã QR nhanh tại rạp.'
+    title: 'Vé điện tử',
+    description:
+      'Lưu trữ vé số hóa và check-in bằng QR Code.'
   }
 ]
 </script>
@@ -135,5 +138,41 @@ const highlights = [
         </div>
       </div>
     </section>
+    <!-- Products Section -->
+<section class="py-20 bg-surface-container-lowest/40">
+  <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop">
+
+    <div class="flex items-center justify-between mb-12">
+
+      <div>
+        <h2
+          class="font-headline-lg text-2xl md:text-3xl font-bold text-on-surface"
+        >
+          Vé & Combo Nổi Bật
+        </h2>
+
+        <p class="text-sm text-on-surface-variant mt-2">
+          Vé xem phim, combo bắp nước và các gói thành viên hấp dẫn tại CineAI.
+        </p>
+      </div>
+
+      <NuxtLink
+        to="/products"
+        class="text-primary font-semibold hover:underline flex items-center gap-1"
+      >
+        Xem tất cả
+
+        <span class="material-symbols-outlined">
+          arrow_forward
+        </span>
+
+      </NuxtLink>
+
+    </div>
+
+    <ProductList />
+
+  </div>
+</section>
   </div>
 </template>
