@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // Set this to false when backend (FastAPI) is running
-const USE_MOCK = true
+const USE_MOCK = false  
 const API_BASE_URL = import.meta.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
 
 const apiClient = axios.create({
@@ -10,6 +10,36 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 })
+// ----------------------------------------------------
+// Xử lý lỗi tập trung cho toàn bộ API module
+// ----------------------------------------------------
+export interface ApiError {
+  message: string
+  status?: number
+}
+
+export function handleApiError(error: unknown): ApiError {
+  if (axios.isAxiosError(error)) {
+    return {
+      message:
+        (error.response?.data as any)?.detail ||
+        (error.response?.data as any)?.message ||
+        error.message ||
+        'Đã có lỗi xảy ra, vui lòng thử lại.',
+      status: error.response?.status,
+    }
+  }
+  if (error instanceof Error) {
+    return { message: error.message }
+  }
+  return { message: 'Lỗi không xác định' }
+}
+
+// Interceptor: mọi lỗi đi qua apiClient đều được chuẩn hóa thành ApiError
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => Promise.reject(handleApiError(error))
+)
 
 export function setAuthToken(token: string | null) {
   if (token) {
@@ -229,6 +259,35 @@ export const authService = {
     const res = await apiClient.get<BackendUser>('/auth/me')
     return res.data
   }
+}
+// ----------------------------------------------------
+// usersApi: các thao tác liên quan tới người dùng (khách hàng)
+// dùng cho các tính năng tương lai: xem/sửa hồ sơ, lịch sử vé...
+// ----------------------------------------------------
+export interface UpdateProfilePayload {
+  full_name?: string
+  phone?: string | null
+  date_of_birth?: string | null
+  gender?: string | null
+}
+
+export const usersApi = {
+  async getProfile(): Promise<UserProfile> {
+    const res = await apiClient.get<BackendUser>('/users/me')
+    return mapBackendUserToProfile(res.data)
+  },
+
+  async updateProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
+    const res = await apiClient.patch<BackendUser>('/users/me', payload)
+    return mapBackendUserToProfile(res.data)
+  },
+
+  // TODO: backend chưa có endpoint /users/me/tickets,
+  // bổ sung khi có API vé của tôi
+  // async getMyTickets(): Promise<UserTicket[]> {
+  //   const res = await apiClient.get<UserTicket[]>('/users/me/tickets')
+  //   return res.data
+  // },
 }
 
 export const adminBackendService = {
