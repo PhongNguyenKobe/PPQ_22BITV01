@@ -138,41 +138,42 @@ const highlights = [
         </div>
       </div>
     </section>
+
     <!-- Products Section -->
-<section class="py-20 bg-surface-container-lowest/40">
-  <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop">
+    <section class="py-20 bg-surface-container-lowest/40">
+      <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop">
 
-    <div class="flex items-center justify-between mb-12">
+        <div class="flex items-center justify-between mb-12">
 
-      <div>
-        <h2
-          class="font-headline-lg text-2xl md:text-3xl font-bold text-on-surface"
-        >
-          Vé & Combo Nổi Bật
-        </h2>
+          <div>
+            <h2
+              class="font-headline-lg text-2xl md:text-3xl font-bold text-on-surface"
+            >
+              Vé & Combo Nổi Bật
+            </h2>
 
-        <p class="text-sm text-on-surface-variant mt-2">
-          Vé xem phim, combo bắp nước và các gói thành viên hấp dẫn tại CineAI.
-        </p>
+            <p class="text-sm text-on-surface-variant mt-2">
+              Vé xem phim, combo bắp nước và các gói thành viên hấp dẫn tại CineAI.
+            </p>
+          </div>
+
+          <NuxtLink
+            to="/products"
+            class="text-primary font-semibold hover:underline flex items-center gap-1"
+          >
+            Xem tất cả
+
+            <span class="material-symbols-outlined">
+              arrow_forward
+            </span>
+
+          </NuxtLink>
+
+        </div>
+
+        <ProductList />
+
       </div>
-
-      <NuxtLink
-        to="/products"
-        class="text-primary font-semibold hover:underline flex items-center gap-1"
-      >
-        Xem tất cả
-
-        <span class="material-symbols-outlined">
-          arrow_forward
-        </span>
-
-      </NuxtLink>
-
-    </div>
-
-    <ProductList />
-
-  </div>
-</section>
+    </section>
   </div>
 </template>
