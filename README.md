@@ -32,19 +32,20 @@
 
 ## 🛠️ Admin Website (Quản trị tổng)
 - **Quản lý hệ thống**: tạo/sửa/xóa chi nhánh rạp.  
-- **Quản lý phim**: thêm phim mới, cập nhật thông tin, trailer.  
-- **Quản lý người dùng**: theo dõi hoạt động, hỗ trợ khách hàng.  
+- **Quản lý phim**: duyệt phim của admin thêm mới, có thể xóa,sửa.  
+- **Quản lý người dùng**: theo dõi hoạt động, có thể phân quyền tài khoản, hỗ trợ khách hàng.  
 - **Thống kê tổng**: doanh thu toàn hệ thống, báo cáo chi nhánh.  
 - **Quản lý AI**: tinh chỉnh thuật toán gợi ý, chatbot.  
 
 ---
 
 ## 🎬 Admin Chi nhánh Rạp
+- **Quản lý thông tin cá nhân của rạp**: thêm, xóa, sửa thông tin rạp như vị trí,...  
 - **Quản lý suất chiếu**: lên lịch chiếu phim cho rạp của mình.  
+- **Quản lý phim**: thêm phim mới, có thể xóa, sửa thông tin phim cũ, khi thêm mới thì đợi admin website duyệt.  
 - **Quản lý phòng chiếu**: cấu hình số ghế, sơ đồ phòng.  
 - **Theo dõi vé bán**: thống kê vé bán ra theo suất chiếu.  
 - **Khuyến mãi tại rạp**: tạo mã giảm giá riêng cho chi nhánh.  
-- **Quản lý nhân viên**: phân quyền nhân viên hỗ trợ tại rạp.  
 
 ---
 
