@@ -21,19 +21,19 @@ const credentialsHelp = {
 
 async function handleLogin() {
   error.value = ''
-  
+
   const help = credentialsHelp[role.value]
   const identifier = email.value || help.email
   const secret = password.value || help.password
   const success = await userStore.login(identifier, secret)
-  
+
   if (success) {
     if (userStore.currentUser?.role === 'admin') {
       navigateTo('/admin/dashboard')
     } else if (userStore.currentUser?.role === 'branch-admin') {
       navigateTo('/branch-admin/dashboard')
     } else {
-      navigateTo('/movies')
+      navigateTo('/ai-discovery')
     }
   } else {
     error.value = 'Tên đăng nhập không chính xác hoặc không đúng phân quyền!'
@@ -49,8 +49,10 @@ function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
 
 <template>
   <div class="min-h-[80vh] flex items-center justify-center py-16 px-4">
-    <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center bg-no-repeat opacity-10 pointer-events-none z-0"></div>
-    
+    <div
+      class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center bg-no-repeat opacity-10 pointer-events-none z-0">
+    </div>
+
     <div class="glass-panel w-full max-w-md rounded-2xl border border-glass-stroke p-8 relative z-10 shadow-2xl">
       <div class="text-center mb-8">
         <h1 class="font-headline-xl text-3xl font-bold text-on-surface mb-2">Đăng Nhập</h1>
@@ -59,28 +61,18 @@ function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
 
       <!-- Role Selector Tabs -->
       <div class="grid grid-cols-3 gap-2 bg-surface-container-low border border-glass-stroke p-1 rounded-xl mb-6">
-        <button
-          type="button"
-          @click="selectRole('customer')"
+        <button type="button" @click="selectRole('customer')"
           class="py-2 text-xs font-semibold rounded-lg transition-all"
-          :class="role === 'customer' ? 'bg-primary-container text-white' : 'text-on-surface-variant hover:text-on-surface'"
-        >
+          :class="role === 'customer' ? 'bg-primary-container text-white' : 'text-on-surface-variant hover:text-on-surface'">
           Khách hàng
         </button>
-        <button
-          type="button"
-          @click="selectRole('branch-admin')"
+        <button type="button" @click="selectRole('branch-admin')"
           class="py-2 text-xs font-semibold rounded-lg transition-all"
-          :class="role === 'branch-admin' ? 'bg-purple-950 border border-purple-500/20 text-purple-300' : 'text-on-surface-variant hover:text-on-surface'"
-        >
+          :class="role === 'branch-admin' ? 'bg-purple-950 border border-purple-500/20 text-purple-300' : 'text-on-surface-variant hover:text-on-surface'">
           Chi nhánh
         </button>
-        <button
-          type="button"
-          @click="selectRole('admin')"
-          class="py-2 text-xs font-semibold rounded-lg transition-all"
-          :class="role === 'admin' ? 'bg-neutral-800 border border-white/10 text-white' : 'text-on-surface-variant hover:text-on-surface'"
-        >
+        <button type="button" @click="selectRole('admin')" class="py-2 text-xs font-semibold rounded-lg transition-all"
+          :class="role === 'admin' ? 'bg-neutral-800 border border-white/10 text-white' : 'text-on-surface-variant hover:text-on-surface'">
           Admin
         </button>
       </div>
@@ -92,30 +84,22 @@ function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
         </div>
 
         <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Email tài khoản</label>
-          <input
-            v-model="email"
-            type="email"
-            required
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Email tài
+            khoản</label>
+          <input v-model="email" type="email" required
             class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
-            placeholder="Nhập email đăng nhập"
-          />
+            placeholder="Nhập email đăng nhập" />
         </div>
 
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Mật khẩu</label>
-          <input
-            v-model="password"
-            type="password"
+          <input v-model="password" type="password"
             class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
-            placeholder="Nhập mật khẩu"
-          />
+            placeholder="Nhập mật khẩu" />
         </div>
 
-        <button
-          type="submit"
-          class="w-full bg-primary-container text-on-primary-container py-3.5 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all text-sm shadow-lg red-glow"
-        >
+        <button type="submit"
+          class="w-full bg-primary-container text-on-primary-container py-3.5 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all text-sm shadow-lg red-glow">
           Đăng Nhập
         </button>
       </form>
@@ -129,7 +113,8 @@ function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
       <!-- Test Accounts Hint -->
       <div class="mt-8 border-t border-glass-stroke/40 pt-4">
         <div class="bg-surface-container-low/60 rounded-xl p-3 border border-glass-stroke/50">
-          <span class="text-[10px] font-bold uppercase text-secondary tracking-wider block mb-1">💡 Tài khoản thử nghiệm backend</span>
+          <span class="text-[10px] font-bold uppercase text-secondary tracking-wider block mb-1">💡 Tài khoản thử nghiệm
+            backend</span>
           <p class="text-[11px] text-on-surface-variant leading-relaxed">
             <span class="font-semibold text-on-surface">{{ credentialsHelp[role].email }}</span>
             <br />{{ credentialsHelp[role].desc }}
