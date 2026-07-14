@@ -16,26 +16,22 @@ const highlights = [
   {
     icon: 'chair',
     title: 'Đặt vé trực quan',
-    description:
-      'Chọn ghế ngồi thông minh theo thời gian thực tại các chi nhánh với độ chính xác cao.'
+    description: 'Chọn ghế ngồi thông minh theo thời gian thực tại các chi nhánh với độ chính xác cao.'
   },
   {
     icon: 'smart_toy',
     title: 'Trợ lý ảo AI',
-    description:
-      'Tìm kiếm bằng ngôn ngữ tự nhiên, gợi ý phim cá nhân hóa theo gu điện ảnh.'
+    description: 'Tìm kiếm bằng ngôn ngữ tự nhiên, gợi ý phim cá nhân hóa theo gu điện ảnh.'
   },
   {
     icon: 'payments',
     title: 'Thanh toán đa kênh',
-    description:
-      'Hỗ trợ Momo, VNPAY, thẻ ngân hàng quét mã QR an toàn.'
+    description: 'Hỗ trợ Momo, VNPAY, thẻ ngân hàng quét mã QR an toàn.'
   },
   {
     icon: 'qr_code',
     title: 'Vé điện tử',
-    description:
-      'Lưu trữ vé số hóa và check-in bằng QR Code.'
+    description: 'Lưu trữ vé số hóa và check-in bằng QR Code.'
   }
 ]
 </script>
