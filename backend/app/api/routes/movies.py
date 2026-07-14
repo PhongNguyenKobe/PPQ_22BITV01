@@ -32,11 +32,15 @@ def _showtime_to_read(showtime: Showtime) -> ShowtimeRead:
 
 
 @router.get("", response_model=list[MovieRead])
-async def read_movies(db: AsyncSession = Depends(get_db)) -> list[MovieRead]:
-    movies = await list_movies(db)
+async def read_movies(
+    genre: str | None = None,
+    status: str | None = None,
+    skip: int = 0,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+) -> list[MovieRead]:
+    movies = await list_movies(db, genre_code=genre, status=status, skip=skip, limit=limit)
     return [_movie_to_read(movie) for movie in movies]
-
-
 @router.get("/recommendations", response_model=list[MovieRead])
 async def read_recommendations(db: AsyncSession = Depends(get_db)) -> list[MovieRead]:
     movies = await recommended_movies(db)

@@ -6,15 +6,27 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.catalog import Auditorium, Movie, Seat, Showtime
+from app.models.catalog import Auditorium, Movie, MovieGenre, Seat, Showtime
 
+async def list_movies(
+    db: AsyncSession,
+    genre_code: str | None = None,
+    status: str | None = None,
+    skip: int = 0,
+    limit: int = 20,
+) -> list[Movie]:
+    query = select(Movie).options(selectinload(Movie.genres)).order_by(Movie.created_at.desc())
 
-async def list_movies(db: AsyncSession, limit: int = 50) -> list[Movie]:
-    result = await db.execute(
-        select(Movie).options(selectinload(Movie.genres)).order_by(Movie.created_at.desc()).limit(limit)
-    )
+    if status:
+        query = query.where(Movie.status == status)
+
+    if genre_code:
+        query = query.where(Movie.genres.any(MovieGenre.code == genre_code))
+
+    query = query.offset(skip).limit(limit)
+
+    result = await db.execute(query)
     return list(result.scalars().all())
-
 
 async def get_movie(db: AsyncSession, movie_id: UUID) -> Movie | None:
     result = await db.execute(

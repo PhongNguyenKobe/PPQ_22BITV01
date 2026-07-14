@@ -36,7 +36,16 @@ async def get_user_by_identifier(db: AsyncSession, identifier: str) -> User | No
 async def get_user_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     result = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == user_id))
     return result.scalar_one_or_none()
-
+    
+async def list_users(db: AsyncSession, skip: int = 0, limit: int = 20) -> list[User]:
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.roles))
+        .order_by(User.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
 
 async def create_user(db: AsyncSession, user_in: UserCreate, default_role_code: str = "CUSTOMER") -> User:
     if await get_user_by_email(db, user_in.email):
