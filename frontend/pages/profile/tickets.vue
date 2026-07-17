@@ -4,7 +4,9 @@ import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'default',
+  middleware: ['role'],
+  requiredRole: 'customer'
 })
 
 const ticketsStore = useTicketsStore()

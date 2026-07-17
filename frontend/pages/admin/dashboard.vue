@@ -3,7 +3,9 @@ import { ref, onMounted } from 'vue'
 import { adminService, type Movie, type UserProfile } from '~/services/api'
 
 definePageMeta({
-  layout: 'admin'
+  layout: 'admin',
+  middleware: ['role'],
+  requiredRole: 'admin'
 })
 
 const activeTab = ref<'movies' | 'branches' | 'users'>('movies')

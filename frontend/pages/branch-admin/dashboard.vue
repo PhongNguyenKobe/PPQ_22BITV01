@@ -3,7 +3,9 @@ import { ref, onMounted, computed } from 'vue'
 import { adminService, mockMovies, type Showtime } from '~/services/api'
 
 definePageMeta({
-  layout: 'admin'
+  layout: 'admin',
+  middleware: ['role'],
+  requiredRole: 'branch-admin'
 })
 
 const activeTab = ref<'showtimes' | 'screens' | 'promos'>('showtimes')

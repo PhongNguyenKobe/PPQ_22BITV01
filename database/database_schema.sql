@@ -197,6 +197,30 @@ CREATE TABLE booking_items (
     FOREIGN KEY (seat_id) REFERENCES seats(id) ON DELETE RESTRICT
 );
 
+-- ===============================
+-- 8. Checkout / Orders
+-- ===============================
+CREATE TABLE orders (
+    id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id          UUID NOT NULL,
+    status           VARCHAR(20) NOT NULL DEFAULT 'PENDING', -- PENDING/CONFIRMED/CANCELLED
+    subtotal_amount  NUMERIC(12,2) NOT NULL CHECK (subtotal_amount >= 0),
+    total_amount     NUMERIC(12,2) NOT NULL CHECK (total_amount >= 0),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE order_items (
+    id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id         UUID NOT NULL,
+    product_id       UUID,
+    title            VARCHAR(255) NOT NULL,
+    unit_price       NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0),
+    quantity         INTEGER NOT NULL CHECK (quantity > 0),
+    total_price      NUMERIC(12,2) NOT NULL CHECK (total_price >= 0),
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
 -- Prevent double booking for same showtime + seat
 CREATE TABLE tickets (
     id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
