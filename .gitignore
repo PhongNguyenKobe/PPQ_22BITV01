@@ -1,0 +1,21 @@
+# Nuxt build files
+.nuxt
+.output
+
+frontend/.nuxt
+frontend/.output
+
+# Node modules
+node_modules
+
+# Environment files
+.env
+frontend/.env
+backend/.env
+
+# Python cache
+__pycache__
+*.pyc
+
+# VS Code
+.vscode
