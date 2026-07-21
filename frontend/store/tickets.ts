@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { checkoutService, mockTickets, type Showtime, type Seat, type UserTicket } from '~/services/api'
 
 export const useTicketsStore = defineStore('tickets', () => {
+  const selectedMovie = ref<any>(null) // Product/Movie to book
+  const selectedCinema = ref<string>('') // Cinema branch name
   const selectedShowtime = ref<Showtime | null>(null)
   const selectedSeats = ref<Seat[]>([])
   const ticketHistory = ref<UserTicket[]>([...mockTickets])
@@ -38,7 +40,22 @@ export const useTicketsStore = defineStore('tickets', () => {
     }
   }
 
+  function selectMovie(movie: any) {
+    selectedMovie.value = movie
+    selectedCinema.value = ''
+    selectedShowtime.value = null
+    selectedSeats.value = []
+  }
+
+  function selectCinema(cinema: string) {
+    selectedCinema.value = cinema
+    selectedShowtime.value = null
+    selectedSeats.value = []
+  }
+
   function clearSelection() {
+    selectedMovie.value = null
+    selectedCinema.value = ''
     selectedShowtime.value = null
     selectedSeats.value = []
   }
@@ -77,11 +94,15 @@ export const useTicketsStore = defineStore('tickets', () => {
   }
 
   return {
+    selectedMovie,
+    selectedCinema,
     selectedShowtime,
     selectedSeats,
     ticketHistory,
     loading,
     totalAmount,
+    selectMovie,
+    selectCinema,
     selectShowtime,
     toggleSeat,
     clearSelection,

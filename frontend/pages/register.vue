@@ -22,7 +22,7 @@ function handleRegister() {
 
   const success = userStore.register(name.value, email.value)
   if (success) {
-    navigateTo('/movies')
+    navigateTo('/products')
   } else {
     error.value = 'Email này đã tồn tại trên hệ thống!'
   }

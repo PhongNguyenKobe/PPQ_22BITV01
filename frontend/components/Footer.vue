@@ -2,10 +2,10 @@
 const currentYear = new Date().getFullYear()
 
 const navigationLinks = [
-  { name: 'Phim', to: '/movies' },
+  { name: 'Sản phẩm', to: '/products' },
   { name: 'Lịch chiếu', to: '/showtimes' },
   { name: 'Rạp chiếu', to: '/cinemas' },
-  { name: 'AI Discovery', to: '/ai' }
+  { name: 'AI Discovery', to: '/ai-discovery' }
 ]
 
 const supportLinks = [

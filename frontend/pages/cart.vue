@@ -1,14 +1,33 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useCartStore } from '~/store/cart'
+import { useUserStore } from '~/store/user'
 
 definePageMeta({ layout: 'default' })
 
 const cartStore = useCartStore()
+const userStore = useUserStore()
 const { items, total } = storeToRefs(cartStore)
+const { isAuthenticated, currentUser } = storeToRefs(userStore)
 
-function checkout() {
-  alert('Chức năng thanh toán sẽ làm ở session sau.')
+const isCheckingOut = ref(false)
+const orderId = ref<string | null>(null)
+
+async function checkout() {
+  if (items.value.length === 0) return
+
+  if (!isAuthenticated.value || !currentUser.value) {
+    navigateTo('/login')
+    return
+  }
+
+  isCheckingOut.value = true
+  await new Promise((resolve) => setTimeout(resolve, 1200))
+
+  orderId.value = `DH-${Date.now().toString().slice(-6)}`
+  cartStore.clearCart()
+  isCheckingOut.value = false
 }
 </script>
 
@@ -17,8 +36,15 @@ function checkout() {
     <h2 class="font-headline-lg text-3xl font-bold text-on-surface mb-8">Giỏ hàng</h2>
 
     <div v-if="items.length === 0" class="text-center py-10 text-on-surface-variant">
-      Giỏ hàng đang trống.
-      <NuxtLink to="/products" class="text-primary-container underline block mt-2">Tiếp tục mua sắm</NuxtLink>
+      <div v-if="orderId" class="rounded-2xl border border-primary-container/20 bg-primary-container/10 p-6 max-w-xl mx-auto">
+        <p class="text-lg font-semibold text-on-surface">Đặt hàng thành công!</p>
+        <p class="mt-2">Mã đơn hàng của bạn là <span class="font-bold text-primary-container">{{ orderId }}</span>.</p>
+        <NuxtLink to="/products" class="text-primary-container underline block mt-4">Tiếp tục mua sắm</NuxtLink>
+      </div>
+      <template v-else>
+        Giỏ hàng đang trống.
+        <NuxtLink to="/products" class="text-primary-container underline block mt-2">Tiếp tục mua sắm</NuxtLink>
+      </template>
     </div>
 
     <template v-else>
@@ -34,11 +60,17 @@ function checkout() {
         </div>
       </div>
 
-      <div class="flex items-center justify-between border-t border-glass-stroke pt-6">
-        <p class="text-xl font-bold text-on-surface">Tổng: {{ new Intl.NumberFormat('vi-VN').format(total * 1000) }}₫</p>
+      <div class="flex flex-col gap-4 border-t border-glass-stroke pt-6 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-xl font-bold text-on-surface">Tổng: {{ new Intl.NumberFormat('vi-VN').format(total * 1000) }}₫</p>
+          <p class="text-sm text-on-surface-variant mt-1">Đơn hàng sẽ được xác nhận sau khi bạn nhấn thanh toán.</p>
+        </div>
         <div class="flex gap-3">
           <NuxtLink to="/products" class="px-6 py-3 rounded-xl border border-glass-stroke hover:bg-white/10 transition">Tiếp tục mua sắm</NuxtLink>
-          <button @click="checkout" class="bg-primary-container text-on-primary-container px-6 py-3 rounded-xl font-bold red-glow-hover">Thanh toán</button>
+          <button @click="checkout" :disabled="isCheckingOut" class="bg-primary-container text-on-primary-container px-6 py-3 rounded-xl font-bold red-glow-hover disabled:opacity-60 disabled:cursor-not-allowed">
+            <span v-if="isCheckingOut">Đang xử lý...</span>
+            <span v-else>Thanh toán</span>
+          </button>
         </div>
       </div>
     </template>

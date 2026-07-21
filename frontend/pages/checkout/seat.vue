@@ -1,21 +1,18 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
-import { useMoviesStore } from '~/store/movies'
 
 definePageMeta({
   layout: 'default'
 })
 
 const ticketsStore = useTicketsStore()
-const moviesStore = useMoviesStore()
-const { selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
-const { activeMovie } = storeToRefs(moviesStore)
+const { selectedMovie, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
 
 onMounted(() => {
-  // Redirect back to catalog if no showtime has been selected
+  // Redirect back to cinema selection if no showtime has been selected
   if (!selectedShowtime.value) {
-    navigateTo('/movies')
+    navigateTo('/checkout/cinema')
   }
 })
 
@@ -30,22 +27,36 @@ function handleProceedToPayment() {
     <!-- Selection Breadcrumb / Header -->
     <div class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <NuxtLink to="/movies" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
+        <button @click="$router.back()" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
           <span class="material-symbols-outlined text-sm">arrow_back</span>
-          Quay lại Lịch Chiếu
-        </NuxtLink>
+          Quay lại Chọn Suất
+        </button>
         <h1 class="font-headline-lg text-2xl md:text-3xl font-black text-on-surface">
           Chọn Ghế Ngồi Thông Minh
         </h1>
       </div>
       
       <!-- Stepper Indicator -->
-      <div class="flex items-center gap-3 text-xs font-bold bg-surface-container-low border border-glass-stroke px-4 py-2.5 rounded-full">
-        <span class="text-primary-container">1. Chọn Ghế</span>
-        <span class="text-on-surface-variant">/</span>
-        <span class="text-on-surface-variant">2. Thanh Toán</span>
-        <span class="text-on-surface-variant">/</span>
-        <span class="text-on-surface-variant">3. Nhận Vé</span>
+      <div class="flex items-center justify-center gap-3 text-xs font-bold">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">1</div>
+          <span>Chọn Rạp</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">2</div>
+          <span>Chọn Suất</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">3</div>
+          <span>Chọn Ghế</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">4</div>
+          <span>Thanh Toán</span>
+        </div>
       </div>
     </div>
 
@@ -61,7 +72,7 @@ function handleProceedToPayment() {
         <div class="glass-panel border border-glass-stroke rounded-2xl p-6 md:p-8 space-y-6">
           <div class="border-b border-glass-stroke/40 pb-4">
             <h3 class="font-bold text-lg text-on-surface mb-2">Thông Tin Suất Chiếu</h3>
-            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ activeMovie?.title }}</span>
+            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ selectedMovie?.name }}</span>
           </div>
 
           <div class="space-y-3 text-xs text-on-surface-variant border-b border-glass-stroke/40 pb-4">

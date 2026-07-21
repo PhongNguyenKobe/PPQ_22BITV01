@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { useMoviesStore } from '~/store/movies'
+import { useProductsStore } from '~/store/products'
 import ProductList from '~/components/ProductList.vue'
 
 definePageMeta({
   layout: 'default'
 })
 
-const moviesStore = useMoviesStore()
-const { movies } = storeToRefs(moviesStore)
+const productsStore = useProductsStore()
+const { products } = storeToRefs(productsStore)
 
-await moviesStore.fetchMovies()
+await productsStore.fetchProducts()
 
 const highlights = [
   {
@@ -76,11 +76,11 @@ const highlights = [
             </p>
 
             <div class="flex flex-col sm:flex-row gap-4">
-              <NuxtLink to="/movies" class="group relative bg-primary-container text-on-primary-container font-label-md text-label-md px-10 py-4.5 rounded-xl flex items-center justify-center gap-3 red-glow-hover transition-all duration-300 overflow-hidden">
+              <NuxtLink to="/products" class="group relative bg-primary-container text-on-primary-container font-label-md text-label-md px-10 py-4.5 rounded-xl flex items-center justify-center gap-3 red-glow-hover transition-all duration-300 overflow-hidden">
                 <span class="relative z-10">Đặt Vé Ngay</span>
                 <span class="material-symbols-outlined text-[20px] relative z-10 group-hover:translate-x-1 transition-transform">arrow_forward</span>
               </NuxtLink>
-              <NuxtLink to="/movies" class="group bg-surface-container/40 backdrop-blur-md text-on-surface border border-white/10 font-label-md text-label-md px-10 py-4.5 rounded-xl flex items-center justify-center gap-3 hover:bg-white/10 hover:border-primary-container/50 transition-all duration-300">
+              <NuxtLink to="/products" class="group bg-surface-container/40 backdrop-blur-md text-on-surface border border-white/10 font-label-md text-label-md px-10 py-4.5 rounded-xl flex items-center justify-center gap-3 hover:bg-white/10 hover:border-primary-container/50 transition-all duration-300">
                 <span class="material-symbols-outlined text-[20px] text-secondary group-hover:rotate-12 transition-transform">smart_toy</span>
                 Khám Phá Phim AI
               </NuxtLink>
@@ -115,25 +115,25 @@ const highlights = [
       </div>
     </section>
 
-    <!-- Featured Movie Catalog Spotlight -->
+    <!-- Featured Product Catalog Spotlight -->
     <section class="py-16">
       <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop">
         <div class="flex items-center justify-between mb-12">
           <div>
-            <h2 class="font-headline-lg text-2xl md:text-3xl text-on-surface font-bold">Phim Đang Chiếu Nổi Bật</h2>
-            <p class="text-sm text-on-surface-variant mt-1">Danh sách các bộ phim bom tấn không thể bỏ qua tại các cụm rạp CineAI.</p>
+            <h2 class="font-headline-lg text-2xl md:text-3xl text-on-surface font-bold">Sản Phẩm Nổi Bật</h2>
+            <p class="text-sm text-on-surface-variant mt-1">Danh sách các vé xem phim loại khác nhau tại các cụm rạp CineAI.</p>
           </div>
-          <NuxtLink to="/movies" class="text-sm font-bold text-primary hover:underline flex items-center gap-1">
+          <NuxtLink to="/products" class="text-sm font-bold text-primary hover:underline flex items-center gap-1">
             Xem tất cả
             <span class="material-symbols-outlined text-xs">arrow_forward</span>
           </NuxtLink>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-          <MovieCard
-            v-for="movie in movies.slice(0, 4)"
-            :key="movie.id"
-            :movie="movie"
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
+          <ProductCard
+            v-for="product in products.slice(0, 5)"
+            :key="product.id"
+            v-bind="product"
           />
         </div>
       </div>

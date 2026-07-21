@@ -33,7 +33,7 @@ defineProps<{
             <span>{{ movie.director }}</span>
           </div>
           <NuxtLink
-            :to="`/movies/${movie.id}`"
+            :to="`/products/${movie.id}`"
             class="w-full bg-primary-container text-on-primary-container py-2.5 rounded-xl font-bold text-center block text-sm transition-all hover:scale-105 active:scale-95 red-glow"
           >
             Xem Chi Tiết
@@ -75,7 +75,7 @@ defineProps<{
           ⏱️ {{ movie.duration }} phút
         </span>
         <NuxtLink
-          :to="`/movies/${movie.id}`"
+          :to="`/products/${movie.id}`"
           class="text-xs font-bold text-primary-container hover:underline flex items-center gap-1"
         >
           Đặt Vé

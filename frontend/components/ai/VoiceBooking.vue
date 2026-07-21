@@ -73,10 +73,10 @@ async function handleVoiceTranscript(text: string) {
     transcript.value = `Nhận diện: "${result.text}"`
     
     if (result.parsedAction === 'BOOK_MOVIE' && result.data) {
-      responseText.value = 'Đang dẫn bạn đến trang đặt vé phim Dune: Part Two...'
+      responseText.value = 'Đang dẫn bạn đến trang sản phẩm phù hợp...'
       setTimeout(() => {
         showDialog.value = false
-        navigateTo(`/movies/${result.data.movieId}`)
+        navigateTo(`/products/${result.data.movieId}`)
       }, 2000)
     } else if (result.parsedAction === 'SEARCH_GENRE' && result.data) {
       responseText.value = `Đang tìm kiếm phim thuộc thể loại: ${result.data.genre}...`
@@ -84,13 +84,13 @@ async function handleVoiceTranscript(text: string) {
       await moviesStore.searchMovies(result.data.genre)
       setTimeout(() => {
         showDialog.value = false
-        navigateTo('/movies')
+        navigateTo('/products')
       }, 2000)
     } else if (result.parsedAction === 'VIEW_SHOWTIMES' && result.data) {
-      responseText.value = 'Đang hiển thị thông tin phim John Wick...'
+      responseText.value = 'Đang hiển thị thông tin sản phẩm...'
       setTimeout(() => {
         showDialog.value = false
-        navigateTo(`/movies/${result.data.movieId}`)
+        navigateTo(`/products/${result.data.movieId}`)
       }, 2000)
     } else {
       responseText.value = 'CineAI chưa hiểu rõ lệnh này. Bạn hãy thử nói lại: "Đặt vé phim Dune" hoặc "Tìm phim hành động".'

@@ -116,7 +116,7 @@ async function triggerSearch() {
             </h2>
             <p class="text-on-surface-variant mt-2">Tuyển tập được AI lựa chọn dựa trên hồ sơ xem phim của bạn.</p>
           </div>
-          <NuxtLink to="/movies" class="text-primary-container font-label-md hover:underline">Xem Tất Cả</NuxtLink>
+          <NuxtLink to="/products" class="text-primary-container font-label-md hover:underline">Xem Tất Cả</NuxtLink>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div v-for="m in aiMovies" :key="m.title" class="group relative rounded-2xl overflow-hidden" style="aspect-ratio:16/9">

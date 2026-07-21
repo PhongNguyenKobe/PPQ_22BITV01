@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { adminService, type Movie, type UserProfile } from '~/services/api'
 
 definePageMeta({
@@ -26,13 +26,26 @@ const branchesList = ref([
   { id: 'b5', name: 'CineAI Đà Nẵng Plaza', city: 'Đà Nẵng', screens: 4, status: 'Bảo trì' }
 ])
 
-// Add Movie Modal Dialog Form State
+// Add/Edit Movie Modal Dialog Form State
 const showAddMovieModal = ref(false)
+const editingMovieId = ref<string | null>(null)
 const newMovieTitle = ref('')
 const newMovieGenre = ref('')
 const newMovieDirector = ref('')
 const newMovieDuration = ref(120)
 const newMovieRating = ref(4.5)
+
+// Edit/Add User Modal
+const showAddUserModal = ref(false)
+const editingUserId = ref<string | null>(null)
+const newUserName = ref('')
+const newUserEmail = ref('')
+const newUserRole = ref<'customer' | 'admin' | 'branch-admin'>('customer')
+
+// Delete confirmation
+const showDeleteConfirm = ref(false)
+const deleteConfirmType = ref<'movie' | 'user' | null>(null)
+const deleteConfirmId = ref<string | null>(null)
 
 onMounted(async () => {
   try {
@@ -49,37 +62,126 @@ onMounted(async () => {
   }
 })
 
+function openAddMovieModal() {
+  editingMovieId.value = null
+  newMovieTitle.value = ''
+  newMovieGenre.value = ''
+  newMovieDirector.value = ''
+  newMovieDuration.value = 120
+  newMovieRating.value = 4.5
+  showAddMovieModal.value = true
+}
+
+function openEditMovieModal(movie: Movie) {
+  editingMovieId.value = movie.id
+  newMovieTitle.value = movie.title
+  newMovieGenre.value = movie.genre.join(', ')
+  newMovieDirector.value = movie.director
+  newMovieDuration.value = movie.duration
+  newMovieRating.value = movie.rating
+  showAddMovieModal.value = true
+}
+
 function handleDeleteMovie(id: string) {
-  moviesList.value = moviesList.value.filter(m => m.id !== id)
-  totalMovies.value = moviesList.value.length
+  deleteConfirmType.value = 'movie'
+  deleteConfirmId.value = id
+  showDeleteConfirm.value = true
+}
+
+function confirmDelete() {
+  if (deleteConfirmType.value === 'movie' && deleteConfirmId.value) {
+    moviesList.value = moviesList.value.filter(m => m.id !== deleteConfirmId.value)
+    totalMovies.value = moviesList.value.length
+  } else if (deleteConfirmType.value === 'user' && deleteConfirmId.value) {
+    usersList.value = usersList.value.filter(u => u.id !== deleteConfirmId.value)
+    totalUsers.value = usersList.value.length
+  }
+  showDeleteConfirm.value = false
 }
 
 function handleAddMovieSubmit() {
   if (!newMovieTitle.value) return
   
-  const created: Movie = {
-    id: `m-${Date.now()}`,
-    title: newMovieTitle.value,
-    genre: newMovieGenre.value.split(',').map(s => s.trim()),
-    director: newMovieDirector.value || 'N/A',
-    duration: newMovieDuration.value || 120,
-    rating: newMovieRating.value || 4.5,
-    poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=300',
-    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
-    description: 'Bộ phim mới được nhập vào hệ thống CineAI.',
-    releaseDate: new Date().toISOString().substring(0, 10),
-    format: ['2D', '3D'],
-    cast: ['Diễn viên A', 'Diễn viên B']
+  if (editingMovieId.value) {
+    // Edit existing
+    const idx = moviesList.value.findIndex(m => m.id === editingMovieId.value)
+    if (idx !== -1) {
+      moviesList.value[idx].title = newMovieTitle.value
+      moviesList.value[idx].genre = newMovieGenre.value.split(',').map(s => s.trim())
+      moviesList.value[idx].director = newMovieDirector.value
+      moviesList.value[idx].duration = newMovieDuration.value
+      moviesList.value[idx].rating = newMovieRating.value
+    }
+  } else {
+    // Add new
+    const created: Movie = {
+      id: `m-${Date.now()}`,
+      title: newMovieTitle.value,
+      genre: newMovieGenre.value.split(',').map(s => s.trim()),
+      director: newMovieDirector.value || 'N/A',
+      duration: newMovieDuration.value || 120,
+      rating: newMovieRating.value || 4.5,
+      poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=300',
+      trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+      description: 'Bộ phim mới được nhập vào hệ thống CineAI.',
+      releaseDate: new Date().toISOString().substring(0, 10),
+      format: ['2D', '3D'],
+      cast: ['Diễn viên A', 'Diễn viên B']
+    }
+    moviesList.value.unshift(created)
+    totalMovies.value = moviesList.value.length
   }
-  
-  moviesList.value.unshift(created)
-  totalMovies.value = moviesList.value.length
   
   // Close & reset
   showAddMovieModal.value = false
   newMovieTitle.value = ''
   newMovieGenre.value = ''
   newMovieDirector.value = ''
+}
+
+function openAddUserModal() {
+  editingUserId.value = null
+  newUserName.value = ''
+  newUserEmail.value = ''
+  newUserRole.value = 'customer'
+  showAddUserModal.value = true
+}
+
+function openEditUserModal(user: UserProfile) {
+  editingUserId.value = user.id
+  newUserName.value = user.name
+  newUserEmail.value = user.email
+  newUserRole.value = user.role
+  showAddUserModal.value = true
+}
+
+function handleAddUserSubmit() {
+  if (!newUserName.value || !newUserEmail.value) return
+  
+  if (editingUserId.value) {
+    const idx = usersList.value.findIndex(u => u.id === editingUserId.value)
+    if (idx !== -1) {
+      usersList.value[idx].name = newUserName.value
+      usersList.value[idx].email = newUserEmail.value
+      usersList.value[idx].role = newUserRole.value
+    }
+  } else {
+    const newUser: UserProfile = {
+      id: `u-${Date.now()}`,
+      name: newUserName.value,
+      email: newUserEmail.value,
+      role: newUserRole.value
+    }
+    usersList.value.push(newUser)
+    totalUsers.value = usersList.value.length
+  }
+  showAddUserModal.value = false
+}
+
+function handleDeleteUser(id: string) {
+  deleteConfirmType.value = 'user'
+  deleteConfirmId.value = id
+  showDeleteConfirm.value = true
 }
 
 // Find max revenue for chart proportions
@@ -199,11 +301,20 @@ const maxRevenueValue = computed(() => {
         
         <button
           v-if="activeTab === 'movies'"
-          @click="showAddMovieModal = true"
+          @click="openAddMovieModal"
           class="bg-primary-container hover:bg-opacity-90 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 red-glow transition-all"
         >
           <span class="material-symbols-outlined text-sm">add</span>
           Thêm Phim Mới
+        </button>
+        
+        <button
+          v-if="activeTab === 'users'"
+          @click="openAddUserModal"
+          class="bg-primary-container hover:bg-opacity-90 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 red-glow transition-all"
+        >
+          <span class="material-symbols-outlined text-sm">add</span>
+          Thêm Người Dùng
         </button>
       </div>
 
@@ -231,6 +342,7 @@ const maxRevenueValue = computed(() => {
                 <td class="py-4 px-4 text-center text-on-surface-variant font-mono">{{ movie.duration }} phút</td>
                 <td class="py-4 px-4 text-center text-yellow-500 font-bold">★ {{ movie.rating.toFixed(1) }}</td>
                 <td class="py-4 px-4 text-right space-x-2">
+                  <button @click="openEditMovieModal(movie)" class="text-blue-400 hover:text-blue-300 font-semibold">Sửa</button>
                   <button @click="handleDeleteMovie(movie.id)" class="text-red-400 hover:text-red-300 font-semibold">Xóa</button>
                 </td>
               </tr>
@@ -285,7 +397,8 @@ const maxRevenueValue = computed(() => {
                   </span>
                 </td>
                 <td class="py-4 px-4">
-                  <button class="text-primary-container font-semibold hover:underline">Chỉnh sửa</button>
+                  <button @click="openEditUserModal(user)" class="text-blue-400 hover:text-blue-300 font-semibold mr-2">Sửa</button>
+                  <button @click="handleDeleteUser(user.id)" class="text-red-400 hover:text-red-300 font-semibold">Xóa</button>
                 </td>
               </tr>
             </tbody>
@@ -295,7 +408,7 @@ const maxRevenueValue = computed(() => {
       </div>
     </div>
 
-    <!-- Add Movie Modal overlay -->
+    <!-- Add/Edit Movie Modal overlay -->
     <transition
       enter-active-class="transition duration-300 ease-out"
       enter-from-class="opacity-0"
@@ -310,7 +423,7 @@ const maxRevenueValue = computed(() => {
             <span class="material-symbols-outlined">close</span>
           </button>
           
-          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">Thêm Phim Mới</h3>
+          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">{{ editingMovieId ? 'Chỉnh Sửa Phim' : 'Thêm Phim Mới' }}</h3>
           
           <form @submit.prevent="handleAddMovieSubmit" class="space-y-4">
             <div>
@@ -334,10 +447,100 @@ const maxRevenueValue = computed(() => {
               </div>
             </div>
 
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Đánh giá</label>
+              <input v-model.number="newMovieRating" type="number" min="0" max="10" step="0.1" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" />
+            </div>
+
             <button type="submit" class="w-full bg-primary-container text-white py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md red-glow">
-              Tạo phim mới
+              {{ editingMovieId ? 'Cập nhật' : 'Tạo phim mới' }}
             </button>
           </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Add/Edit User Modal overlay -->
+    <transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div v-if="showAddUserModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl border border-glass-stroke p-6 relative">
+          <button @click="showAddUserModal = false" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+          
+          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">{{ editingUserId ? 'Chỉnh Sửa Người Dùng' : 'Thêm Người Dùng' }}</h3>
+          
+          <form @submit.prevent="handleAddUserSubmit" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Họ tên</label>
+              <input v-model="newUserName" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Nguyễn Văn A" />
+            </div>
+            
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Email</label>
+              <input v-model="newUserEmail" type="email" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="user@example.com" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Vai trò</label>
+              <select v-model="newUserRole" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
+                <option value="customer">Khách hàng</option>
+                <option value="branch-admin">Quản lý chi nhánh</option>
+                <option value="admin">Quản lý hệ thống</option>
+              </select>
+            </div>
+
+            <button type="submit" class="w-full bg-primary-container text-white py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md red-glow">
+              {{ editingUserId ? 'Cập nhật' : 'Thêm người dùng' }}
+            </button>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Delete Confirmation Modal -->
+    <transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0 scale-90"
+      enter-to-class="opacity-100 scale-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100 scale-100"
+      leave-to-class="opacity-0 scale-90"
+    >
+      <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-xs rounded-2xl border border-glass-stroke p-6 relative">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 rounded-full bg-red-950/50 border border-red-500/20 flex items-center justify-center">
+              <span class="material-symbols-outlined text-red-400">warning</span>
+            </div>
+            <h3 class="text-sm font-bold text-on-surface">Xác nhận xóa</h3>
+          </div>
+          
+          <p class="text-xs text-on-surface-variant mb-6">
+            {{ deleteConfirmType === 'movie' ? 'Bạn có chắc chắn muốn xóa phim này không? Hành động này không thể hoàn tác.' : 'Bạn có chắc chắn muốn xóa người dùng này không? Hành động này không thể hoàn tác.' }}
+          </p>
+
+          <div class="flex gap-3">
+            <button 
+              @click="showDeleteConfirm = false"
+              class="flex-1 px-4 py-2.5 bg-surface-container border border-glass-stroke rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-high transition-all"
+            >
+              Hủy
+            </button>
+            <button 
+              @click="confirmDelete"
+              class="flex-1 px-4 py-2.5 bg-red-950 border border-red-500/20 rounded-lg text-xs font-bold text-red-400 hover:bg-red-900 transition-all"
+            >
+              Xóa
+            </button>
+          </div>
         </div>
       </div>
     </transition>

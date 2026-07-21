@@ -31,7 +31,7 @@ function handleLogin() {
     } else if (role.value === 'branch-admin') {
       navigateTo('/branch-admin/dashboard')
     } else {
-      navigateTo('/movies')
+      navigateTo('/products')
     }
   } else {
     error.value = 'Tên đăng nhập không chính xác hoặc không đúng phân quyền!'

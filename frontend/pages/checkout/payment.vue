@@ -2,16 +2,13 @@
 import { ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
-import { useMoviesStore } from '~/store/movies'
 
 definePageMeta({
   layout: 'default'
 })
 
 const ticketsStore = useTicketsStore()
-const moviesStore = useMoviesStore()
-const { selectedShowtime, selectedSeats, totalAmount, loading } = storeToRefs(ticketsStore)
-const { activeMovie } = storeToRefs(moviesStore)
+const { selectedMovie, selectedShowtime, selectedSeats, totalAmount, loading } = storeToRefs(ticketsStore)
 
 const selectedPayment = ref('Ví Momo')
 const processing = ref(false)
@@ -27,7 +24,7 @@ const paymentMethods = [
 onMounted(() => {
   // If no seats selected, send them back to seat choice
   if (selectedSeats.value.length === 0 || !selectedShowtime.value) {
-    navigateTo('/movies')
+    navigateTo('/checkout/seat')
   }
 })
 
@@ -69,12 +66,26 @@ async function handleConfirmPayment() {
       </div>
       
       <!-- Stepper Indicator -->
-      <div class="flex items-center gap-3 text-xs font-bold bg-surface-container-low border border-glass-stroke px-4 py-2.5 rounded-full">
-        <span class="text-on-surface-variant">1. Chọn Ghế</span>
-        <span class="text-on-surface-variant">/</span>
-        <span class="text-primary-container">2. Thanh Toán</span>
-        <span class="text-on-surface-variant">/</span>
-        <span class="text-on-surface-variant">3. Nhận Vé</span>
+      <div class="flex items-center justify-center gap-3 text-xs font-bold">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">1</div>
+          <span>Chọn Rạp</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">2</div>
+          <span>Chọn Suất</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">3</div>
+          <span>Chọn Ghế</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">4</div>
+          <span>Thanh Toán</span>
+        </div>
       </div>
     </div>
 
@@ -133,7 +144,7 @@ async function handleConfirmPayment() {
         <div class="glass-panel border border-glass-stroke rounded-2xl p-6 md:p-8 space-y-6">
           <div>
             <h3 class="font-bold text-lg text-on-surface mb-2">Đơn Vé Của Bạn</h3>
-            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ activeMovie?.title }}</span>
+            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ selectedMovie?.name }}</span>
           </div>
 
           <div class="space-y-3 text-xs text-on-surface-variant border-t border-glass-stroke/40 pt-4">
