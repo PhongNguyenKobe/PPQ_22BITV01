@@ -1,19 +1,19 @@
-# Nuxt build files
+# Nuxt
 .nuxt
 .output
 
 frontend/.nuxt
 frontend/.output
 
-# Node modules
+# Node
 node_modules
 
-# Environment files
+# Environment
 .env
 frontend/.env
 backend/.env
 
-# Python cache
+# Python
 __pycache__
 *.pyc
 

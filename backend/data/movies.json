@@ -1,0 +1,18 @@
+[
+    {
+        "id": 1,
+        "title": "Avatar 2",
+        "genre": "Action",
+        "duration": 192,
+        "rating": 8.2,
+        "poster": "avatar.jpg"
+    },
+    {
+        "id": 2,
+        "title": "Inside Out 2",
+        "genre": "Animation",
+        "duration": 97,
+        "rating": 8.6,
+        "poster": "insideout2.jpg"
+    }
+]
