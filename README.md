@@ -46,6 +46,7 @@
 - **Quản lý phòng chiếu**: cấu hình số ghế, sơ đồ phòng.  
 - **Theo dõi vé bán**: thống kê vé bán ra theo suất chiếu.  
 - **Khuyến mãi tại rạp**: tạo mã giảm giá riêng cho chi nhánh.  
+- **Quản lý nhân viên**: phân quyền nhân viên hỗ trợ tại rạp.  
 
 ---
 
