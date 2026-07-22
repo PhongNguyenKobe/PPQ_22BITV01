@@ -14,8 +14,9 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     tmdbToken: process.env.TMDB_API_TOKEN,
-
-    public: {}
+    public: {
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
+    }
   },
 
   app: {
@@ -61,3 +62,4 @@ export default defineNuxtConfig({
     storesDirs: ['./store/**']
   }
 })
+

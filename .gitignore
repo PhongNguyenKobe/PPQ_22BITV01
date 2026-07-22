@@ -1,21 +1,29 @@
-# Nuxt
+# Nuxt build artifacts
 .nuxt
 .output
-
 frontend/.nuxt
 frontend/.output
+/frontend/.nuxt/
+/frontend/.output/
 
-# Node
+# Node dependencies
 node_modules
+/node_modules/
 
-# Environment
+# Environment variables
 .env
 frontend/.env
 backend/.env
+/.env
+/backend/.env
+/frontend/.env
 
 # Python
 __pycache__
 *.pyc
+/.venv/
+/backend/.venv/
 
 # VS Code
 .vscode
+

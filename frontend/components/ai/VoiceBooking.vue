@@ -193,3 +193,4 @@ function selectMockCommand(commandText: string) {
     </transition>
   </div>
 </template>
+

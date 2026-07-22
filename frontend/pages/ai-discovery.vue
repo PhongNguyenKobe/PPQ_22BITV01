@@ -1,165 +1,374 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useMoviesStore } from '~/store/movies'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useMoviesStore } from '~/store/movies'
+import { useTicketsStore } from '~/store/tickets'
 
 definePageMeta({ layout: 'default' })
 
 const moviesStore = useMoviesStore()
-const { movies } = storeToRefs(moviesStore)
+const ticketsStore = useTicketsStore()
 
-const searchInput = ref('')
-const selectedGenre = ref('Tất cả phim')
-const activeSort = ref('Độ phù hợp AI')
+const { movies, loading, activeShowtimes } = storeToRefs(moviesStore)
+const { activeMovie } = storeToRefs(moviesStore)
 
-const genres = ['Tất cả phim', 'Hành Động', 'Viễn Tưởng', 'Tâm Lý', 'Kịch Tính', 'Cyberpunk', 'Neon-Noir', 'Phim Tài Liệu']
-const sorts = ['Độ phù hợp AI', 'Ngày Phát Hành', 'Phổ Biến']
+type Step = 'intent' | 'recommend' | 'ready'
+const step = ref<Step>('intent')
 
-const suggestions = [
-  'Phim viễn tưởng vũ trụ hoành tráng',
-  'Hành động kịch tính nghẹt thở',
-  'Cyberpunk neon đen tối mới nhất',
-  'Phim của đạo diễn Christopher Nolan'
-]
+// User intent (AI assistant input)
+const intentText = ref('')
+const isListening = ref(false)
+const isSearched = ref(false)
 
-const aiMovies = [
-  { title: 'Techno-Dystopia: Tín Hiệu Cuối', genre: 'Viễn Tưởng', score: '98%', badge: 'AI Lựa Chọn Hàng Đầu', img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuApX8V3ac0arkT6yk4kzv8Yw7ILjPdcDl879XQvy3C9I2bt0qO4ksMSkGKyM4yQnmcCtTvEX1oDLfr1O2aZnTYg3wQ9VBnBBnl4KLMfkg0R_LqPzSH-YxlvxiLSyXrVFUTbbKBCS2gWfT2o7SGmREu5rzFkfKAPJc6ZqlgQ1-ZjWchKP5pRsXzqGX90XfLy7FPQicSCMja312CH216FNHMpZ61TdiwsL7akjZZ-CGT-4de7l6oc9iVO8UoAQCJHsjIOzD_ki3m0VQHU' },
-  { title: 'Tiếng Vang Của Thuật Toán', genre: 'Tâm Lý', score: '95%', badge: 'Tuyệt Tác', img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDBKGmSMrGByy2OJMqN0m9EMoxzjyatedzRHy4_2jzbNm103d-rNfYmTRIsK9aCUl6vDhdxoxHJ8r4ebmTn9qw5frwtVPSDwa0ZzGwJtryO-Ai17TtL9_vmfCsXTtJaRkG5b1A_94BaAd2MZwoXRgfKSH0qKUMJrDO8-DcSjqd7vcOE44R6GmmUzhQRfcZJ_ldfXW4Xz2oZCT-J5MrMjI9WZO2HrXUZmgEW-k6a5Qu_KJGqP4FgU4AGiG7x8CGJWtcWx0FFmUMOKUn7' },
-]
+const recommendedMovie = computed(() => pickBestMovie(movies.value))
 
-const movieGrid = [
-  { title: 'Giấc Mơ Robot', genre: 'Viễn Tưởng', rating: '8.9', img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAIzDZyiO4JqUEg_LDomlwA8haE6bBgMLvOdO2ZRHCvG-oBi841ymz-C4vv7lEiHWaVmWXDbOpdb-IgAVOtUH7vlK70p2ZQqzrXOKn6rjL3n8gobVlVpLNvG1rbUqGd_iGTA1fSJfbeTeWNAQ3LXP2uFuC6oXp78nqR4fu9g_jnAOvHpz8Cv1gUZQ5-HGv3SntcXdHwwFNcu_pqjLzzpe3hoXP9K7liTJ7p_zW6rnF9aZJ8y0wMljdK0cGR2Ph-tQPBWoEFyvYcIq9G' },
-  { title: 'Thành Phố Neo', genre: 'Cyberpunk', rating: '9.1', img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop' },
-  { title: 'Đường Hậu Toàn', genre: 'Hành Động', rating: '8.5', img: 'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=800&auto=format&fit=crop' },
-  { title: 'Người Đỏ Bất Bại', genre: 'Viễn Tưởng', rating: '7.8', img: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800&auto=format&fit=crop' },
-  { title: 'Biến Cố 2099', genre: 'Viễn Tưởng', rating: '8.2', img: 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?q=80&w=800&auto=format&fit=crop' },
-]
+const chosenShowtime = computed(() => {
+  // We rely on checkout store for selectedShowtime, but since its ref isn't exposed here,
+  // we compute from activeShowtimes after selecting.
+  return ticketsStore.selectedShowtime || (activeShowtimes.value?.[0] ?? null)
+})
 
-async function triggerSearch() {
-  if (searchInput.value.trim()) {
-    moviesStore.searchMovies(searchInput.value)
+onMounted(async () => {
+  await moviesStore.fetchMovies()
+})
+
+function extractScore(m: { isFeatured?: boolean; rating?: number } | null) {
+  if (!m) return 0
+  const featuredScore = m.isFeatured ? 2 : 0
+  const ratingScore = (m.rating ?? 0) / 5
+  return featuredScore + ratingScore
+}
+
+function pickBestMovie(list: typeof movies.value) {
+  if (!list?.length) return null
+  const sorted = [...list].sort((a, b) => extractScore(b) - extractScore(a))
+  return sorted[0] || null
+}
+
+function pickBestShowtime(showtimes: typeof activeShowtimes.value) {
+  if (!showtimes?.length) return null
+
+  const toMinutes = (t: string) => {
+    const [hh, mm] = t.split(':').map(Number)
+    return hh * 60 + (mm || 0)
   }
+
+  // ưu tiên khung 18:00 - 21:00
+  const preferredFrom = 18 * 60
+  const preferredTo = 21 * 60
+
+  const scored = showtimes.map(s => {
+    const mins = toMinutes(s.time)
+    let score = 0
+    const inWindow = mins >= preferredFrom && mins <= preferredTo
+    score += inWindow ? 5 : 0
+    score -= Math.abs(mins - 19 * 60) / 60
+    return { s, score }
+  })
+
+  scored.sort((a, b) => b.score - a.score)
+  return scored[0]?.s || null
+}
+
+async function runAiBookingFlow() {
+  const text = intentText.value.trim()
+  if (!text) return
+
+  isSearched.value = true
+  step.value = 'recommend'
+
+  // 1) AI semantic search -> candidate movies
+  await moviesStore.searchMovies(text)
+
+  // 2) pick best movie
+  const best = pickBestMovie(movies.value)
+  if (!best) {
+    step.value = 'intent'
+    return
+  }
+
+  // 3) load showtimes for that movie
+  await moviesStore.fetchMovieDetails(best.id)
+
+  const bestShow = pickBestShowtime(activeShowtimes.value)
+  if (!bestShow) {
+    step.value = 'intent'
+    return
+  }
+
+  // 4) initialize checkout state
+  ticketsStore.selectShowtime(bestShow)
+  step.value = 'ready'
+
+  if (process.client) {
+    window.scrollTo({ top: 520, behavior: 'smooth' })
+  }
+}
+
+function clearIntent() {
+  intentText.value = ''
+  isSearched.value = false
+  step.value = 'intent'
+}
+
+function runAiBookingCTA() {
+  intentText.value = 'Cho tôi đặt vé phim viễn tưởng kịch tính có robot tối nay, ưu tiên suất đẹp và giá hợp lý'
+  runAiBookingFlow()
+}
+
+function proceedToSeatCheckout() {
+  navigateTo('/checkout/seat')
+}
+
+// Web Speech Voice Search (AI intent)
+let recognition: any = null
+function startVoiceSearch() {
+  if (!process.client) return
+
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  if (!SpeechRecognition) {
+    alert('Trình duyệt của bạn không hỗ trợ chức năng tìm kiếm bằng giọng nói.')
+    return
+  }
+
+  if (isListening.value) {
+    if (recognition) recognition.stop()
+    isListening.value = false
+    return
+  }
+
+  recognition = new SpeechRecognition()
+  recognition.lang = 'vi-VN'
+  recognition.continuous = false
+  recognition.interimResults = false
+
+  recognition.onstart = () => {
+    isListening.value = true
+    intentText.value = 'Đang lắng nghe giọng nói...'
+  }
+
+  recognition.onerror = (e: any) => {
+    console.error('Speech error', e)
+    isListening.value = false
+    intentText.value = ''
+  }
+
+  recognition.onend = () => {
+    isListening.value = false
+  }
+
+  recognition.onresult = async (event: any) => {
+    const textResult = event.results[0][0].transcript
+    intentText.value = textResult
+    isListening.value = false
+    await runAiBookingFlow()
+  }
+
+  recognition.start()
 }
 </script>
 
 <template>
-  <div class="min-h-screen pt-20">
-    <!-- Hero Search -->
-    <section class="relative h-[400px] flex items-center overflow-hidden">
-      <div class="absolute inset-0 z-0">
-        <div class="w-full h-full bg-[url('https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center"></div>
-        <div class="absolute inset-0" style="background:rgba(18,20,20,0.8)"></div>
-        <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(18,20,20,1) 0%,rgba(18,20,20,0) 100%)"></div>
+  <div class="min-h-screen bg-background text-on-surface pb-24">
+    <!-- Hero Section: AI Ticket Booking -->
+    <section class="relative h-[55vh] min-h-[420px] flex flex-col items-center justify-center text-center px-6 md:px-0">
+      <div class="absolute -top-24 -left-24 w-96 h-96 rounded-full pointer-events-none z-0 animate-pulse" style="background:rgba(229,9,20,0.06);filter:blur(120px)"></div>
+      <div class="absolute top-1/2 -right-48 w-96 h-96 rounded-full pointer-events-none z-0" style="background:rgba(138,43,226,0.06);filter:blur(120px)"></div>
+
+      <h1 class="font-headline-xl text-headline-xl md:text-[56px] md:leading-[64px] font-bold max-w-4xl mb-8 relative z-10">
+        AI đề xuất lộ trình <span class="text-primary-container">đặt vé</span> nhanh
+      </h1>
+
+      <div class="w-full max-w-3xl glass-panel p-2 rounded-full flex items-center gap-3 border-white/20 shadow-xl focus-within:ring-2 focus-within:ring-primary-container transition-all relative z-10">
+        <span class="material-symbols-outlined ml-6 text-on-surface-variant">auto_awesome</span>
+
+        <input
+          v-model="intentText"
+          @keydown.enter="runAiBookingFlow"
+          class="bg-transparent border-none focus:ring-0 flex-grow font-body-md text-on-surface placeholder:text-on-surface-variant/50 outline-none"
+          :placeholder="isListening ? 'Hãy nói ý muốn đặt vé của bạn...' : 'Thử nói: Đặt vé tối nay, ưu tiên suất đẹp cho 2 người...'"
+          type="text"
+        />
+
+        <button
+          v-if="intentText"
+          @click="clearIntent"
+          type="button"
+          class="p-2 text-on-surface-variant hover:text-on-surface mr-1"
+          title="Xóa"
+        >
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+
+        <button
+          @click="startVoiceSearch"
+          :class="isListening ? 'bg-primary-container text-white animate-bounce' : 'bg-primary-container/10 text-primary-container hover:bg-primary-container/20'"
+          class="p-4 rounded-full transition-colors flex items-center justify-center group"
+          title="Đặt vé bằng giọng nói"
+        >
+          <span class="material-symbols-outlined text-[24px]">mic</span>
+        </button>
+
+        <button
+          @click="runAiBookingFlow"
+          class="bg-primary-container text-on-primary-container px-8 py-4 rounded-full font-label-md text-label-md font-bold red-glow-hover transition-all shrink-0"
+        >
+          AI Đặt Vé Nhanh
+        </button>
       </div>
-      <div class="relative z-10 max-w-container-max mx-auto px-6 md:px-margin-desktop w-full text-center">
-        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6" style="background:rgba(229,9,20,0.1);border:1px solid rgba(229,9,20,0.2)">
-          <span class="material-symbols-outlined text-primary-container text-[20px] animate-pulse">psychology</span>
-          <span class="text-label-sm font-bold tracking-wider uppercase text-primary-container">Khám Phá AI</span>
-        </div>
-        <h1 class="font-headline-xl text-headline-xl mb-6 text-on-surface">Trải Nghiệm Trí Tuệ <span class="text-primary-container">Điện Ảnh</span></h1>
-        <div class="max-w-2xl mx-auto relative group">
-          <div class="absolute -inset-1 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000" style="background:linear-gradient(to right,#e50914,#8a2be2)"></div>
-          <div class="relative flex items-center rounded-full p-2" style="background:rgba(31,31,31,0.6);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1)">
-            <span class="material-symbols-outlined ml-4 text-primary-container" style="font-variation-settings:'FILL' 1">psychology</span>
-            <input
-              v-model="searchInput"
-              @keydown.enter="triggerSearch"
-              class="bg-transparent border-none focus:ring-0 w-full text-on-surface px-4 py-3 placeholder:text-on-surface-variant outline-none"
-              placeholder="Thử 'Tìm phim trinh thám về AI'..."
-              type="text"
-            />
-            <button @click="triggerSearch" class="bg-primary-container text-on-primary-container px-8 py-3 rounded-full font-bold hover:scale-105 transition-all flex items-center gap-2 shadow-[0_0_20px_-5px_rgba(229,9,20,0.5)]">
-              Khám Phá
-            </button>
-          </div>
-        </div>
-        <div class="mt-8 flex flex-wrap justify-center gap-3">
-          <span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Xu hướng:</span>
-          <button v-for="sug in suggestions" :key="sug" @click="searchInput = sug; triggerSearch()" class="px-4 py-1 rounded-full text-on-surface text-label-md hover:bg-white/10 transition-colors" style="background:rgba(31,31,31,0.6);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1)">
-            {{ sug }}
-          </button>
-        </div>
-      </div>
+
+      <p class="mt-6 text-on-surface-variant font-label-md text-label-md relative z-10">
+        Ví dụ: <span class="text-on-surface">"Ngồi VIP hàng F", "Suất tối muộn hôm nay"</span>
+      </p>
     </section>
 
-    <!-- Filter Bar -->
-    <section class="py-6 sticky top-20 z-40" style="background:rgba(18,20,20,0.8);backdrop-filter:blur(16px)">
-      <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop">
-        <div class="flex items-center gap-4 overflow-x-auto pb-2" style="scrollbar-width:none">
-          <button
-            v-for="g in genres" :key="g"
-            @click="selectedGenre = g"
-            class="flex-shrink-0 px-6 py-2 rounded-lg font-label-md text-label-md transition-all"
-            :class="selectedGenre === g ? 'bg-primary-container text-on-primary-container' : 'text-on-surface hover:bg-white/10 transition-colors' "
-            :style="selectedGenre === g ? '' : 'background:rgba(31,31,31,0.6);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1)'"
-          >
-            {{ g }}
-          </button>
-          <div class="ml-auto flex items-center gap-2 pl-4 shrink-0">
-            <span class="font-label-md text-label-md text-on-surface-variant whitespace-nowrap">Sắp xếp:</span>
-            <select v-model="activeSort" class="bg-transparent border border-white/10 rounded-lg text-on-surface font-label-md py-1 px-3 outline-none">
-              <option v-for="s in sorts" :key="s">{{ s }}</option>
-            </select>
+    <!-- AI Booking Flow Cards -->
+    <section class="max-w-container-max mx-auto px-6 md:px-margin-desktop py-10">
+      <div class="flex items-center justify-between gap-6 mb-8">
+        <div>
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1">smart_toy</span>
+            <h2 class="font-headline-lg text-headline-lg">Trợ lý AI đang tối ưu đặt vé</h2>
           </div>
+          <p class="text-on-surface-variant mt-2">Rút ngắn thời gian: AI tự chọn phim + suất tối ưu để bạn chỉ việc chọn ghế.</p>
         </div>
-      </div>
-    </section>
 
-    <!-- Featured AI Recommendations -->
-    <section class="py-16 bg-surface-container-lowest">
-      <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop">
-        <div class="flex items-center justify-between mb-12">
-          <div>
-            <h2 class="font-headline-lg text-headline-lg text-on-surface flex items-center gap-3">
-              <span class="material-symbols-outlined text-primary-container" style="font-variation-settings:'FILL' 1">auto_awesome</span>
-              Gợi Ý Cho Bạn
-            </h2>
-            <p class="text-on-surface-variant mt-2">Tuyển tập được AI lựa chọn dựa trên hồ sơ xem phim của bạn.</p>
-          </div>
-          <NuxtLink to="/products" class="text-primary-container font-label-md hover:underline">Xem Tất Cả</NuxtLink>
+        <button
+          @click="runAiBookingCTA"
+          class="bg-primary-container text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 red-glow-hover transition-all shrink-0"
+          title="Điền câu mẫu"
+        >
+          <span class="material-symbols-outlined">auto_awesome</span>
+          Tự động gợi ý
+        </button>
+      </div>
+
+      <div v-if="loading" class="glass-panel rounded-2xl p-8 text-center border border-white/10">
+        <div class="flex items-center justify-center gap-3">
+          <span class="material-symbols-outlined text-2xl animate-spin" style="animation-duration: 1200ms">progress_activity</span>
+          <p class="font-bold">AI đang đề xuất phim và suất chiếu tối ưu...</p>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div v-for="m in aiMovies" :key="m.title" class="group relative rounded-2xl overflow-hidden" style="aspect-ratio:16/9">
-            <img :src="m.img" :alt="m.title" class="w-full h-full object-cover" />
-            <div class="absolute inset-0 flex flex-col justify-end p-8" style="background:linear-gradient(to top,rgba(18,20,20,0.95) 0%,transparent 100%)">
-              <div class="flex items-center gap-2 mb-4">
-                <span class="bg-secondary-container text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">{{ m.badge }}</span>
-                <span class="text-white/80 text-sm">{{ m.score }} Tương Thích</span>
-              </div>
-              <h3 class="font-headline-lg text-headline-lg text-white mb-2">{{ m.title }}</h3>
-              <div class="flex items-center gap-4">
-                <button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-lg font-bold hover:scale-105 transition-all">Xem Trailer</button>
-                <NuxtLink :to="`/movies/1`" class="px-6 py-2 rounded-lg font-bold hover:bg-white/10 transition-colors text-white border border-white/20">Chi Tiết</NuxtLink>
-              </div>
+        <p class="text-on-surface-variant text-sm mt-3">Đang phân tích yêu cầu của bạn (không phải tìm kím phim).</p>
+      </div>
+
+      <div v-else-if="isSearched" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <!-- Recommended Movie -->
+        <div class="lg:col-span-6 glass-panel rounded-2xl border border-glass-stroke p-6 overflow-hidden relative">
+          <div class="absolute inset-0 bg-cover bg-center opacity-20" :style="recommendedMovie ? { backgroundImage: `url(${recommendedMovie.poster})` } : {}"></div>
+          <div class="relative">
+            <div class="flex items-center justify-between">
+              <span class="bg-primary-container/10 border border-primary-container/20 text-primary-container text-xs font-bold px-3 py-1 rounded-full">Phim AI chọn</span>
+              <span class="text-[11px] text-on-surface-variant font-bold">Bước 1/2</span>
             </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Movie Grid -->
-    <section class="py-16">
-      <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop">
-        <h2 class="font-headline-lg text-headline-lg text-on-surface mb-12">Khám Phá Phim</h2>
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          <div v-for="m in movieGrid" :key="m.title" class="relative rounded-xl overflow-hidden group hover:scale-105 transition-transform duration-300 cursor-pointer" style="aspect-ratio:2/3">
-            <img :src="m.img" :alt="m.title" class="w-full h-full object-cover" />
-            <div class="absolute inset-0 flex flex-col justify-end p-4" style="background:linear-gradient(to top,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0.3) 50%,transparent 100%)">
-              <div class="flex justify-between items-center mb-2">
-                <span class="text-[#8a2be2] text-xs font-bold uppercase">{{ m.genre }}</span>
-                <div class="flex items-center gap-1 px-2 py-1 rounded" style="background:rgba(52,53,53,0.9)">
-                  <span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings:'FILL' 1">star</span>
-                  <span class="text-white text-[12px] font-bold">{{ m.rating }}</span>
-                </div>
-              </div>
-              <h4 class="font-headline-md text-[14px] text-white mb-3">{{ m.title }}</h4>
-              <NuxtLink to="/checkout/seat" class="w-full bg-primary-container text-on-primary-container py-2 rounded-lg text-label-md font-bold text-center block opacity-0 group-hover:opacity-100 transition-opacity">
-                Đặt chỗ
+            <h3 class="font-headline-md text-2xl font-black text-on-surface mt-3" v-if="recommendedMovie">{{ recommendedMovie.title }}</h3>
+            <p class="text-on-surface-variant text-sm mt-2" v-if="recommendedMovie">{{ recommendedMovie.description }}</p>
+
+            <div class="mt-4 flex flex-wrap gap-2" v-if="recommendedMovie">
+              <span v-for="g in recommendedMovie.genre" :key="g" class="px-3 py-1 rounded-full bg-surface-container-high border border-white/5 text-xs font-bold">{{ g }}</span>
+            </div>
+
+            <div class="mt-6">
+              <NuxtLink v-if="recommendedMovie" :to="`/movies/${recommendedMovie.id}`" class="text-primary-container hover:underline text-sm font-bold">
+                Xem chi tiết phim
               </NuxtLink>
             </div>
           </div>
         </div>
+
+        <!-- Recommended Showtime -->
+        <div class="lg:col-span-6 glass-panel rounded-2xl border border-glass-stroke p-6">
+          <div class="flex items-center justify-between">
+            <span class="bg-secondary-container/10 border border-secondary-container/20 text-secondary text-xs font-bold px-3 py-1 rounded-full">Suất chiếu tối ưu</span>
+            <span class="text-[11px] text-on-surface-variant font-bold">Bước 2/2</span>
+          </div>
+
+          <div v-if="ticketsStore.selectedShowtime" class="mt-4">
+            <h3 class="font-headline-md text-2xl font-black text-on-surface">{{ ticketsStore.selectedShowtime.time }} • {{ ticketsStore.selectedShowtime.date }}</h3>
+            <div class="mt-3 space-y-2 text-sm text-on-surface-variant">
+              <div class="flex justify-between gap-4"><span>Rạp</span><span class="text-on-surface font-bold">{{ ticketsStore.selectedShowtime.branchName }}</span></div>
+              <div class="flex justify-between gap-4"><span>Phòng</span><span class="text-on-surface font-bold">{{ ticketsStore.selectedShowtime.screenName }}</span></div>
+              <div class="flex justify-between gap-4"><span>Giá từ</span><span class="text-on-surface font-bold text-primary">{{ ticketsStore.selectedShowtime.price.toLocaleString() }} VNĐ</span></div>
+            </div>
+
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+              <button
+                @click="proceedToSeatCheckout"
+                class="bg-primary-container text-on-primary-container px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 red-glow-hover transition-all"
+              >
+                <span class="material-symbols-outlined">confirmation_number</span>
+                Chọn ghế & đặt vé ngay
+              </button>
+
+              <button
+                @click="step = 'intent'; isSearched = false; ticketsStore.clearSelection()"
+                class="border border-white/10 bg-surface-container-high px-6 py-3 rounded-xl font-bold hover:bg-white/5 transition-all"
+              >
+                Sửa yêu cầu
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="mt-4 text-center text-on-surface-variant">
+            AI không tìm được suất chiếu phù hợp. Hãy thử mô tả khác (ví dụ: "sớm hơn", "tối nay").
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="mt-10 glass-panel border border-white/10 rounded-2xl p-8">
+        <div class="flex items-start gap-4">
+         
+          <div>
+            <h3 class="font-headline-md text-xl font-black text-on-surface">Bắt đầu từ mong muốn đặt vé</h3>
+            <p class="text-on-surface-variant text-sm mt-2">Bạn chỉ cần nói/nhập: thời gian, phong cách, rạp/loại ghế (nếu có). AI sẽ tự đề xuất phim + suất tối ưu để bạn chọn ghế.</p>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button @click="runAiBookingCTA" class="px-4 py-2 rounded-full bg-primary-container/10 border border-primary-container/20 text-primary-container text-xs font-bold hover:bg-primary-container/15 transition-all">
+                Tôi muốn đặt vé tối nay (ưu tiên suất đẹp)
+              </button>
+              <button
+                @click="intentText = 'Đặt vé hôm nay, 2 người, chỗ ngồi VIP'; runAiBookingFlow()"
+                class="px-4 py-2 rounded-full bg-primary-container/10 border border-primary-container/20 text-primary-container text-xs font-bold hover:bg-primary-container/15 transition-all"
+              >
+                Đặt vé 2 người VIP
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom CTA -->
+    <section class="max-w-container-max mx-auto px-6 md:px-margin-desktop py-12">
+      <div class="glass-panel p-12 rounded-[32px] flex flex-col md:flex-row items-center justify-between gap-12 overflow-hidden relative border border-white/10">
+        <div class="absolute top-0 right-0 w-96 h-96 pointer-events-none" style="background:rgba(229,9,20,0.05);filter:blur(80px)"></div>
+
+        <div class="max-w-xl text-center md:text-left relative z-10">
+          <h3 class="font-headline-lg text-headline-lg mb-4">Bạn muốn đặt vé nhanh trong 30 giây?</h3>
+          <p class="text-on-surface-variant font-body-md text-body-md">AI sẽ tối ưu lộ trình: chọn phim + suất phù hợp, sau đó đưa bạn thẳng tới bước chọn ghế.</p>
+        </div>
+
+        <button
+          @click="runAiBookingCTA"
+          class="bg-primary-container text-white px-10 py-5 rounded-2xl font-headline-md text-[18px] font-bold flex items-center gap-4 red-glow-hover transition-all shrink-0 relative z-10"
+        >
+          <span class="material-symbols-outlined text-2xl animate-pulse">auto_awesome</span>
+          Khởi động AI Booking
+        </button>
       </div>
     </section>
   </div>
 </template>
+
+<style scoped>
+.glass-panel {
+  background: rgba(31, 31, 31, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.red-glow-hover:hover {
+  box-shadow: 0 0 25px -5px rgba(229, 9, 20, 0.5);
+}
+</style>
+

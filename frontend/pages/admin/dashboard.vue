@@ -1,12 +1,12 @@
-<script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { adminService, type Movie, type UserProfile } from '~/services/api'
+ <script setup lang="ts">
+import { computed, ref, onMounted } from 'vue'
+import { adminBackendService, adminService, type BackendBranch, type Movie, type MovieRequest, type UserProfile } from '~/services/api'
 
 definePageMeta({
   layout: 'admin'
 })
 
-const activeTab = ref<'movies' | 'branches' | 'users'>('movies')
+const activeTab = ref<'movies' | 'branches' | 'users' | 'approvals'>('movies')
 
 // Stats
 const totalBranches = ref(0)
@@ -18,6 +18,8 @@ const revenueChartData = ref<{ label: string; value: number }[]>([])
 // Lists
 const moviesList = ref<Movie[]>([])
 const usersList = ref<UserProfile[]>([])
+const branchOptions = ref<BackendBranch[]>([])
+const movieRequests = ref<MovieRequest[]>([])
 const branchesList = ref([
   { id: 'b1', name: 'CineAI Hùng Vương', city: 'TP. Hồ Chí Minh', screens: 6, status: 'Hoạt động' },
   { id: 'b2', name: 'CineAI Sala Q2', city: 'TP. Hồ Chí Minh', screens: 8, status: 'Hoạt động' },
@@ -35,17 +37,10 @@ const newMovieDirector = ref('')
 const newMovieDuration = ref(120)
 const newMovieRating = ref(4.5)
 
-// Edit/Add User Modal
-const showAddUserModal = ref(false)
-const editingUserId = ref<string | null>(null)
-const newUserName = ref('')
-const newUserEmail = ref('')
-const newUserRole = ref<'customer' | 'admin' | 'branch-admin'>('customer')
-
-// Delete confirmation
-const showDeleteConfirm = ref(false)
-const deleteConfirmType = ref<'movie' | 'user' | null>(null)
-const deleteConfirmId = ref<string | null>(null)
+const showRoleModal = ref(false)
+const selectedUser = ref<UserProfile | null>(null)
+const selectedRoleCode = ref<'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN'>('CUSTOMER')
+const selectedBranchId = ref('')
 
 onMounted(async () => {
   try {
@@ -56,7 +51,9 @@ onMounted(async () => {
     totalRevenue.value = stats.totalRevenue
     revenueChartData.value = stats.revenueChartData
     moviesList.value = stats.moviesList
-    usersList.value = stats.usersList
+    usersList.value = await adminBackendService.getUsers()
+    branchOptions.value = await adminBackendService.getBranches()
+    movieRequests.value = await adminBackendService.getMovieRequests()
   } catch (e) {
     console.error('Failed to load admin stats:', e)
   }
@@ -83,20 +80,41 @@ function openEditMovieModal(movie: Movie) {
 }
 
 function handleDeleteMovie(id: string) {
-  deleteConfirmType.value = 'movie'
-  deleteConfirmId.value = id
-  showDeleteConfirm.value = true
+  moviesList.value = moviesList.value.filter(m => m.id !== id)
+  totalMovies.value = moviesList.value.length
 }
 
-function confirmDelete() {
-  if (deleteConfirmType.value === 'movie' && deleteConfirmId.value) {
-    moviesList.value = moviesList.value.filter(m => m.id !== deleteConfirmId.value)
-    totalMovies.value = moviesList.value.length
-  } else if (deleteConfirmType.value === 'user' && deleteConfirmId.value) {
-    usersList.value = usersList.value.filter(u => u.id !== deleteConfirmId.value)
-    totalUsers.value = usersList.value.length
-  }
-  showDeleteConfirm.value = false
+async function loadMovieRequests() {
+  movieRequests.value = await adminBackendService.getMovieRequests()
+}
+
+async function handleApproveRequest(requestId: string) {
+  await adminBackendService.approveMovieRequest(requestId)
+  await loadMovieRequests()
+}
+
+async function handleRejectRequest(requestId: string) {
+  await adminBackendService.rejectMovieRequest(requestId, 'Từ chối bởi admin website')
+  await loadMovieRequests()
+}
+
+function openRoleModal(user: UserProfile) {
+  selectedUser.value = user
+  selectedRoleCode.value = user.role === 'branch-admin' ? 'BRANCH_ADMIN' : user.role === 'admin' ? 'SUPER_ADMIN' : 'CUSTOMER'
+  selectedBranchId.value = user.branchId || ''
+  showRoleModal.value = true
+}
+
+async function handleSaveUserRole() {
+  if (!selectedUser.value) return
+  const updated = await adminBackendService.updateUserRole(
+    selectedUser.value.id,
+    selectedRoleCode.value,
+    selectedBranchId.value || undefined,
+  )
+  usersList.value = usersList.value.map(user => (user.id === updated.id ? updated : user))
+  showRoleModal.value = false
+  selectedUser.value = null
 }
 
 function handleAddMovieSubmit() {
@@ -132,56 +150,10 @@ function handleAddMovieSubmit() {
     totalMovies.value = moviesList.value.length
   }
   
-  // Close & reset
   showAddMovieModal.value = false
   newMovieTitle.value = ''
   newMovieGenre.value = ''
   newMovieDirector.value = ''
-}
-
-function openAddUserModal() {
-  editingUserId.value = null
-  newUserName.value = ''
-  newUserEmail.value = ''
-  newUserRole.value = 'customer'
-  showAddUserModal.value = true
-}
-
-function openEditUserModal(user: UserProfile) {
-  editingUserId.value = user.id
-  newUserName.value = user.name
-  newUserEmail.value = user.email
-  newUserRole.value = user.role
-  showAddUserModal.value = true
-}
-
-function handleAddUserSubmit() {
-  if (!newUserName.value || !newUserEmail.value) return
-  
-  if (editingUserId.value) {
-    const idx = usersList.value.findIndex(u => u.id === editingUserId.value)
-    if (idx !== -1) {
-      usersList.value[idx].name = newUserName.value
-      usersList.value[idx].email = newUserEmail.value
-      usersList.value[idx].role = newUserRole.value
-    }
-  } else {
-    const newUser: UserProfile = {
-      id: `u-${Date.now()}`,
-      name: newUserName.value,
-      email: newUserEmail.value,
-      role: newUserRole.value
-    }
-    usersList.value.push(newUser)
-    totalUsers.value = usersList.value.length
-  }
-  showAddUserModal.value = false
-}
-
-function handleDeleteUser(id: string) {
-  deleteConfirmType.value = 'user'
-  deleteConfirmId.value = id
-  showDeleteConfirm.value = true
 }
 
 // Find max revenue for chart proportions
@@ -297,6 +269,13 @@ const maxRevenueValue = computed(() => {
           >
             Quản Lý Thành Viên
           </button>
+          <button
+            @click="activeTab = 'approvals'"
+            class="text-sm font-bold pb-2 transition-all border-b-2"
+            :class="activeTab === 'approvals' ? 'border-primary-container text-on-surface' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
+          >
+            Phê Duyệt Phim
+          </button>
         </div>
         
         <button
@@ -306,15 +285,6 @@ const maxRevenueValue = computed(() => {
         >
           <span class="material-symbols-outlined text-sm">add</span>
           Thêm Phim Mới
-        </button>
-        
-        <button
-          v-if="activeTab === 'users'"
-          @click="openAddUserModal"
-          class="bg-primary-container hover:bg-opacity-90 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 red-glow transition-all"
-        >
-          <span class="material-symbols-outlined text-sm">add</span>
-          Thêm Người Dùng
         </button>
       </div>
 
@@ -397,8 +367,42 @@ const maxRevenueValue = computed(() => {
                   </span>
                 </td>
                 <td class="py-4 px-4">
-                  <button @click="openEditUserModal(user)" class="text-blue-400 hover:text-blue-300 font-semibold mr-2">Sửa</button>
-                  <button @click="handleDeleteUser(user.id)" class="text-red-400 hover:text-red-300 font-semibold">Xóa</button>
+                  <button @click="openRoleModal(user)" class="text-primary-container font-semibold hover:underline">Chỉnh sửa</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Approvals Table -->
+        <div v-if="activeTab === 'approvals'" class="overflow-x-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-sm text-on-surface">Yêu cầu phim chờ duyệt</h3>
+            <button @click="loadMovieRequests" class="text-xs font-bold text-primary-container hover:underline">Tải lại</button>
+          </div>
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-glass-stroke text-on-surface-variant uppercase tracking-wider font-bold">
+                <th class="py-3.5 px-4">Phim</th>
+                <th class="py-3.5 px-4">Loại</th>
+                <th class="py-3.5 px-4">Người gửi</th>
+                <th class="py-3.5 px-4 text-center">Trạng thái</th>
+                <th class="py-3.5 px-4 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-glass-stroke/40">
+              <tr v-for="request in movieRequests" :key="request.id" class="hover:bg-white/5 transition-colors">
+                <td class="py-4 px-4 font-bold text-on-surface">{{ request.payload.title }}</td>
+                <td class="py-4 px-4 text-on-surface-variant uppercase font-mono">{{ request.request_type }}</td>
+                <td class="py-4 px-4 text-on-surface-variant">{{ request.requested_by?.name || request.requested_by_id }}</td>
+                <td class="py-4 px-4 text-center">
+                  <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px]" :class="request.status === 'PENDING' ? 'bg-yellow-950 text-yellow-400 border border-yellow-500/20' : request.status === 'APPROVED' ? 'bg-green-950 text-green-400 border border-green-500/20' : 'bg-red-950 text-red-400 border border-red-500/20'">
+                    {{ request.status }}
+                  </span>
+                </td>
+                <td class="py-4 px-4 text-right space-x-2">
+                  <button @click="handleApproveRequest(request.id)" class="text-green-400 hover:text-green-300 font-semibold">Duyệt</button>
+                  <button @click="handleRejectRequest(request.id)" class="text-red-400 hover:text-red-300 font-semibold">Từ chối</button>
                 </td>
               </tr>
             </tbody>
@@ -460,7 +464,7 @@ const maxRevenueValue = computed(() => {
       </div>
     </transition>
 
-    <!-- Add/Edit User Modal overlay -->
+    <!-- Role Edit Modal -->
     <transition
       enter-active-class="transition duration-300 ease-out"
       enter-from-class="opacity-0"
@@ -469,81 +473,47 @@ const maxRevenueValue = computed(() => {
       leave-from-class="opacity-100"
       leave-to-class="opacity-0"
     >
-      <div v-if="showAddUserModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div v-if="showRoleModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-md rounded-2xl border border-glass-stroke p-6 relative">
-          <button @click="showAddUserModal = false" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
+          <button @click="showRoleModal = false" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
             <span class="material-symbols-outlined">close</span>
           </button>
-          
-          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">{{ editingUserId ? 'Chỉnh Sửa Người Dùng' : 'Thêm Người Dùng' }}</h3>
-          
-          <form @submit.prevent="handleAddUserSubmit" class="space-y-4">
+
+          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">Cập nhật phân quyền</h3>
+
+          <div v-if="selectedUser" class="mb-4 text-xs text-on-surface-variant">
+            {{ selectedUser.name }} - {{ selectedUser.email }}
+          </div>
+
+          <form @submit.prevent="handleSaveUserRole" class="space-y-4">
             <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Họ tên</label>
-              <input v-model="newUserName" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Nguyễn Văn A" />
-            </div>
-            
-            <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Email</label>
-              <input v-model="newUserEmail" type="email" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="user@example.com" />
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Vai trò</label>
+              <select v-model="selectedRoleCode" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
+                <option value="CUSTOMER">Customer</option>
+                <option value="BRANCH_ADMIN">Branch Admin</option>
+                <option value="STAFF">Branch Staff</option>
+                <option value="SUPER_ADMIN">Website Admin</option>
+              </select>
             </div>
 
             <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Vai trò</label>
-              <select v-model="newUserRole" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
-                <option value="customer">Khách hàng</option>
-                <option value="branch-admin">Quản lý chi nhánh</option>
-                <option value="admin">Quản lý hệ thống</option>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Chi nhánh</label>
+              <select v-model="selectedBranchId" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
+                <option value="">-- Không gán --</option>
+                <option v-for="branch in branchOptions" :key="branch.id" :value="branch.id">
+                  {{ branch.name }} - {{ branch.city }}
+                </option>
               </select>
             </div>
 
             <button type="submit" class="w-full bg-primary-container text-white py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md red-glow">
-              {{ editingUserId ? 'Cập nhật' : 'Thêm người dùng' }}
+              Lưu thay đổi
             </button>
           </form>
         </div>
       </div>
     </transition>
 
-    <!-- Delete Confirmation Modal -->
-    <transition
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="opacity-0 scale-90"
-      enter-to-class="opacity-100 scale-100"
-      leave-active-class="transition duration-200 ease-in"
-      leave-from-class="opacity-100 scale-100"
-      leave-to-class="opacity-0 scale-90"
-    >
-      <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-xs rounded-2xl border border-glass-stroke p-6 relative">
-          <div class="flex items-center gap-3 mb-6">
-            <div class="w-10 h-10 rounded-full bg-red-950/50 border border-red-500/20 flex items-center justify-center">
-              <span class="material-symbols-outlined text-red-400">warning</span>
-            </div>
-            <h3 class="text-sm font-bold text-on-surface">Xác nhận xóa</h3>
-          </div>
-          
-          <p class="text-xs text-on-surface-variant mb-6">
-            {{ deleteConfirmType === 'movie' ? 'Bạn có chắc chắn muốn xóa phim này không? Hành động này không thể hoàn tác.' : 'Bạn có chắc chắn muốn xóa người dùng này không? Hành động này không thể hoàn tác.' }}
-          </p>
-
-          <div class="flex gap-3">
-            <button 
-              @click="showDeleteConfirm = false"
-              class="flex-1 px-4 py-2.5 bg-surface-container border border-glass-stroke rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-high transition-all"
-            >
-              Hủy
-            </button>
-            <button 
-              @click="confirmDelete"
-              class="flex-1 px-4 py-2.5 bg-red-950 border border-red-500/20 rounded-lg text-xs font-bold text-red-400 hover:bg-red-900 transition-all"
-            >
-              Xóa
-            </button>
-          </div>
-        </div>
-      </div>
-    </transition>
-
   </div>
 </template>
+

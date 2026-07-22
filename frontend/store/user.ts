@@ -1,79 +1,112 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { UserProfile } from '~/services/api'
+import { authService, mapBackendUserToProfile, setAuthToken, type UserProfile } from '~/services/api'
 
 export const useUserStore = defineStore('user', () => {
-  // Pre-configured mock accounts:
-  // 1. Customer: customer@gmail.com / customer123
-  // 2. Admin: admin@cineai.vn / admin123
-  // 3. Branch Admin: branch@cineai.vn / branch123
-  const registeredUsers = ref<UserProfile[]>([
-    { id: 'u1', name: 'Nguyễn Đăng Khách', email: 'customer@gmail.com', role: 'customer' },
-    { id: 'u2', name: 'Admin CineAI', email: 'admin@cineai.vn', role: 'admin' },
-    { id: 'u3', name: 'Sala Branch Manager', email: 'branch@cineai.vn', role: 'branch-admin', branchId: 'b1' }
-  ])
-
+  const registeredUsers = ref<UserProfile[]>([])
   const currentUser = ref<UserProfile | null>(null)
   const isAuthenticated = ref(false)
+  const authToken = ref<string | null>(null)
+
+  function setSession(user: UserProfile | null, token: string | null) {
+    currentUser.value = user
+    isAuthenticated.value = Boolean(user && token)
+    authToken.value = token
+
+    if (process.client) {
+      if (user && token) {
+        localStorage.setItem('cineai_user', JSON.stringify(user))
+        localStorage.setItem('cineai_token', token)
+      } else {
+        localStorage.removeItem('cineai_user')
+        localStorage.removeItem('cineai_token')
+      }
+    }
+
+    setAuthToken(token)
+  }
+
+  async function refreshCurrentUser() {
+    if (!authToken.value) return
+    try {
+      const backendUser = await authService.me()
+      const mappedUser = mapBackendUserToProfile(backendUser, authToken.value)
+      currentUser.value = mappedUser
+      registeredUsers.value = [mappedUser]
+      if (process.client) {
+        localStorage.setItem('cineai_user', JSON.stringify(mappedUser))
+      }
+    } catch {
+      logout()
+    }
+  }
 
   // Initialize from client-side localStorage if available
   if (process.client) {
+    const savedToken = localStorage.getItem('cineai_token')
     const saved = localStorage.getItem('cineai_user')
+    if (savedToken) {
+      authToken.value = savedToken
+      setAuthToken(savedToken)
+    }
     if (saved) {
       try {
         currentUser.value = JSON.parse(saved)
         isAuthenticated.value = true
+        if (currentUser.value && savedToken) {
+          registeredUsers.value = [currentUser.value]
+        }
       } catch (e) {
         localStorage.removeItem('cineai_user')
+        localStorage.removeItem('cineai_token')
       }
+    }
+
+    if (savedToken) {
+      void refreshCurrentUser()
     }
   }
 
-  function login(email: string, role: 'customer' | 'admin' | 'branch-admin'): boolean {
-    const matched = registeredUsers.value.find(u => u.email === email && u.role === role)
-    if (matched) {
-      currentUser.value = matched
-      isAuthenticated.value = true
-      if (process.client) {
-        localStorage.setItem('cineai_user', JSON.stringify(matched))
-      }
+  async function login(identifier: string, password: string): Promise<boolean> {
+    try {
+      const response = await authService.login({ identifier, password })
+      const mappedUser = mapBackendUserToProfile(response.user, response.access_token)
+      registeredUsers.value = [mappedUser]
+      setSession(mappedUser, response.access_token)
       return true
+    } catch {
+      return false
     }
-    return false
   }
 
-  function register(name: string, email: string): boolean {
-    const exists = registeredUsers.value.some(u => u.email === email)
-    if (exists) return false
-
-    const newUser: UserProfile = {
-      id: `u-${Date.now()}`,
-      name,
-      email,
-      role: 'customer'
+  async function register(payload: { name: string; email: string; phone?: string; password: string; dateOfBirth?: string; gender?: string }): Promise<boolean> {
+    try {
+      const response = await authService.register({
+        full_name: payload.name,
+        email: payload.email,
+        phone: payload.phone || null,
+        password: payload.password,
+        date_of_birth: payload.dateOfBirth || null,
+        gender: payload.gender || null,
+      })
+      const mappedUser = mapBackendUserToProfile(response.user, response.access_token)
+      registeredUsers.value = [mappedUser]
+      setSession(mappedUser, response.access_token)
+      return true
+    } catch {
+      return false
     }
-
-    registeredUsers.value.push(newUser)
-    currentUser.value = newUser
-    isAuthenticated.value = true
-    if (process.client) {
-      localStorage.setItem('cineai_user', JSON.stringify(newUser))
-    }
-    return true
   }
 
   function logout() {
-    currentUser.value = null
-    isAuthenticated.value = false
-    if (process.client) {
-      localStorage.removeItem('cineai_user')
-    }
+    setSession(null, null)
   }
 
   return {
     currentUser,
     isAuthenticated,
     registeredUsers,
+    authToken,
     login,
     register,
     logout

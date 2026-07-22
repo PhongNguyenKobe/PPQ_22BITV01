@@ -75,10 +75,11 @@ const highlights = [
               Trải nghiệm tương lai của điện ảnh cùng CineAI. Tìm kiếm lịch chiếu, đặt ghế thông minh và nhận đề xuất các tác phẩm phim phù hợp với gu cá nhân chỉ trong nháy mắt.
             </p>
 
-            <div class="flex flex-col sm:flex-row gap-4">
-              <NuxtLink to="/products" class="group relative bg-primary-container text-on-primary-container font-label-md text-label-md px-10 py-4.5 rounded-xl flex items-center justify-center gap-3 red-glow-hover transition-all duration-300 overflow-hidden">
-                <span class="relative z-10">Đặt Vé Ngay</span>
-                <span class="material-symbols-outlined text-[20px] relative z-10 group-hover:translate-x-1 transition-transform">arrow_forward</span>
+            <div class="flex flex-col sm:flex-row gap-6">
+              <NuxtLink to="/products" class="group relative bg-primary-container text-on-primary-container font-label-md text-label-md px-10 py-5 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 overflow-hidden" style="box-shadow:0 0 25px -2px rgba(229,9,20,0.3)">
+                <div class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                <span class="relative z-10">Đặt vé ngay</span>
+                <span class="material-symbols-outlined text-[22px] relative z-10 group-hover:translate-x-1 transition-transform">arrow_forward</span>
               </NuxtLink>
               <NuxtLink to="/products" class="group bg-surface-container/40 backdrop-blur-md text-on-surface border border-white/10 font-label-md text-label-md px-10 py-4.5 rounded-xl flex items-center justify-center gap-3 hover:bg-white/10 hover:border-primary-container/50 transition-all duration-300">
                 <span class="material-symbols-outlined text-[20px] text-secondary group-hover:rotate-12 transition-transform">smart_toy</span>
@@ -177,3 +178,4 @@ const highlights = [
     </section>
   </div>
 </template>
+
