@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '~/store/user'
+import { navigateTo } from 'nuxt/app'
 
 const userStore = useUserStore()
 
