@@ -8,6 +8,29 @@
 -- Dumped by pg_dump version 18.3
 
 -- Started on 2026-07-22 22:53:43
+CREATE ROLE app_rw LOGIN PASSWORD 'strong_password';
+CREATE ROLE app_ro LOGIN PASSWORD 'strong_password';
+CREATE ROLE dba_admin LOGIN PASSWORD 'strong_password';
+
+GRANT CONNECT ON DATABASE movie_db TO app_rw, app_ro, dba_admin;
+GRANT USAGE ON SCHEMA public TO app_rw, app_ro, dba_admin;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_rw;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO app_ro;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO dba_admin;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO dba_admin;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_rw;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT SELECT ON TABLES TO app_ro;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT ALL ON TABLES TO dba_admin;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT ALL ON SEQUENCES TO dba_admin;
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
