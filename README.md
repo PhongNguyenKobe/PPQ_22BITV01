@@ -48,3 +48,7 @@
 - **Tối ưu lịch chiếu**: gợi ý suất chiếu hợp lý.  
 - **Phát hiện gian lận**: kiểm tra giao dịch bất thường.  
 - **Phân tích dữ liệu lớn**: hành vi người dùng toàn hệ thống.  
+
+
+Mình dùng TMDB API để lấy poster, trailer, mô tả phim, diễn viên, giúp giao diện đặt vé nhìn cho hấp dẫn và chuẩn dữ liệu. Từ đó, user sẽ thấy thông tin phim đầy đủ, giống các nền tảng quốc tế.
+Nhưng mà TMDB không cung cấp suất chiếu, ghế, giá vé, nên là phải tự xây dựng và quản lý trong database của mình.
