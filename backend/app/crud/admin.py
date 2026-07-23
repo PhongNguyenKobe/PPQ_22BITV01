@@ -6,8 +6,9 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.catalog import Movie
 from app.models.user import Role, User, user_roles_table
-from app.schemas.admin import BranchRead, UserRoleUpdate
+from app.schemas.admin import BranchRead, RevenueDataPoint, UserRoleUpdate
 
 
 async def list_users_with_branch_id(db: AsyncSession) -> list[tuple[User, UUID | None]]:
@@ -23,6 +24,40 @@ async def list_users_with_branch_id(db: AsyncSession) -> list[tuple[User, UUID |
 async def list_branches(db: AsyncSession) -> list[BranchRead]:
     result = await db.execute(text("SELECT id, code, name, city FROM branches ORDER BY name ASC"))
     return [BranchRead(id=row.id, code=row.code, name=row.name, city=row.city) for row in result]
+
+
+async def get_admin_stats(db: AsyncSession) -> dict:
+    # Count branches
+    branch_result = await db.execute(text("SELECT COUNT(*) FROM branches"))
+    total_branches = branch_result.scalar() or 0
+
+    # Count movies
+    movie_result = await db.execute(select(Movie))
+    total_movies = len(movie_result.scalars().all())
+
+    # Count users (exclude admins)
+    user_result = await db.execute(select(User))
+    all_users = user_result.scalars().all()
+    total_users = len([u for u in all_users if not any(r.code == "SUPER_ADMIN" for r in u.roles)])
+
+    # Dummy revenue data since we don't have orders/tickets yet
+    total_revenue = 0
+    revenue_chart_data = [
+        RevenueDataPoint(label=label, value=value)
+        for label, value in [
+            ("T12", 45000000), ("T01", 68000000), ("T02", 92000000),
+            ("T03", 75000000), ("T04", 55000000), ("T05", 89000000),
+            ("T06 (Dự kiến)", 120000000)
+        ]
+    ]
+
+    return {
+        "totalBranches": total_branches,
+        "totalMovies": total_movies,
+        "totalUsers": total_users,
+        "totalRevenue": total_revenue,
+        "revenueChartData": revenue_chart_data,
+    }
 
 
 async def set_user_role(db: AsyncSession, user: User, payload: UserRoleUpdate) -> User:
@@ -63,4 +98,3 @@ async def set_user_role(db: AsyncSession, user: User, payload: UserRoleUpdate) -
     if updated_user is None:
         raise RuntimeError("User role update failed")
     return updated_user
-

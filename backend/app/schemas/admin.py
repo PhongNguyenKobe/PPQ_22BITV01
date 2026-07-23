@@ -27,6 +27,19 @@ class UserRoleUpdate(BaseModel):
     branch_id: UUID | None = None
 
 
+class RevenueDataPoint(BaseModel):
+    label: str
+    value: int
+
+
+class AdminStatsResponse(BaseModel):
+    totalBranches: int
+    totalMovies: int
+    totalUsers: int
+    totalRevenue: int
+    revenueChartData: list[RevenueDataPoint] = []
+
+
 class MovieDraftPayload(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     original_title: str | None = Field(default=None, max_length=255)
@@ -39,4 +52,3 @@ class MovieDraftPayload(BaseModel):
     poster_url: str | None = None
     status: str = Field(default="UPCOMING", pattern="^(UPCOMING|NOW_SHOWING|ENDED)$")
     genres: list[str] = Field(default_factory=list)
-

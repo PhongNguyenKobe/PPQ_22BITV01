@@ -4,13 +4,22 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_roles
-from app.crud.admin import list_branches, list_users_with_branch_id, set_user_role
+from app.crud.admin import get_admin_stats, list_branches, list_users_with_branch_id, set_user_role
 from app.crud.user import get_user_by_id
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.admin import AdminUserRead, BranchRead, UserRoleUpdate
+from app.schemas.admin import AdminStatsResponse, AdminUserRead, BranchRead, UserRoleUpdate
 
 router = APIRouter()
+
+
+@router.get("/stats", response_model=AdminStatsResponse)
+async def read_admin_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+) -> AdminStatsResponse:
+    stats = await get_admin_stats(db)
+    return AdminStatsResponse(**stats)
 
 
 @router.get("/branches", response_model=list[BranchRead])
