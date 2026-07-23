@@ -1,12 +1,12 @@
- <script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { adminBackendService, adminService, type BackendBranch, type Movie, type MovieRequest, type UserProfile } from '~/services/api'
+import { adminBackendService, adminService, type BackendBranch, type Movie, type UserProfile } from '~/services/api'
 
 definePageMeta({
   layout: 'admin'
 })
 
-const activeTab = ref<'movies' | 'branches' | 'users' | 'approvals'>('movies')
+const activeTab = ref<'movies' | 'branches' | 'users'>('movies')
 
 // Stats
 const totalBranches = ref(0)
@@ -19,7 +19,6 @@ const revenueChartData = ref<{ label: string; value: number }[]>([])
 const moviesList = ref<Movie[]>([])
 const usersList = ref<UserProfile[]>([])
 const branchOptions = ref<BackendBranch[]>([])
-const movieRequests = ref<MovieRequest[]>([])
 const branchesList = ref([
   { id: 'b1', name: 'CineAI Hùng Vương', city: 'TP. Hồ Chí Minh', screens: 6, status: 'Hoạt động' },
   { id: 'b2', name: 'CineAI Sala Q2', city: 'TP. Hồ Chí Minh', screens: 8, status: 'Hoạt động' },
@@ -53,7 +52,6 @@ onMounted(async () => {
     moviesList.value = stats.moviesList
     usersList.value = await adminBackendService.getUsers()
     branchOptions.value = await adminBackendService.getBranches()
-    movieRequests.value = await adminBackendService.getMovieRequests()
   } catch (e) {
     console.error('Failed to load admin stats:', e)
   }
@@ -84,20 +82,6 @@ function handleDeleteMovie(id: string) {
   totalMovies.value = moviesList.value.length
 }
 
-async function loadMovieRequests() {
-  movieRequests.value = await adminBackendService.getMovieRequests()
-}
-
-async function handleApproveRequest(requestId: string) {
-  await adminBackendService.approveMovieRequest(requestId)
-  await loadMovieRequests()
-}
-
-async function handleRejectRequest(requestId: string) {
-  await adminBackendService.rejectMovieRequest(requestId, 'Từ chối bởi admin website')
-  await loadMovieRequests()
-}
-
 function openRoleModal(user: UserProfile) {
   selectedUser.value = user
   selectedRoleCode.value = user.role === 'branch-admin' ? 'BRANCH_ADMIN' : user.role === 'admin' ? 'SUPER_ADMIN' : 'CUSTOMER'
@@ -119,7 +103,7 @@ async function handleSaveUserRole() {
 
 function handleAddMovieSubmit() {
   if (!newMovieTitle.value) return
-  
+
   if (editingMovieId.value) {
     // Edit existing
     const idx = moviesList.value.findIndex(m => m.id === editingMovieId.value)
@@ -149,7 +133,7 @@ function handleAddMovieSubmit() {
     moviesList.value.unshift(created)
     totalMovies.value = moviesList.value.length
   }
-  
+
   showAddMovieModal.value = false
   newMovieTitle.value = ''
   newMovieGenre.value = ''
@@ -165,10 +149,10 @@ const maxRevenueValue = computed(() => {
 
 <template>
   <div class="space-y-8">
-    
+
     <!-- Stats Cards Overview Row -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      
+
       <!-- Revenue stats -->
       <div class="glass-panel border border-glass-stroke p-6 rounded-2xl flex items-center justify-between shadow-md">
         <div>
@@ -221,7 +205,7 @@ const maxRevenueValue = computed(() => {
         <span class="material-symbols-outlined text-primary-container">bar_chart</span>
         Biểu Đồ Doanh Thu Hệ Thống
       </h3>
-      
+
       <!-- Visual Bar Chart -->
       <div class="h-64 flex items-end gap-4 md:gap-8 justify-center pt-8 border-b border-glass-stroke">
         <div
@@ -269,15 +253,8 @@ const maxRevenueValue = computed(() => {
           >
             Quản Lý Thành Viên
           </button>
-          <button
-            @click="activeTab = 'approvals'"
-            class="text-sm font-bold pb-2 transition-all border-b-2"
-            :class="activeTab === 'approvals' ? 'border-primary-container text-on-surface' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
-          >
-            Phê Duyệt Phim
-          </button>
         </div>
-        
+
         <button
           v-if="activeTab === 'movies'"
           @click="openAddMovieModal"
@@ -290,7 +267,7 @@ const maxRevenueValue = computed(() => {
 
       <!-- Tab Contents -->
       <div class="p-6">
-        
+
         <!-- Movies Table -->
         <div v-if="activeTab === 'movies'" class="overflow-x-auto">
           <table class="w-full text-left text-xs border-collapse">
@@ -374,41 +351,6 @@ const maxRevenueValue = computed(() => {
           </table>
         </div>
 
-        <!-- Approvals Table -->
-        <div v-if="activeTab === 'approvals'" class="overflow-x-auto">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-sm text-on-surface">Yêu cầu phim chờ duyệt</h3>
-            <button @click="loadMovieRequests" class="text-xs font-bold text-primary-container hover:underline">Tải lại</button>
-          </div>
-          <table class="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr class="border-b border-glass-stroke text-on-surface-variant uppercase tracking-wider font-bold">
-                <th class="py-3.5 px-4">Phim</th>
-                <th class="py-3.5 px-4">Loại</th>
-                <th class="py-3.5 px-4">Người gửi</th>
-                <th class="py-3.5 px-4 text-center">Trạng thái</th>
-                <th class="py-3.5 px-4 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-glass-stroke/40">
-              <tr v-for="request in movieRequests" :key="request.id" class="hover:bg-white/5 transition-colors">
-                <td class="py-4 px-4 font-bold text-on-surface">{{ request.payload.title }}</td>
-                <td class="py-4 px-4 text-on-surface-variant uppercase font-mono">{{ request.request_type }}</td>
-                <td class="py-4 px-4 text-on-surface-variant">{{ request.requested_by?.name || request.requested_by_id }}</td>
-                <td class="py-4 px-4 text-center">
-                  <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px]" :class="request.status === 'PENDING' ? 'bg-yellow-950 text-yellow-400 border border-yellow-500/20' : request.status === 'APPROVED' ? 'bg-green-950 text-green-400 border border-green-500/20' : 'bg-red-950 text-red-400 border border-red-500/20'">
-                    {{ request.status }}
-                  </span>
-                </td>
-                <td class="py-4 px-4 text-right space-x-2">
-                  <button @click="handleApproveRequest(request.id)" class="text-green-400 hover:text-green-300 font-semibold">Duyệt</button>
-                  <button @click="handleRejectRequest(request.id)" class="text-red-400 hover:text-red-300 font-semibold">Từ chối</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
       </div>
     </div>
 
@@ -426,15 +368,15 @@ const maxRevenueValue = computed(() => {
           <button @click="showAddMovieModal = false" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
             <span class="material-symbols-outlined">close</span>
           </button>
-          
+
           <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">{{ editingMovieId ? 'Chỉnh Sửa Phim' : 'Thêm Phim Mới' }}</h3>
-          
+
           <form @submit.prevent="handleAddMovieSubmit" class="space-y-4">
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Tên phim</label>
               <input v-model="newMovieTitle" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Nhập tên phim" />
             </div>
-            
+
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Thể loại (ngăn cách bằng dấu phẩy)</label>
               <input v-model="newMovieGenre" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Hành Động, Viễn Tưởng" />
@@ -516,4 +458,3 @@ const maxRevenueValue = computed(() => {
 
   </div>
 </template>
-

@@ -135,44 +135,6 @@ export interface BackendBranch {
   city: string
 }
 
-export interface MovieDraftPayload {
-  title: string
-  original_title?: string | null
-  description?: string | null
-  duration_min: number
-  release_date?: string | null
-  age_rating?: string | null
-  language?: string | null
-  trailer_url?: string | null
-  poster_url?: string | null
-  status?: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'
-  genres: string[]
-}
-
-export interface MovieRequest {
-  id: string
-  requested_by_id: string
-  target_movie_id: string | null
-  request_type: 'CREATE' | 'UPDATE' | 'DELETE'
-  status: 'PENDING' | 'APPROVED' | 'REJECTED'
-  payload: MovieDraftPayload
-  review_note: string | null
-  reviewed_by_id: string | null
-  reviewed_at: string | null
-  created_at: string
-  requested_by?: UserProfile | null
-}
-
-export interface MovieRequestInput {
-  request_type: 'CREATE' | 'UPDATE' | 'DELETE'
-  target_movie_id?: string | null
-  payload: MovieDraftPayload
-}
-
-export interface MovieRequestReview {
-  review_note?: string | null
-}
-
 export interface BackendRole {
   id: number
   code: string
@@ -322,35 +284,6 @@ export const adminBackendService = {
       branch_id: branchId || null,
     })
     return mapBackendAdminUserToProfile(res.data)
-  },
-
-  async getMovieRequests(): Promise<MovieRequest[]> {
-    const res = await apiClient.get<MovieRequest[]>('/movie-requests/admin')
-    return res.data
-  },
-
-  async getMyMovieRequests(): Promise<MovieRequest[]> {
-    const res = await apiClient.get<MovieRequest[]>('/movie-requests/mine')
-    return res.data
-  },
-
-  async submitMovieRequest(payload: MovieRequestInput): Promise<MovieRequest> {
-    const res = await apiClient.post<MovieRequest>('/movie-requests', payload)
-    return res.data
-  },
-
-  async approveMovieRequest(requestId: string, review_note?: string | null): Promise<MovieRequest> {
-    const res = await apiClient.post<MovieRequest>(`/movie-requests/admin/${requestId}/approve`, {
-      review_note: review_note || null,
-    })
-    return res.data
-  },
-
-  async rejectMovieRequest(requestId: string, review_note?: string | null): Promise<MovieRequest> {
-    const res = await apiClient.post<MovieRequest>(`/movie-requests/admin/${requestId}/reject`, {
-      review_note: review_note || null,
-    })
-    return res.data
   },
 }
 
@@ -966,3 +899,4 @@ export const adminService = {
     return res.data
   }
 }
+
