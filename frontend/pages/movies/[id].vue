@@ -2,45 +2,81 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { useMoviesStore } from '~/store/movies'
 import { useTicketsStore } from '~/store/tickets'
-import type { Showtime } from '~/services/api'
+import { tmdbService, movieService, type Showtime, type TmdbMovieDetail } from '~/services/api'
 
 definePageMeta({
   layout: 'default'
 })
 
 const route = useRoute()
-const moviesStore = useMoviesStore()
 const ticketsStore = useTicketsStore()
 
-const { activeMovie, activeShowtimes, loading } = storeToRefs(moviesStore)
+// State
+const tmdbDetail = ref<TmdbMovieDetail | null>(null)
+const showtimes = ref<Showtime[]>([])
+const loading = ref(true)
+const error = ref('')
 
 const selectedBranch = ref('')
 const selectedDate = ref('')
 
 onMounted(async () => {
   const id = route.params.id as string
-  if (id) {
-    await moviesStore.fetchMovieDetails(id)
-    
-    // Auto select first branch and date if available
-    if (activeShowtimes.value.length > 0) {
-      selectedBranch.value = activeShowtimes.value[0].branchName
-      selectedDate.value = activeShowtimes.value[0].date
+  if (!id) return
+
+  loading.value = true
+  try {
+    // 1. Fetch movie metadata from TMDB (poster, trailer, cast, director, rating, genres)
+    tmdbDetail.value = await tmdbService.getMovieDetail(id)
+  } catch (e) {
+    console.error('TMDB fetch failed, falling back to movieService:', e)
+    // Fallback: try backend/mock
+    try {
+      const movie = await movieService.getById(id)
+      tmdbDetail.value = {
+        id: movie.id,
+        title: movie.title,
+        description: movie.description,
+        poster: movie.poster,
+        rating: movie.rating,
+        duration: movie.duration,
+        releaseDate: movie.releaseDate,
+        genre: movie.genre,
+        director: movie.director,
+        cast: movie.cast,
+        trailerUrl: movie.trailer,
+      }
+    } catch (e2) {
+      error.value = 'Không thể tải thông tin phim.'
+      loading.value = false
+      return
     }
+  }
+
+  // 2. Fetch showtimes from backend/mock (not from TMDB)
+  try {
+    showtimes.value = await movieService.getShowtimes(id)
+    if (showtimes.value.length > 0) {
+      selectedBranch.value = showtimes.value[0].branchName
+      selectedDate.value = showtimes.value[0].date
+    }
+  } catch (e) {
+    console.error('Failed to load showtimes:', e)
+  } finally {
+    loading.value = false
   }
 })
 
 // Unique branches for the active movie showtimes
 const branches = computed(() => {
-  const list = activeShowtimes.value.map(s => s.branchName)
+  const list = showtimes.value.map(s => s.branchName)
   return [...new Set(list)]
 })
 
 // Unique dates for the active movie showtimes
 const dates = computed(() => {
-  const list = activeShowtimes.value
+  const list = showtimes.value
     .filter(s => s.branchName === selectedBranch.value)
     .map(s => s.date)
   return [...new Set(list)]
@@ -48,7 +84,7 @@ const dates = computed(() => {
 
 // Filtered showtimes based on selected branch and date
 const filteredShowtimes = computed(() => {
-  return activeShowtimes.value.filter(s => 
+  return showtimes.value.filter(s => 
     s.branchName === selectedBranch.value && 
     s.date === selectedDate.value
   )
@@ -61,8 +97,7 @@ function selectShowtimeSlot(showtime: Showtime) {
 
 function changeBranch(branch: string) {
   selectedBranch.value = branch
-  // Reset date if not available in new branch
-  const availableDates = activeShowtimes.value
+  const availableDates = showtimes.value
     .filter(s => s.branchName === branch)
     .map(s => s.date)
   
@@ -74,54 +109,58 @@ function changeBranch(branch: string) {
 
 <template>
   <div class="pb-16">
+    <!-- Loading State -->
     <div v-if="loading" class="py-24 text-center animate-pulse text-on-surface-variant">
+      <span class="material-symbols-outlined text-4xl animate-spin block mb-4" style="animation-duration:1200ms">progress_activity</span>
       Đang tải chi tiết phim và lịch chiếu...
     </div>
 
-    <div v-else-if="!activeMovie" class="py-24 text-center text-on-surface-variant">
+    <!-- Error State -->
+    <div v-else-if="error || !tmdbDetail" class="py-24 text-center text-on-surface-variant">
       ⚠️ Không tìm thấy thông tin bộ phim này trên hệ thống.
       <div class="mt-4">
         <NuxtLink to="/ai-discovery" class="text-primary-container font-bold hover:underline">Quay lại danh mục</NuxtLink>
       </div>
     </div>
 
+    <!-- Movie Detail Content -->
     <div v-else>
-      <!-- Hero backdrop banner -->
+      <!-- Hero backdrop banner with TMDB backdrop -->
       <section class="relative w-full h-[40vh] md:h-[50vh] overflow-hidden">
         <div class="absolute inset-0 z-0">
-          <img :src="activeMovie.poster" :alt="activeMovie.title" class="w-full h-full object-cover blur-[8px] scale-105 opacity-30" />
+          <img :src="tmdbDetail.poster" :alt="tmdbDetail.title" class="w-full h-full object-cover blur-[8px] scale-105 opacity-30" />
           <div class="absolute inset-0 bg-background/80"></div>
           <div class="absolute inset-0 gradient-fade-bottom"></div>
         </div>
 
         <div class="relative z-10 max-w-container-max mx-auto px-6 md:px-margin-desktop h-full flex items-end pb-12">
           <div class="flex flex-col md:flex-row items-center md:items-end gap-8 w-full">
-            <!-- Movie Poster -->
+            <!-- Movie Poster from TMDB -->
             <div class="w-48 md:w-56 aspect-[2/3] rounded-2xl overflow-hidden border border-glass-stroke shadow-2xl relative -mb-16 md:-mb-24 flex-shrink-0 z-20">
-              <img :src="activeMovie.poster" :alt="activeMovie.title" class="w-full h-full object-cover" />
+              <img :src="tmdbDetail.poster" :alt="tmdbDetail.title" class="w-full h-full object-cover" />
             </div>
 
-            <!-- Movie Title details -->
+            <!-- Movie Title & Metadata -->
             <div class="text-center md:text-left flex-grow">
-              <span class="bg-primary-container/10 border border-primary-container/20 text-primary-container text-xs font-bold px-3.5 py-1 rounded-full inline-block mb-3">
-                {{ activeMovie.format.join(' | ') }}
-              </span>
-              
               <h1 class="font-headline-xl text-3xl md:text-5xl font-black text-on-surface tracking-tight mb-4">
-                {{ activeMovie.title }}
+                {{ tmdbDetail.title }}
               </h1>
               
               <div class="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs font-semibold text-on-surface-variant">
+                <!-- TMDB Rating -->
                 <span class="flex items-center gap-1">
                   <span class="material-symbols-outlined text-sm text-yellow-500" style="font-variation-settings: 'FILL' 1;">star</span>
-                  {{ activeMovie.rating.toFixed(1) }}
+                  {{ tmdbDetail.rating.toFixed(1) }}
                 </span>
                 <span>•</span>
-                <span>{{ activeMovie.duration }} phút</span>
+                <!-- Duration -->
+                <span>{{ tmdbDetail.duration }} phút</span>
                 <span>•</span>
-                <span>{{ activeMovie.genre.join(', ') }}</span>
+                <!-- Genres -->
+                <span>{{ tmdbDetail.genre.join(', ') }}</span>
                 <span>•</span>
-                <span>Khởi chiếu: {{ activeMovie.releaseDate }}</span>
+                <!-- Release Date -->
+                <span>Khởi chiếu: {{ tmdbDetail.releaseDate }}</span>
               </div>
             </div>
           </div>
@@ -131,18 +170,18 @@ function changeBranch(branch: string) {
       <!-- Movie Details and Showtimes grid -->
       <section class="max-w-container-max mx-auto px-6 md:px-margin-desktop pt-24 md:pt-32 grid grid-cols-1 lg:grid-cols-12 gap-12">
         
-        <!-- Left details and trailer (7 cols) -->
+        <!-- Left: Trailer, Description, Cast from TMDB (7 cols) -->
         <div class="lg:col-span-7 space-y-8">
           
-          <!-- Embedded YouTube Trailer -->
-          <div>
+          <!-- Embedded YouTube Trailer from TMDB -->
+          <div v-if="tmdbDetail.trailerUrl">
             <h3 class="font-headline-md text-xl font-bold mb-4 flex items-center gap-2">
               <span class="material-symbols-outlined text-primary-container">play_circle</span>
               Official Trailer
             </h3>
             <div class="aspect-video w-full rounded-2xl overflow-hidden border border-glass-stroke bg-black shadow-lg">
               <iframe
-                :src="activeMovie.trailer"
+                :src="tmdbDetail.trailerUrl"
                 title="Movie Trailer"
                 frameborder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -153,28 +192,39 @@ function changeBranch(branch: string) {
             </div>
           </div>
 
-          <!-- Description / Synopsis -->
+          <!-- No trailer placeholder -->
+          <div v-else>
+            <h3 class="font-headline-md text-xl font-bold mb-4 flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary-container">play_circle</span>
+              Official Trailer
+            </h3>
+            <div class="aspect-video w-full rounded-2xl overflow-hidden border border-glass-stroke bg-surface-container-high flex items-center justify-center">
+              <p class="text-on-surface-variant text-sm">Trailer chưa có sẵn</p>
+            </div>
+          </div>
+
+          <!-- Description / Synopsis from TMDB -->
           <div>
             <h3 class="font-headline-md text-xl font-bold mb-3">Tóm tắt phim</h3>
             <p class="text-sm text-on-surface-variant leading-relaxed whitespace-pre-line">
-              {{ activeMovie.description }}
+              {{ tmdbDetail.description }}
             </p>
           </div>
 
-          <!-- Director and Cast info -->
+          <!-- Director and Cast from TMDB -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-surface-container/30 border border-glass-stroke/40 p-6 rounded-2xl">
-            <div>
+            <div v-if="tmdbDetail.director">
               <span class="text-xs text-on-surface-variant uppercase tracking-wider font-bold block mb-1">Đạo diễn</span>
-              <span class="text-sm font-semibold text-on-surface">{{ activeMovie.director }}</span>
+              <span class="text-sm font-semibold text-on-surface">{{ tmdbDetail.director }}</span>
             </div>
-            <div>
+            <div v-if="tmdbDetail.cast.length > 0">
               <span class="text-xs text-on-surface-variant uppercase tracking-wider font-bold block mb-1">Diễn viên chính</span>
-              <span class="text-sm font-semibold text-on-surface">{{ activeMovie.cast.join(', ') }}</span>
+              <span class="text-sm font-semibold text-on-surface">{{ tmdbDetail.cast.join(', ') }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Right side showtimes selectors (5 cols) -->
+        <!-- Right: Showtimes from Backend/Mock (5 cols) -->
         <div class="lg:col-span-5 space-y-6">
           <div class="glass-panel border border-glass-stroke rounded-2xl p-6 md:p-8">
             <h3 class="font-headline-md text-xl font-bold mb-6 flex items-center gap-2">
@@ -182,7 +232,7 @@ function changeBranch(branch: string) {
               Lịch Chiếu & Đặt Vé
             </h3>
 
-            <!-- Showtimes Branch Selection Tab -->
+            <!-- Branch Selection -->
             <div class="space-y-4 mb-6">
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant">Chọn Cụm Rạp</label>
               
@@ -206,7 +256,7 @@ function changeBranch(branch: string) {
               </div>
             </div>
 
-            <!-- Showtimes Date Selection -->
+            <!-- Date Selection -->
             <div v-if="branches.length > 0" class="space-y-4 mb-6">
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant">Chọn Ngày</label>
               <div class="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-2">
@@ -224,7 +274,7 @@ function changeBranch(branch: string) {
               </div>
             </div>
 
-            <!-- Showtime Slots Grid -->
+            <!-- Showtime Slots -->
             <div v-if="branches.length > 0" class="space-y-4">
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant">Suất Chiếu Khả Dụng</label>
               
@@ -247,3 +297,4 @@ function changeBranch(branch: string) {
     </div>
   </div>
 </template>
+

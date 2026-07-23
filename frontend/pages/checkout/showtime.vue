@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
-import { mockShowtimes, type Showtime } from '~/services/api'
+import { movieService, type Showtime } from '~/services/api'
 
 definePageMeta({
   layout: 'default'
@@ -11,22 +11,32 @@ const router = useRouter()
 const ticketsStore = useTicketsStore()
 const { selectedMovie, selectedCinema, selectedShowtime } = storeToRefs(ticketsStore)
 
+const showtimes = ref<Showtime[]>([])
+const loading = ref(false)
+
 // Redirect if no movie/cinema selected
-onMounted(() => {
+onMounted(async () => {
   if (!selectedMovie.value || !selectedCinema.value) {
     return router.push('/products')
+  }
+  
+  // Fetch showtimes from API
+  loading.value = true
+  try {
+    const allShowtimes = await movieService.getShowtimes(String(selectedMovie.value.id))
+    // Filter by selected cinema
+    showtimes.value = allShowtimes.filter(st => st.branchName === selectedCinema.value)
+  } catch (e) {
+    console.error('Failed to load showtimes:', e)
+    showtimes.value = []
+  } finally {
+    loading.value = false
   }
 })
 
 // Get showtimes for selected movie + cinema, grouped by date
 const showtimesByDate = computed(() => {
-  // Map TMDB movie ID to mock movieId (1-5)
-  const mockMovieId = String((selectedMovie.value!.id % 5) + 1)
-  
-  const filtered = mockShowtimes.filter(
-    st => st.movieId === mockMovieId &&
-          st.branchName === selectedCinema.value
-  )
+  const filtered = showtimes.value
 
   // Group by date
   const grouped: { [key: string]: Showtime[] } = {}

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
-import { mockShowtimes } from '~/services/api'
+import { movieService, type Showtime } from '~/services/api'
 
 definePageMeta({
   layout: 'default'
@@ -11,37 +11,45 @@ const router = useRouter()
 const ticketsStore = useTicketsStore()
 const { selectedMovie, selectedCinema } = storeToRefs(ticketsStore)
 
+const showtimes = ref<Showtime[]>([])
+const loading = ref(false)
+
 // Redirect if no movie selected
-onMounted(() => {
+onMounted(async () => {
   if (!selectedMovie.value) {
     return router.push('/products')
+  }
+  
+  // Fetch showtimes for the selected movie from API
+  if (selectedMovie.value) {
+    loading.value = true
+    try {
+      // selectedMovie.id từ products store là TMDB id (number), cần chuyển thành string
+      // Tuy nhiên backend dùng UUID, nên sẽ fetch từ API
+      const allShowtimes = await movieService.getShowtimes(String(selectedMovie.value.id))
+      showtimes.value = allShowtimes
+    } catch (e) {
+      console.error('Failed to load showtimes for cinema selection:', e)
+      showtimes.value = []
+    } finally {
+      loading.value = false
+    }
   }
 })
 
 // Get available cinemas for selected movie
 const availableCinemas = computed(() => {
-  if (!selectedMovie.value) return []
+  if (!showtimes.value.length) return []
   
-  // Map TMDB movie ID to mock movieId (1-5)
-  const mockMovieId = String((selectedMovie.value.id % 5) + 1)
-  
-  const showtimesForMovie = mockShowtimes.filter(
-    st => st.movieId === mockMovieId
-  )
-  
-  // Get unique cinema names
   const cinemaSet = new Set<string>()
-  showtimesForMovie.forEach(st => cinemaSet.add(st.branchName))
+  showtimes.value.forEach(st => cinemaSet.add(st.branchName))
   
   return Array.from(cinemaSet).sort()
 })
 
 // Show count of showtimes per cinema
 const getShowtimeCount = (cinema: string) => {
-  const mockMovieId = String((selectedMovie.value!.id % 5) + 1)
-  return mockShowtimes.filter(
-    st => st.branchName === cinema && st.movieId === mockMovieId
-  ).length
+  return showtimes.value.filter(st => st.branchName === cinema).length
 }
 
 // Select cinema and navigate to showtime

@@ -574,14 +574,137 @@ export const mockTickets: UserTicket[] = [
 ]
 
 // ----------------------------------------------------
+// Backend Schema types (matching FastAPI response)
+// ----------------------------------------------------
+export interface BackendMovie {
+  id: string
+  title: string
+  original_title: string | null
+  description: string | null
+  duration_min: number
+  release_date: string | null
+  age_rating: string | null
+  language: string | null
+  trailer_url: string | null
+  poster_url: string | null
+  status: string
+  created_at: string
+  updated_at: string
+  genres: { id: number; code: string; name: string }[]
+}
+
+export interface BackendShowtime {
+  id: string
+  movie_id: string
+  auditorium_id: string
+  starts_at: string
+  ends_at: string
+  status: string
+  base_price: number
+  branch_name: string
+  screen_name: string
+}
+
+export interface BackendSeat {
+  id: string
+  seat_row: string
+  seat_number: number
+  seat_type: string
+  is_active: boolean
+  status: string
+}
+
+// ----------------------------------------------------
+// Mapping functions: Backend → Frontend
+// ----------------------------------------------------
+export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
+  return {
+    id: bm.id,
+    title: bm.title,
+    rating: 0, // backend không có rating, để 0
+    genre: bm.genres.map(g => g.name),
+    format: [], // backend không có format, để trống
+    poster: bm.poster_url || 'https://placehold.co/500x750?text=No+Image',
+    trailer: bm.trailer_url || '',
+    description: bm.description || '',
+    duration: bm.duration_min,
+    releaseDate: bm.release_date || '',
+    director: '', // backend không có director
+    cast: [], // backend không có cast
+    isFeatured: bm.status === 'NOW_SHOWING',
+    aiMatchReason: undefined,
+  }
+}
+
+export function mapBackendShowtimeToFrontend(bs: BackendShowtime): Showtime {
+  // starts_at: "2026-07-11T18:00:00+07:00"
+  const startDate = new Date(bs.starts_at)
+  const dateStr = startDate.toISOString().split('T')[0] // "2026-07-11"
+  const timeStr = startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) // "18:00"
+  
+  return {
+    id: bs.id,
+    movieId: bs.movie_id,
+    branchName: bs.branch_name,
+    screenName: bs.screen_name,
+    date: dateStr,
+    time: timeStr,
+    price: Number(bs.base_price),
+  }
+}
+
+export function mapBackendSeatToFrontend(seat: BackendSeat): Seat {
+  let type: 'standard' | 'vip' | 'couple' = 'standard'
+  if (seat.seat_type === 'VIP') type = 'vip'
+  else if (seat.seat_type === 'COUPLE') type = 'couple'
+
+  return {
+    id: seat.id,
+    row: seat.seat_row,
+    number: seat.seat_number,
+    type,
+    status: seat.status as 'available' | 'selected' | 'occupied',
+    price: 0, // backend seat không có price riêng, sẽ tính sau
+  }
+}
+
+// ----------------------------------------------------
+// TMDB Detail Service (Nuxt server proxy)
+// ----------------------------------------------------
+export interface TmdbMovieDetail {
+  id: string
+  title: string
+  description: string
+  poster: string
+  rating: number
+  duration: number
+  releaseDate: string
+  genre: string[]
+  director: string
+  cast: string[]
+  trailerUrl: string
+}
+
+export const tmdbService = {
+  /**
+   * Fetch movie details from TMDB via Nuxt server proxy.
+   * Includes: poster, trailer YouTube URL, director, cast, genres, rating, duration.
+   */
+  async getMovieDetail(id: string | number): Promise<TmdbMovieDetail> {
+    const data = await $fetch<TmdbMovieDetail>(`/api/movies/${id}`)
+    return data
+  }
+}
+
+// ----------------------------------------------------
 // API Client Functions
 // ----------------------------------------------------
 
 export const movieService = {
   async getAll(): Promise<Movie[]> {
     if (USE_MOCK) return mockMovies
-    const res = await apiClient.get<Movie[]>('/movies')
-    return res.data
+    const res = await apiClient.get<BackendMovie[]>('/movies')
+    return res.data.map(mapBackendMovieToFrontend)
   },
 
   async getById(id: string): Promise<Movie> {
@@ -590,24 +713,24 @@ export const movieService = {
       if (!m) throw new Error('Không tìm thấy phim')
       return m
     }
-    const res = await apiClient.get<Movie>(`/movies/${id}`)
-    return res.data
+    const res = await apiClient.get<BackendMovie>(`/movies/${id}`)
+    return mapBackendMovieToFrontend(res.data)
   },
 
   async getShowtimes(movieId: string): Promise<Showtime[]> {
     if (USE_MOCK) {
       return mockShowtimes.filter(s => s.movieId === movieId)
     }
-    const res = await apiClient.get<Showtime[]>(`/movies/${movieId}/showtimes`)
-    return res.data
+    const res = await apiClient.get<BackendShowtime[]>(`/movies/${movieId}/showtimes`)
+    return res.data.map(mapBackendShowtimeToFrontend)
   },
 
   async getSeats(showtimeId: string): Promise<Seat[]> {
     if (USE_MOCK) {
       return generateSeats(showtimeId)
     }
-    const res = await apiClient.get<Seat[]>(`/showtimes/${showtimeId}/seats`)
-    return res.data
+    const res = await apiClient.get<BackendSeat[]>(`/showtimes/${showtimeId}/seats`)
+    return res.data.map(mapBackendSeatToFrontend)
   },
 
   async searchSemantically(query: string): Promise<Movie[]> {
@@ -625,8 +748,8 @@ export const movieService = {
       }
       return mockMovies
     }
-    const res = await apiClient.post<Movie[]>('/movies/semantic-search', { query })
-    return res.data
+    const res = await apiClient.post<BackendMovie[]>('/movies/semantic-search', { query })
+    return res.data.map(mapBackendMovieToFrontend)
   },
 
   async getRecommendations(): Promise<Movie[]> {
@@ -634,8 +757,8 @@ export const movieService = {
       // Return 3 suggested movies
       return mockMovies.filter(m => m.isFeatured || m.rating >= 4.8)
     }
-    const res = await apiClient.get<Movie[]>('/movies/recommendations')
-    return res.data
+    const res = await apiClient.get<BackendMovie[]>('/movies/recommendations')
+    return res.data.map(mapBackendMovieToFrontend)
   }
 }
 
