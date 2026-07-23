@@ -290,6 +290,21 @@ export const usersApi = {
   // },
 }
 
+export const branchesService = {
+  /** Lấy danh sách rạp (public, không cần auth) */
+  async getAll(): Promise<BackendBranch[]> {
+    if (USE_MOCK) {
+      return [
+        { id: 'b1', code: 'CGV_HCM_Q1', name: 'CGV Quận 1', city: 'HCM' },
+        { id: 'b2', code: 'CGV_HCM_Q7', name: 'CGV Quận 7', city: 'HCM' },
+        { id: 'b3', code: 'BETA_HN_CG', name: 'Beta Cầu Giấy', city: 'Hà Nội' },
+      ]
+    }
+    const res = await apiClient.get<BackendBranch[]>('/branches')
+    return res.data
+  },
+}
+
 export const adminBackendService = {
   async getBranches(): Promise<BackendBranch[]> {
     const res = await apiClient.get<BackendBranch[]>('/admin/branches')
