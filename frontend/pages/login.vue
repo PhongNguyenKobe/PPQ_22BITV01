@@ -10,13 +10,12 @@ const userStore = useUserStore()
 
 const email = ref('customer@gmail.com')
 const password = ref('customer123')
-const role = ref<'customer' | 'admin' | 'branch-admin'>('customer')
+const role = ref<'customer' | 'admin'>('customer')
 const error = ref('')
 
 const credentialsHelp = {
   customer: { email: 'customer@gmail.com', password: 'customer123', desc: 'Tài khoản khách hàng mặc định' },
-  admin: { email: 'admin@cineai.vn', password: 'admin123', desc: 'Tài khoản Quản trị viên tổng hệ thống' },
-  'branch-admin': { email: 'branch@cineai.vn', password: 'branch123', desc: 'Tài khoản Quản lý chi nhánh Sala' }
+  admin: { email: 'admin@cineai.vn', password: 'admin123', desc: 'Tài khoản Quản trị viên hệ thống' }
 }
 
 async function handleLogin() {
@@ -30,17 +29,15 @@ async function handleLogin() {
   if (success) {
     if (userStore.currentUser?.role === 'admin') {
       navigateTo('/admin/dashboard')
-    } else if (userStore.currentUser?.role === 'branch-admin') {
-      navigateTo('/branch-admin/dashboard')
     } else {
       navigateTo('/products')
     }
   } else {
-    error.value = 'Tên đăng nhập không chính xác hoặc không đúng phân quyền!'
+    error.value = 'Email hoặc mật khẩu không chính xác!'
   }
 }
 
-function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
+function selectRole(newRole: 'customer' | 'admin') {
   role.value = newRole
   email.value = credentialsHelp[newRole].email
   password.value = credentialsHelp[newRole].password
@@ -60,20 +57,15 @@ function selectRole(newRole: 'customer' | 'admin' | 'branch-admin') {
       </div>
 
       <!-- Role Selector Tabs -->
-      <div class="grid grid-cols-3 gap-2 bg-surface-container-low border border-glass-stroke p-1 rounded-xl mb-6">
+      <div class="grid grid-cols-2 gap-2 bg-surface-container-low border border-glass-stroke p-1 rounded-xl mb-6">
         <button type="button" @click="selectRole('customer')"
           class="py-2 text-xs font-semibold rounded-lg transition-all"
           :class="role === 'customer' ? 'bg-primary-container text-white' : 'text-on-surface-variant hover:text-on-surface'">
           Khách hàng
         </button>
-        <button type="button" @click="selectRole('branch-admin')"
-          class="py-2 text-xs font-semibold rounded-lg transition-all"
-          :class="role === 'branch-admin' ? 'bg-purple-950 border border-purple-500/20 text-purple-300' : 'text-on-surface-variant hover:text-on-surface'">
-          Chi nhánh
-        </button>
         <button type="button" @click="selectRole('admin')" class="py-2 text-xs font-semibold rounded-lg transition-all"
           :class="role === 'admin' ? 'bg-neutral-800 border border-white/10 text-white' : 'text-on-surface-variant hover:text-on-surface'">
-          Admin
+          Quản trị viên
         </button>
       </div>
 
