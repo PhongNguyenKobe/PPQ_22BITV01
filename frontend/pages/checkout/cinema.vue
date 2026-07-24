@@ -1,187 +1,141 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
+import { useBooking } from '~/composables/useBooking'
 import { movieService, type Showtime } from '~/services/api'
+import { formatDate, formatTime, formatPrice } from '~/utils/format'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'checkout',
+  middleware: 'auth'
 })
 
-const router = useRouter()
 const ticketsStore = useTicketsStore()
-const { selectedMovie, selectedCinema } = storeToRefs(ticketsStore)
+const { selectedMovie } = storeToRefs(ticketsStore)
+const { selectShowtime } = useBooking()
 
 const showtimes = ref<Showtime[]>([])
 const loading = ref(false)
+const error = ref('')
+const selectedShowtimeId = ref<string>('')
 
-// Redirect if no movie selected
 onMounted(async () => {
   if (!selectedMovie.value) {
-    return router.push('/products')
+    await navigateTo('/products')
+    return
   }
-  
-  // Fetch showtimes for the selected movie from API
-  if (selectedMovie.value) {
-    loading.value = true
-    try {
-      // selectedMovie.id từ products store là TMDB id (number), cần chuyển thành string
-      // Tuy nhiên backend dùng UUID, nên sẽ fetch từ API
-      const allShowtimes = await movieService.getShowtimes(String(selectedMovie.value.id))
-      showtimes.value = allShowtimes
-    } catch (e) {
-      console.error('Failed to load showtimes for cinema selection:', e)
-      showtimes.value = []
-    } finally {
-      loading.value = false
-    }
+
+  loading.value = true
+  try {
+    const response = await movieService.getShowtimes(String(selectedMovie.value.id))
+    showtimes.value = response
+  } catch (err) {
+    error.value = 'Failed to load showtimes'
+  } finally {
+    loading.value = false
   }
 })
 
-// Get available cinemas for selected movie
-const availableCinemas = computed(() => {
-  if (!showtimes.value.length) return []
-  
-  const cinemaSet = new Set<string>()
-  showtimes.value.forEach(st => cinemaSet.add(st.branchName))
-  
-  return Array.from(cinemaSet).sort()
-})
-
-// Show count of showtimes per cinema
-const getShowtimeCount = (cinema: string) => {
-  return showtimes.value.filter(st => st.branchName === cinema).length
-}
-
-// Select cinema and navigate to showtime
-function handleSelectCinema(cinema: string) {
-  ticketsStore.selectCinema(cinema)
-  router.push('/checkout/showtime')
+const proceedToSeats = () => {
+  const showtime = showtimes.value.find(s => s.id === selectedShowtimeId.value)
+  if (showtime) {
+    selectShowtime(showtime)
+    navigateTo('/checkout/seat')
+  }
 }
 </script>
 
 <template>
-  <section class="py-16 max-w-container-max mx-auto px-6 md:px-margin-desktop">
-    <!-- Breadcrumb -->
-    <div class="mb-8 flex items-center gap-2 text-sm text-on-surface-variant">
-      <NuxtLink to="/products" class="hover:text-primary">Sản phẩm</NuxtLink>
-      <span class="material-symbols-outlined text-base">chevron_right</span>
-      <span v-if="selectedMovie" class="hover:text-primary cursor-pointer" @click="$router.back()">
-        {{ selectedMovie.name }}
-      </span>
-      <span class="material-symbols-outlined text-base">chevron_right</span>
-      <span class="text-on-surface">Chọn Rạp</span>
-    </div>
-
+  <div class="space-y-6">
     <!-- Header -->
-    <div class="mb-12">
-      <h1 class="text-3xl md:text-4xl font-bold text-on-surface mb-2">
-        Chọn Rạp Chiếu
-      </h1>
-      <p class="text-on-surface-variant">
-        <span v-if="selectedMovie" class="font-semibold">{{ selectedMovie.name }}</span>
-        <span v-else>Phim</span>
-        có sẵn tại các rạp dưới đây
-      </p>
+    <div>
+      <h2 class="text-2xl font-bold text-on-surface mb-2">Chọn Rạp & Suất Chiếu</h2>
+      <p class="text-sm text-on-surface-variant">{{ selectedMovie?.name }}</p>
     </div>
 
-    <!-- Stepper indicator -->
-    <div class="mb-12 flex items-center justify-center gap-3 text-xs font-bold">
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">1</div>
-        <span>Chọn Rạp</span>
+    <!-- Loading State -->
+    <div v-if="loading" class="text-center py-12">
+      <div class="inline-block animate-spin">
+        <span class="material-symbols-outlined text-4xl text-primary-container">hourglass_empty</span>
       </div>
-      <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">2</div>
-        <span>Chọn Suất</span>
-      </div>
-      <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">3</div>
-        <span>Chọn Ghế</span>
-      </div>
-      <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">4</div>
-        <span>Thanh Toán</span>
-      </div>
+      <p class="text-sm text-on-surface-variant mt-2">Loading showtimes...</p>
     </div>
 
-    <!-- Cinema list -->
-    <div v-if="availableCinemas.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <button
-        v-for="cinema in availableCinemas"
-        :key="cinema"
-        @click="handleSelectCinema(cinema)"
-        :class="[
-          'group relative overflow-hidden rounded-2xl p-6 text-left border-2 transition-all duration-300',
-          selectedCinema === cinema
-            ? 'border-primary bg-primary-container/10'
-            : 'border-outline-variant bg-surface-container-high hover:border-primary/50'
-        ]"
+    <!-- Error State -->
+    <div v-if="error" class="bg-error/10 border border-error/30 rounded-xl p-4 text-error text-sm">
+      {{ error }}
+    </div>
+
+    <!-- Showtimes List -->
+    <div v-else class="space-y-3">
+      <label
+        v-for="showtime of showtimes"
+        :key="showtime.id"
+        class="block cursor-pointer"
       >
-        <!-- Background gradient -->
-        <div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
-        <!-- Content -->
-        <div class="relative z-10">
-          <div class="flex items-start justify-between mb-4">
-            <div>
-              <h3 class="text-lg font-bold text-on-surface">{{ cinema }}</h3>
-              <p class="text-sm text-on-surface-variant mt-1">
-                <span class="material-symbols-outlined text-sm align-text-bottom">schedule</span>
-                {{ getShowtimeCount(cinema) }} suất chiếu
-              </p>
-            </div>
-            <div
-              :class="[
-                'w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all',
-                selectedCinema === cinema
-                  ? 'border-primary bg-primary'
-                  : 'border-outline-variant group-hover:border-primary'
-              ]"
-            >
-              <span class="material-symbols-outlined text-white text-sm" v-if="selectedCinema === cinema">
-                check
-              </span>
-            </div>
-          </div>
-
-          <!-- Location info -->
-          <div class="flex items-center gap-2 text-xs text-on-surface-variant">
-            <span class="material-symbols-outlined text-sm">location_on</span>
-            <span>Quận Hoàn Kiếm, Hà Nội</span>
-          </div>
-
-          <!-- Amenities -->
-          <div class="flex flex-wrap gap-2 mt-4">
-            <span class="px-2 py-1 bg-surface-container rounded text-xs font-semibold text-on-surface-variant">
-              IMAX
-            </span>
-            <span class="px-2 py-1 bg-surface-container rounded text-xs font-semibold text-on-surface-variant">
-              4DX
-            </span>
-            <span class="px-2 py-1 bg-surface-container rounded text-xs font-semibold text-on-surface-variant">
-              2D
-            </span>
-          </div>
-        </div>
-
-        <!-- Hover arrow -->
+        <input
+          v-model="selectedShowtimeId"
+          type="radio"
+          :value="showtime.id"
+          class="sr-only"
+        />
         <div
-          class="absolute right-6 bottom-6 text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+          class="p-4 border-2 rounded-xl transition-all"
+          :class="selectedShowtimeId === showtime.id
+            ? 'border-primary-container bg-primary-container/10'
+            : 'border-glass-stroke hover:border-primary-container/50'
+          "
         >
-          <span class="material-symbols-outlined text-2xl">arrow_forward</span>
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-semibold text-on-surface">{{ showtime.branch_name }}</p>
+              <p class="text-sm text-on-surface-variant">{{ showtime.screen_name }}</p>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-primary-container">{{ formatTime(showtime.starts_at) }}</p>
+              <p class="text-xs text-on-surface-variant">{{ formatDate(showtime.starts_at) }}</p>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center justify-between">
+            <p class="text-xs text-on-surface-variant">Giá: <span class="font-semibold text-on-surface">{{ formatPrice(Number(showtime.base_price)) }}</span></p>
+            <span v-if="showtime.status === 'OPEN'" class="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded">Còn vé</span>
+          </div>
         </div>
+      </label>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex gap-3 pt-4">
+      <NuxtLink to="/products" class="flex-1 bg-surface-variant text-on-surface px-4 py-3 rounded-xl font-semibold hover:bg-surface-variant/80 transition-colors text-center">
+        ← Quay Lại
+      </NuxtLink>
+      <button
+        @click="proceedToSeats"
+        :disabled="!selectedShowtimeId"
+        class="flex-1 bg-primary-container text-white px-4 py-3 rounded-xl font-semibold hover:bg-primary-container/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        Chọn Ghế →
       </button>
     </div>
 
-    <!-- No cinemas available -->
-    <div v-else class="py-12 text-center">
-      <p class="text-on-surface-variant mb-4">Không có rạp chiếu nào cho phim này</p>
-      <NuxtLink to="/products" class="inline-block px-6 py-3 rounded-lg bg-primary text-on-primary font-bold hover:brightness-110 transition">
-        Quay lại sản phẩm
-      </NuxtLink>
-    </div>
-  </section>
+    <!-- Summary -->
+    <template #summary>
+      <div class="space-y-4 text-sm">
+        <div>
+          <p class="text-on-surface-variant text-xs">Phim</p>
+          <p class="font-semibold text-on-surface line-clamp-2">{{ selectedMovie?.name }}</p>
+        </div>
+        <div v-if="selectedShowtimeId" class="border-t border-glass-stroke pt-3">
+          <p class="text-on-surface-variant text-xs mb-2">Suất Chiếu Chọn</p>
+          <p class="font-semibold text-on-surface">
+            {{ showtimes.find(s => s.id === selectedShowtimeId)?.branch_name }}
+          </p>
+          <p class="text-xs text-on-surface-variant">
+            {{ formatTime(showtimes.find(s => s.id === selectedShowtimeId)?.starts_at || '') }}
+          </p>
+        </div>
+      </div>
+    </template>
+  </div>
 </template>

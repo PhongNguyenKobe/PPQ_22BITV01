@@ -1,136 +1,167 @@
 <script setup lang="ts">
+import { ref, onMounted, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
+import { useBooking } from '~/composables/useBooking'
+import { movieService, type Seat } from '~/services/api'
+import { formatSeatLabel, formatPrice } from '~/utils/format'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'checkout',
+  middleware: 'auth'
 })
 
 const ticketsStore = useTicketsStore()
-const { selectedMovie, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
+const { selectedShowtime, selectedSeats } = storeToRefs(ticketsStore)
+const { toggleSeat } = useBooking()
 
-onMounted(() => {
-  // Redirect back to cinema selection if no showtime has been selected
+const seats = ref<any[]>([])
+const loading = ref(false)
+const error = ref('')
+
+const seatRows = computed(() => {
+  const rows = new Map<string, any[]>()
+  seats.value.forEach(seat => {
+    if (!rows.has(seat.seat_row)) {
+      rows.set(seat.seat_row, [])
+    }
+    rows.get(seat.seat_row)!.push(seat)
+  })
+  return rows
+})
+
+onMounted(async () => {
   if (!selectedShowtime.value) {
-    navigateTo('/checkout/cinema')
+    await navigateTo('/checkout/cinema')
+    return
+  }
+
+  loading.value = true
+  try {
+    const response = await movieService.getShowtimeSeats(selectedShowtime.value.id)
+    seats.value = response
+  } catch (err) {
+    error.value = 'Failed to load seats'
+  } finally {
+    loading.value = false
   }
 })
 
-function handleProceedToPayment() {
-  if (selectedSeats.value.length === 0) return
-  navigateTo('/checkout/payment')
+const isSeatSelected = (seat: any) => {
+  return selectedSeats.value.some(s => s.id === seat.id)
+}
+
+const handleSeatClick = (seat: any) => {
+  toggleSeat(seat)
+}
+
+const proceedToCombo = () => {
+  navigateTo('/checkout/combo')
 }
 </script>
 
 <template>
-  <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop py-12">
-    <!-- Selection Breadcrumb / Header -->
-    <div class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div>
-        <button @click="$router.back()" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
-          <span class="material-symbols-outlined text-sm">arrow_back</span>
-          Quay lại Chọn Suất
-        </button>
-        <h1 class="font-headline-lg text-2xl md:text-3xl font-black text-on-surface">
-          Chọn Ghế Ngồi Thông Minh
-        </h1>
-      </div>
-      
-      <!-- Stepper Indicator -->
-      <div class="flex items-center justify-center gap-3 text-xs font-bold">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">1</div>
-          <span>Chọn Rạp</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">2</div>
-          <span>Chọn Suất</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">3</div>
-          <span>Chọn Ghế</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">4</div>
-          <span>Thanh Toán</span>
-        </div>
-      </div>
+  <div class="space-y-6">
+    <!-- Header -->
+    <div>
+      <h2 class="text-2xl font-bold text-on-surface mb-2">Chọn Ghế Ngồi</h2>
+      <p class="text-sm text-on-surface-variant">{{ selectedShowtime?.branch_name }} - {{ selectedShowtime?.screen_name }}</p>
     </div>
 
-    <!-- Booking Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      <!-- Seat Map Grid (8 cols) -->
-      <div class="lg:col-span-8">
-        <SeatSelection />
+    <!-- Loading State -->
+    <div v-if="loading" class="text-center py-12">
+      <div class="inline-block animate-spin">
+        <span class="material-symbols-outlined text-4xl text-primary-container">hourglass_empty</span>
+      </div>
+      <p class="text-sm text-on-surface-variant mt-2">Loading seats...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-if="error" class="bg-error/10 border border-error/30 rounded-xl p-4 text-error text-sm">
+      {{ error }}
+    </div>
+
+    <!-- Seat Grid -->
+    <div v-else class="space-y-4">
+      <!-- Screen -->
+      <div class="text-center">
+        <div class="inline-block bg-surface-variant text-on-surface-variant px-6 py-1 rounded-full text-xs font-semibold">
+          📺 Màn Hình
+        </div>
       </div>
 
-      <!-- Ticket Selection Summary (4 cols) -->
-      <div class="lg:col-span-4" v-if="selectedShowtime">
-        <div class="glass-panel border border-glass-stroke rounded-2xl p-6 md:p-8 space-y-6">
-          <div class="border-b border-glass-stroke/40 pb-4">
-            <h3 class="font-bold text-lg text-on-surface mb-2">Thông Tin Suất Chiếu</h3>
-            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ selectedMovie?.name }}</span>
-          </div>
-
-          <div class="space-y-3 text-xs text-on-surface-variant border-b border-glass-stroke/40 pb-4">
-            <div class="flex justify-between">
-              <span>Rạp:</span>
-              <span class="font-bold text-on-surface">{{ selectedShowtime.branchName }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Phòng chiếu:</span>
-              <span class="font-bold text-on-surface uppercase">{{ selectedShowtime.screenName }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Ngày chiếu:</span>
-              <span class="font-bold text-on-surface">{{ selectedShowtime.date }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Giờ chiếu:</span>
-              <span class="font-bold text-on-surface text-sm text-primary">{{ selectedShowtime.time }}</span>
-            </div>
-          </div>
-
-          <!-- Selected seats selection report -->
-          <div class="border-b border-glass-stroke/40 pb-4">
-            <span class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Ghế Đã Chọn</span>
-            
-            <div v-if="selectedSeats.length === 0" class="text-xs text-on-surface-variant italic">
-              Vui lòng chọn ghế ngồi trên sơ đồ.
-            </div>
-
-            <div v-else class="flex flex-wrap gap-2">
-              <span
-                v-for="seat in selectedSeats"
-                :key="seat.id"
-                class="bg-primary-container/10 border border-primary-container/20 text-primary-container text-xs font-bold px-3 py-1 rounded-lg"
-              >
-                {{ seat.row }}{{ seat.number }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Total price summary -->
-          <div class="flex items-center justify-between border-t border-glass-stroke/10 pt-4">
-            <div class="flex flex-col">
-              <span class="text-xs text-on-surface-variant">Tổng cộng:</span>
-              <span class="text-xl font-black text-primary-fixed-dim">{{ totalAmount.toLocaleString() }} VNĐ</span>
-            </div>
-            
+      <!-- Seats -->
+      <div class="space-y-3">
+        <div v-for="(rowSeats, row) of seatRows" :key="row" class="flex items-center justify-center gap-2">
+          <span class="w-6 text-center text-xs font-bold text-on-surface-variant">{{ row }}</span>
+          <div class="flex gap-1">
             <button
-              @click="handleProceedToPayment"
-              :disabled="selectedSeats.length === 0"
-              class="bg-primary-container text-on-primary-container px-6 py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 red-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
+              v-for="seat of rowSeats"
+              :key="seat.id"
+              @click="handleSeatClick(seat)"
+              class="w-8 h-8 rounded text-xs font-bold transition-all"
+              :class="isSeatSelected(seat)
+                ? 'bg-primary-container text-white shadow-lg'
+                : 'bg-surface-variant text-on-surface-variant hover:bg-primary-container/30'
+              "
             >
-              Tiếp tục
-              <span class="material-symbols-outlined text-xs">arrow_forward</span>
+              {{ seat.seat_number }}
             </button>
           </div>
         </div>
       </div>
+
+      <!-- Legend -->
+      <div class="flex justify-center gap-6 text-xs mt-6 pt-4 border-t border-glass-stroke">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 bg-surface-variant rounded"></div>
+          <span>Trống</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 bg-primary-container rounded"></div>
+          <span>Chọn</span>
+        </div>
+      </div>
     </div>
+
+    <!-- Action Buttons -->
+    <div class="flex gap-3 pt-4">
+      <NuxtLink to="/checkout/cinema" class="flex-1 bg-surface-variant text-on-surface px-4 py-3 rounded-xl font-semibold hover:bg-surface-variant/80 transition-colors text-center">
+        ← Quay Lại
+      </NuxtLink>
+      <button
+        @click="proceedToCombo"
+        :disabled="selectedSeats.length === 0"
+        class="flex-1 bg-primary-container text-white px-4 py-3 rounded-xl font-semibold hover:bg-primary-container/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        Tiếp Tục ({{ selectedSeats.length }}) →
+      </button>
+    </div>
+
+    <!-- Summary -->
+    <template #summary>
+      <div class="space-y-4 text-sm">
+        <div>
+          <p class="text-on-surface-variant text-xs">Suất Chiếu</p>
+          <p class="font-semibold text-on-surface">{{ formatPrice(selectedShowtime?.base_price || 0) }}/vé</p>
+        </div>
+        <div>
+          <p class="text-on-surface-variant text-xs">Số Ghế Chọn</p>
+          <p class="font-semibold text-on-surface">{{ selectedSeats.length }} ghế</p>
+        </div>
+        <div v-if="selectedSeats.length > 0" class="border-t border-glass-stroke pt-3">
+          <p class="text-on-surface-variant text-xs mb-2">Ghế Đã Chọn</p>
+          <div class="flex flex-wrap gap-1">
+            <span
+              v-for="seat of selectedSeats"
+              :key="seat.id"
+              class="bg-primary-container/20 text-primary-container text-xs px-2 py-1 rounded"
+            >
+              {{ formatSeatLabel(seat.seat_row, seat.seat_number) }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
