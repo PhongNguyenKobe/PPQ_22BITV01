@@ -125,7 +125,6 @@ export const useUserStore = defineStore("user", () => {
     isAuthenticated,
     authToken,
     registeredUsers,
-    authToken,
     login,
     register,
     logout,

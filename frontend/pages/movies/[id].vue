@@ -53,20 +53,21 @@ onMounted(async () => {
       loading.value = false
       return
     }
+  }
 
-    // 2. Fetch showtimes from backend/mock (not from TMDB)
-    try {
-      showtimes.value = await movieService.getShowtimes(id)
-      if (showtimes.value.length > 0) {
-        selectedBranch.value = showtimes.value[0].branchName
-        selectedDate.value = showtimes.value[0].date
-      }
-    } catch (e) {
-      console.error('Failed to load showtimes:', e)
-    } finally {
-      loading.value = false
+  // 2. Fetch showtimes from backend/mock (not from TMDB)
+  try {
+    showtimes.value = await movieService.getShowtimes(id)
+    if (showtimes.value.length > 0) {
+      selectedBranch.value = showtimes.value[0].branchName
+      selectedDate.value = showtimes.value[0].date
     }
-  })
+  } catch (e) {
+    console.error('Failed to load showtimes:', e)
+  } finally {
+    loading.value = false
+  }
+})
 
 // Unique branches for the active movie showtimes
 const branches = computed(() => {
@@ -84,7 +85,6 @@ const dates = computed(() => {
 
 // Filtered showtimes based on selected branch and date
 const filteredShowtimes = computed(() => {
-
   return showtimes.value.filter(s =>
     s.branchName === selectedBranch.value &&
     s.date === selectedDate.value
@@ -108,13 +108,13 @@ function changeBranch(branch: string) {
 }
 
 function addMovieDetailToCart() {
-  if (!activeMovie.value) return
+  if (!tmdbDetail.value) return
 
   const showtime = filteredShowtimes.value[0]
   cartStore.addToCart({
-    id: activeMovie.value.id,
-    title: activeMovie.value.title,
-    poster: activeMovie.value.poster,
+    id: route.params.id as string,
+    title: tmdbDetail.value.title,
+    poster: tmdbDetail.value.poster,
     price: showtime ? showtime.price : 120000,
     showtime: showtime
       ? `${showtime.branchName} • ${showtime.date} ${showtime.time}`
@@ -146,67 +146,58 @@ function addMovieDetailToCart() {
       <!-- Hero backdrop banner with TMDB backdrop -->
       <section class="relative w-full h-[40vh] md:h-[50vh] overflow-hidden">
         <div class="absolute inset-0 z-0">
-
           <img :src="tmdbDetail.poster" :alt="tmdbDetail.title"
             class="w-full h-full object-cover blur-[8px] scale-105 opacity-30" />
-
           <div class="absolute inset-0 bg-background/80"></div>
           <div class="absolute inset-0 gradient-fade-bottom"></div>
         </div>
 
         <div class="relative z-10 max-w-container-max mx-auto px-6 md:px-margin-desktop h-full flex items-end pb-12">
           <div class="flex flex-col md:flex-row items-center md:items-end gap-8 w-full">
-            <!-- Movie Poster -->
+            <!-- Movie Poster from TMDB -->
             <div
               class="w-48 md:w-56 aspect-[2/3] rounded-2xl overflow-hidden border border-glass-stroke shadow-2xl relative -mb-16 md:-mb-24 flex-shrink-0 z-20">
-              <img :src="activeMovie.poster" :alt="activeMovie.title" class="w-full h-full object-cover" />
-              <!-- Movie Poster from TMDB -->
+              <img :src="tmdbDetail.poster" :alt="tmdbDetail.title" class="w-full h-full object-cover" />
+            </div>
+
+            <!-- Movie Title & Metadata -->
+            <div class="text-center md:text-left flex-grow">
+              <h1 class="font-headline-xl text-3xl md:text-5xl font-black text-on-surface tracking-tight mb-4">
+                {{ tmdbDetail.title }}
+              </h1>
+
               <div
-                class="w-48 md:w-56 aspect-[2/3] rounded-2xl overflow-hidden border border-glass-stroke shadow-2xl relative -mb-16 md:-mb-24 flex-shrink-0 z-20">
-                <img :src="tmdbDetail.poster" :alt="tmdbDetail.title" class="w-full h-full object-cover" />
-
+                class="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs font-semibold text-on-surface-variant">
+                <!-- TMDB Rating -->
+                <span class="flex items-center gap-1">
+                  <span class="material-symbols-outlined text-sm text-yellow-500"
+                    style="font-variation-settings: 'FILL' 1;">star</span>
+                  {{ tmdbDetail.rating.toFixed(1) }}
+                </span>
+                <span>•</span>
+                <!-- Duration -->
+                <span>{{ tmdbDetail.duration }} phút</span>
+                <span>•</span>
+                <!-- Genres -->
+                <span>{{ tmdbDetail.genre.join(', ') }}</span>
+                <span>•</span>
+                <!-- Release Date -->
+                <span>Khởi chiếu: {{ tmdbDetail.releaseDate }}</span>
               </div>
-
-              <!-- Movie Title & Metadata -->
-              <div class="text-center md:text-left flex-grow">
-
-
-                <h1 class="font-headline-xl text-3xl md:text-5xl font-black text-on-surface tracking-tight mb-4">
-                  {{ tmdbDetail.title }}
-                </h1>
-
-                <div
-                  class="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs font-semibold text-on-surface-variant">
-                  <!-- TMDB Rating -->
-                  <span class="flex items-center gap-1">
-                    <span class="material-symbols-outlined text-sm text-yellow-500"
-                      style="font-variation-settings: 'FILL' 1;">star</span>
-                    {{ tmdbDetail.rating.toFixed(1) }}
-                  </span>
-                  <span>•</span>
-                  <!-- Duration -->
-                  <span>{{ tmdbDetail.duration }} phút</span>
-                  <span>•</span>
-                  <!-- Genres -->
-                  <span>{{ tmdbDetail.genre.join(', ') }}</span>
-                  <span>•</span>
-                  <!-- Release Date -->
-                  <span>Khởi chiếu: {{ tmdbDetail.releaseDate }}</span>
-                </div>
-                <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
-                  <button @click="addMovieDetailToCart"
-                    class="inline-flex items-center justify-center rounded-3xl bg-primary-container text-on-primary-container px-5 py-3 font-bold hover:scale-105 transition-all">
-                    <span class="material-symbols-outlined text-base">add_shopping_cart</span>
-                    <span class="ml-2">Thêm vào giỏ</span>
-                  </button>
-                  <NuxtLink to="/cart"
-                    class="inline-flex items-center justify-center rounded-3xl border border-white/10 bg-surface px-5 py-3 text-sm font-semibold text-on-surface hover:bg-white/5 transition-all">
-                    Xem giỏ hàng
-                  </NuxtLink>
-                </div>
+              <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+                <button @click="addMovieDetailToCart"
+                  class="inline-flex items-center justify-center rounded-3xl bg-primary-container text-on-primary-container px-5 py-3 font-bold hover:scale-105 transition-all">
+                  <span class="material-symbols-outlined text-base">add_shopping_cart</span>
+                  <span class="ml-2">Thêm vào giỏ</span>
+                </button>
+                <NuxtLink to="/cart"
+                  class="inline-flex items-center justify-center rounded-3xl border border-white/10 bg-surface px-5 py-3 text-sm font-semibold text-on-surface hover:bg-white/5 transition-all">
+                  Xem giỏ hàng
+                </NuxtLink>
               </div>
             </div>
           </div>
+        </div>
       </section>
 
       <!-- Movie Details and Showtimes grid -->
@@ -248,7 +239,6 @@ function addMovieDetailToCart() {
               {{ tmdbDetail.description }}
             </p>
           </div>
-
 
           <!-- Director and Cast from TMDB -->
           <div
