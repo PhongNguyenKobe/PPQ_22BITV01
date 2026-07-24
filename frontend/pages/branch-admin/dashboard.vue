@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { adminService, mockMovies, type Showtime } from '~/services/api'
+import { adminBackendService, adminService, mockMovies, type MovieRequest, type Showtime } from '~/services/api'
 
 definePageMeta({
   layout: 'admin',
@@ -8,7 +8,7 @@ definePageMeta({
   requiredRole: 'branch-admin'
 })
 
-const activeTab = ref<'showtimes' | 'screens' | 'promos'>('showtimes')
+const activeTab = ref<'showtimes' | 'movies' | 'screens' | 'promos'>('showtimes')
 
 // Stats
 const ticketsSold = ref(0)
@@ -20,6 +20,7 @@ const salesChartData = ref<{ label: string; tickets: number }[]>([])
 // Lists
 const showtimesList = ref<Showtime[]>([])
 const promotionsList = ref<{ code: string; discount: number; desc: string; active: boolean }[]>([])
+const myMovieRequests = ref<MovieRequest[]>([])
 
 const screensList = ref([
   { id: 'sc1', name: 'IMAX Room A', type: 'IMAX 3D', capacity: 120, status: 'Hoạt động' },
@@ -36,6 +37,20 @@ const inputDate = ref('2026-06-25')
 const inputTime = ref('20:00')
 const inputPrice = ref(90000)
 
+const movieRequestType = ref<'CREATE' | 'UPDATE' | 'DELETE'>('CREATE')
+const movieTargetId = ref('')
+const movieTitle = ref('')
+const movieOriginalTitle = ref('')
+const movieDescription = ref('')
+const movieDuration = ref(120)
+const movieGenres = ref('Hành động, Viễn tưởng')
+const movieReleaseDate = ref('2026-07-05')
+const movieAgeRating = ref('P')
+const movieLanguage = ref('Vietnamese')
+const movieTrailerUrl = ref('')
+const moviePosterUrl = ref('')
+const movieStatus = ref<'UPCOMING' | 'NOW_SHOWING' | 'ENDED'>('UPCOMING')
+
 onMounted(async () => {
   try {
     const stats = await adminService.getBranchAdminStats('b1')
@@ -46,6 +61,7 @@ onMounted(async () => {
     salesChartData.value = stats.salesChartData
     showtimesList.value = stats.showtimesList
     promotionsList.value = stats.promotionsList
+    myMovieRequests.value = await adminBackendService.getMyMovieRequests()
   } catch (e) {
     console.error('Failed to load branch admin stats:', e)
   }
@@ -74,6 +90,48 @@ function handleAddShowtimeSubmit() {
   // Close and reset
   showAddShowtimeModal.value = false
   inputTime.value = '20:00'
+}
+
+async function handleSubmitMovieRequest() {
+  if (!movieTitle.value.trim()) return
+  if ((movieRequestType.value === 'UPDATE' || movieRequestType.value === 'DELETE') && !movieTargetId.value) return
+
+  try {
+    await adminBackendService.submitMovieRequest({
+      request_type: movieRequestType.value,
+      target_movie_id: movieTargetId.value || null,
+      payload: {
+        title: movieTitle.value.trim(),
+        original_title: movieOriginalTitle.value.trim() || null,
+        description: movieDescription.value.trim() || null,
+        duration_min: movieDuration.value,
+        release_date: movieReleaseDate.value || null,
+        age_rating: movieAgeRating.value || null,
+        language: movieLanguage.value || null,
+        trailer_url: movieTrailerUrl.value.trim() || null,
+        poster_url: moviePosterUrl.value.trim() || null,
+        status: movieStatus.value,
+        genres: movieGenres.value.split(',').map(item => item.trim()).filter(Boolean),
+      },
+    })
+
+    myMovieRequests.value = await adminBackendService.getMyMovieRequests()
+    movieRequestType.value = 'CREATE'
+    movieTargetId.value = ''
+    movieTitle.value = ''
+    movieOriginalTitle.value = ''
+    movieDescription.value = ''
+    movieDuration.value = 120
+    movieGenres.value = 'Hành động, Viễn tưởng'
+    movieReleaseDate.value = '2026-07-05'
+    movieAgeRating.value = 'P'
+    movieLanguage.value = 'Vietnamese'
+    movieTrailerUrl.value = ''
+    moviePosterUrl.value = ''
+    movieStatus.value = 'UPCOMING'
+  } catch (error) {
+    console.error('Failed to submit movie request:', error)
+  }
 }
 
 const maxTicketSalesValue = computed(() => {
@@ -140,54 +198,6 @@ function getMovieTitle(id: string): string {
 
     </div>
 
-    <!-- AI Predictions Section -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="glass-panel border border-primary-container/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
-        <div class="absolute inset-0 bg-gradient-to-br from-primary-container/10 to-transparent"></div>
-        <div class="relative z-10 flex items-start gap-4">
-          <div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center text-primary-container shrink-0">
-            <span class="material-symbols-outlined">weather_snowy</span>
-          </div>
-          <div>
-            <h4 class="text-sm font-bold text-on-surface mb-1">Dự báo theo thời tiết</h4>
-            <p class="text-xs text-on-surface-variant mb-2">Trời mưa lạnh vào tối mai. Dự kiến khách xem phim thể loại tình cảm tăng mạnh.</p>
-            <span class="text-lg font-black text-primary-container">+15% Doanh thu</span>
-          </div>
-        </div>
-      </div>
-      
-      <div class="glass-panel border border-[#8a2be2]/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
-        <div class="absolute inset-0 bg-gradient-to-br from-[#8a2be2]/10 to-transparent"></div>
-        <div class="relative z-10 flex items-start gap-4">
-          <div class="w-10 h-10 rounded-full bg-[#8a2be2]/20 flex items-center justify-center text-[#8a2be2] shrink-0">
-            <span class="material-symbols-outlined">trending_up</span>
-          </div>
-          <div>
-            <h4 class="text-sm font-bold text-on-surface mb-1">Trend Mạng Xã Hội</h4>
-            <p class="text-xs text-on-surface-variant mb-2">Phim "Đường Đua Rực Lửa" đang viral top 1 Tiktok khu vực này.</p>
-            <span class="text-sm font-black text-[#8a2be2]">Gợi ý: Tăng cường suất chiếu</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="glass-panel border border-green-500/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
-        <div class="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent"></div>
-        <div class="relative z-10 flex items-start gap-4">
-          <div class="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 shrink-0">
-            <span class="material-symbols-outlined">tips_and_updates</span>
-          </div>
-          <div>
-            <h4 class="text-sm font-bold text-on-surface mb-1">AI Tối Ưu Giá</h4>
-            <p class="text-xs text-on-surface-variant mb-3">Khung giờ 14:00 Thứ 4 đang trống >60% ghế trống.</p>
-            <button class="text-xs font-bold text-green-500 hover:text-green-400 border border-green-500/50 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-all flex items-center gap-1 w-full justify-center">
-              <span class="material-symbols-outlined text-[14px]">bolt</span>
-              Kích hoạt Flash Sale
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Ticket Sales Bar Chart -->
     <div class="glass-panel border border-glass-stroke p-6 md:p-8 rounded-2xl shadow-lg">
       <h3 class="font-bold text-base text-on-surface mb-6 flex items-center gap-2">
@@ -226,6 +236,13 @@ function getMovieTitle(id: string): string {
             :class="activeTab === 'showtimes' ? 'border-purple-500 text-purple-400' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
           >
             Quản Lý Suất Chiếu
+          </button>
+          <button
+            @click="activeTab = 'movies'"
+            class="text-sm font-bold pb-2 transition-all border-b-2"
+            :class="activeTab === 'movies' ? 'border-purple-500 text-purple-400' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
+          >
+            Quản Lý Phim
           </button>
           <button
             @click="activeTab = 'screens'"
@@ -282,6 +299,109 @@ function getMovieTitle(id: string): string {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Movies workflow -->
+        <div v-if="activeTab === 'movies'" class="space-y-6">
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div class="glass-panel border border-glass-stroke rounded-2xl p-5">
+              <h4 class="font-bold text-sm text-on-surface mb-4">Gửi yêu cầu thêm / sửa / xóa phim</h4>
+              <form @submit.prevent="handleSubmitMovieRequest" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Loại yêu cầu</label>
+                    <select v-model="movieRequestType" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
+                      <option value="CREATE">Thêm phim mới</option>
+                      <option value="UPDATE">Sửa phim cũ</option>
+                      <option value="DELETE">Xóa phim cũ</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Chọn phim cũ</label>
+                    <select v-model="movieTargetId" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
+                      <option value="">-- Không chọn --</option>
+                      <option v-for="movie in mockMovies" :key="movie.id" :value="movie.id">{{ movie.title }}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Tên phim</label>
+                  <input v-model="movieTitle" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Nhập tên phim" />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Thể loại</label>
+                  <input v-model="movieGenres" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Hành động, Viễn tưởng" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Thời lượng</label>
+                    <input v-model.number="movieDuration" type="number" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Ngày phát hành</label>
+                    <input v-model="movieReleaseDate" type="date" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Mức độ tuổi</label>
+                    <input v-model="movieAgeRating" type="text" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="P, T13, T16..." />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Ngôn ngữ</label>
+                    <input v-model="movieLanguage" type="text" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Vietnamese" />
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Mô tả</label>
+                  <textarea v-model="movieDescription" rows="3" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Trailer URL</label>
+                    <input v-model="movieTrailerUrl" type="text" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Poster URL</label>
+                    <input v-model="moviePosterUrl" type="text" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" />
+                  </div>
+                </div>
+
+                <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md">
+                  Gửi yêu cầu chờ duyệt
+                </button>
+              </form>
+            </div>
+
+            <div class="glass-panel border border-glass-stroke rounded-2xl p-5">
+              <h4 class="font-bold text-sm text-on-surface mb-4">Yêu cầu của tôi</h4>
+              <div v-if="myMovieRequests.length === 0" class="text-xs text-on-surface-variant py-10 text-center">
+                Chưa có yêu cầu nào.
+              </div>
+              <div v-else class="space-y-3">
+                <div v-for="request in myMovieRequests" :key="request.id" class="rounded-xl border border-glass-stroke p-4 bg-surface-container/30">
+                  <div class="flex items-center justify-between gap-3 mb-2">
+                    <div class="font-bold text-on-surface text-sm">{{ request.payload.title }}</div>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full border font-bold" :class="request.status === 'PENDING' ? 'border-yellow-500/30 text-yellow-400 bg-yellow-950/20' : request.status === 'APPROVED' ? 'border-green-500/30 text-green-400 bg-green-950/20' : 'border-red-500/30 text-red-400 bg-red-950/20'">
+                      {{ request.status }}
+                    </span>
+                  </div>
+                  <div class="text-[11px] text-on-surface-variant">
+                    Loại: {{ request.request_type }} | Thể loại: {{ request.payload.genres.join(', ') }}
+                  </div>
+                  <div v-if="request.review_note" class="mt-2 text-[11px] text-on-surface-variant">
+                    Ghi chú: {{ request.review_note }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Screens table -->

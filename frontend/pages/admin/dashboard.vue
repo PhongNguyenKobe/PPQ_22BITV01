@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { adminService, type Movie, type UserProfile } from '~/services/api'
+import { computed, ref, onMounted } from 'vue'
+import { adminBackendService, adminService, type BackendBranch, type Movie, type UserProfile } from '~/services/api'
 
 definePageMeta({
   layout: 'admin',
@@ -20,6 +20,7 @@ const revenueChartData = ref<{ label: string; value: number }[]>([])
 // Lists
 const moviesList = ref<Movie[]>([])
 const usersList = ref<UserProfile[]>([])
+const branchOptions = ref<BackendBranch[]>([])
 const branchesList = ref([
   { id: 'b1', name: 'CineAI Hùng Vương', city: 'TP. Hồ Chí Minh', screens: 6, status: 'Hoạt động' },
   { id: 'b2', name: 'CineAI Sala Q2', city: 'TP. Hồ Chí Minh', screens: 8, status: 'Hoạt động' },
@@ -28,13 +29,19 @@ const branchesList = ref([
   { id: 'b5', name: 'CineAI Đà Nẵng Plaza', city: 'Đà Nẵng', screens: 4, status: 'Bảo trì' }
 ])
 
-// Add Movie Modal Dialog Form State
+// Add/Edit Movie Modal Dialog Form State
 const showAddMovieModal = ref(false)
+const editingMovieId = ref<string | null>(null)
 const newMovieTitle = ref('')
 const newMovieGenre = ref('')
 const newMovieDirector = ref('')
 const newMovieDuration = ref(120)
 const newMovieRating = ref(4.5)
+
+const showRoleModal = ref(false)
+const selectedUser = ref<UserProfile | null>(null)
+const selectedRoleCode = ref<'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN'>('CUSTOMER')
+const selectedBranchId = ref('')
 
 onMounted(async () => {
   try {
@@ -45,39 +52,90 @@ onMounted(async () => {
     totalRevenue.value = stats.totalRevenue
     revenueChartData.value = stats.revenueChartData
     moviesList.value = stats.moviesList
-    usersList.value = stats.usersList
+    usersList.value = await adminBackendService.getUsers()
+    branchOptions.value = await adminBackendService.getBranches()
   } catch (e) {
     console.error('Failed to load admin stats:', e)
   }
 })
+
+function openAddMovieModal() {
+  editingMovieId.value = null
+  newMovieTitle.value = ''
+  newMovieGenre.value = ''
+  newMovieDirector.value = ''
+  newMovieDuration.value = 120
+  newMovieRating.value = 4.5
+  showAddMovieModal.value = true
+}
+
+function openEditMovieModal(movie: Movie) {
+  editingMovieId.value = movie.id
+  newMovieTitle.value = movie.title
+  newMovieGenre.value = movie.genre.join(', ')
+  newMovieDirector.value = movie.director
+  newMovieDuration.value = movie.duration
+  newMovieRating.value = movie.rating
+  showAddMovieModal.value = true
+}
 
 function handleDeleteMovie(id: string) {
   moviesList.value = moviesList.value.filter(m => m.id !== id)
   totalMovies.value = moviesList.value.length
 }
 
+function openRoleModal(user: UserProfile) {
+  selectedUser.value = user
+  selectedRoleCode.value = user.role === 'branch-admin' ? 'BRANCH_ADMIN' : user.role === 'admin' ? 'SUPER_ADMIN' : 'CUSTOMER'
+  selectedBranchId.value = user.branchId || ''
+  showRoleModal.value = true
+}
+
+async function handleSaveUserRole() {
+  if (!selectedUser.value) return
+  const updated = await adminBackendService.updateUserRole(
+    selectedUser.value.id,
+    selectedRoleCode.value,
+    selectedBranchId.value || undefined,
+  )
+  usersList.value = usersList.value.map(user => (user.id === updated.id ? updated : user))
+  showRoleModal.value = false
+  selectedUser.value = null
+}
+
 function handleAddMovieSubmit() {
   if (!newMovieTitle.value) return
-  
-  const created: Movie = {
-    id: `m-${Date.now()}`,
-    title: newMovieTitle.value,
-    genre: newMovieGenre.value.split(',').map(s => s.trim()),
-    director: newMovieDirector.value || 'N/A',
-    duration: newMovieDuration.value || 120,
-    rating: newMovieRating.value || 4.5,
-    poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=300',
-    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
-    description: 'Bộ phim mới được nhập vào hệ thống CineAI.',
-    releaseDate: new Date().toISOString().substring(0, 10),
-    format: ['2D', '3D'],
-    cast: ['Diễn viên A', 'Diễn viên B']
+
+  if (editingMovieId.value) {
+    // Edit existing
+    const idx = moviesList.value.findIndex(m => m.id === editingMovieId.value)
+    if (idx !== -1) {
+      moviesList.value[idx].title = newMovieTitle.value
+      moviesList.value[idx].genre = newMovieGenre.value.split(',').map(s => s.trim())
+      moviesList.value[idx].director = newMovieDirector.value
+      moviesList.value[idx].duration = newMovieDuration.value
+      moviesList.value[idx].rating = newMovieRating.value
+    }
+  } else {
+    // Add new
+    const created: Movie = {
+      id: `m-${Date.now()}`,
+      title: newMovieTitle.value,
+      genre: newMovieGenre.value.split(',').map(s => s.trim()),
+      director: newMovieDirector.value || 'N/A',
+      duration: newMovieDuration.value || 120,
+      rating: newMovieRating.value || 4.5,
+      poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=300',
+      trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+      description: 'Bộ phim mới được nhập vào hệ thống CineAI.',
+      releaseDate: new Date().toISOString().substring(0, 10),
+      format: ['2D', '3D'],
+      cast: ['Diễn viên A', 'Diễn viên B']
+    }
+    moviesList.value.unshift(created)
+    totalMovies.value = moviesList.value.length
   }
-  
-  moviesList.value.unshift(created)
-  totalMovies.value = moviesList.value.length
-  
-  // Close & reset
+
   showAddMovieModal.value = false
   newMovieTitle.value = ''
   newMovieGenre.value = ''
@@ -93,10 +151,10 @@ const maxRevenueValue = computed(() => {
 
 <template>
   <div class="space-y-8">
-    
+
     <!-- Stats Cards Overview Row -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      
+
       <!-- Revenue stats -->
       <div class="glass-panel border border-glass-stroke p-6 rounded-2xl flex items-center justify-between shadow-md">
         <div>
@@ -149,7 +207,7 @@ const maxRevenueValue = computed(() => {
         <span class="material-symbols-outlined text-primary-container">bar_chart</span>
         Biểu Đồ Doanh Thu Hệ Thống
       </h3>
-      
+
       <!-- Visual Bar Chart -->
       <div class="h-64 flex items-end gap-4 md:gap-8 justify-center pt-8 border-b border-glass-stroke">
         <div
@@ -198,10 +256,10 @@ const maxRevenueValue = computed(() => {
             Quản Lý Thành Viên
           </button>
         </div>
-        
+
         <button
           v-if="activeTab === 'movies'"
-          @click="showAddMovieModal = true"
+          @click="openAddMovieModal"
           class="bg-primary-container hover:bg-opacity-90 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 red-glow transition-all"
         >
           <span class="material-symbols-outlined text-sm">add</span>
@@ -211,7 +269,7 @@ const maxRevenueValue = computed(() => {
 
       <!-- Tab Contents -->
       <div class="p-6">
-        
+
         <!-- Movies Table -->
         <div v-if="activeTab === 'movies'" class="overflow-x-auto">
           <table class="w-full text-left text-xs border-collapse">
@@ -233,6 +291,7 @@ const maxRevenueValue = computed(() => {
                 <td class="py-4 px-4 text-center text-on-surface-variant font-mono">{{ movie.duration }} phút</td>
                 <td class="py-4 px-4 text-center text-yellow-500 font-bold">★ {{ movie.rating.toFixed(1) }}</td>
                 <td class="py-4 px-4 text-right space-x-2">
+                  <button @click="openEditMovieModal(movie)" class="text-blue-400 hover:text-blue-300 font-semibold">Sửa</button>
                   <button @click="handleDeleteMovie(movie.id)" class="text-red-400 hover:text-red-300 font-semibold">Xóa</button>
                 </td>
               </tr>
@@ -287,7 +346,7 @@ const maxRevenueValue = computed(() => {
                   </span>
                 </td>
                 <td class="py-4 px-4">
-                  <button class="text-primary-container font-semibold hover:underline">Chỉnh sửa</button>
+                  <button @click="openRoleModal(user)" class="text-primary-container font-semibold hover:underline">Chỉnh sửa</button>
                 </td>
               </tr>
             </tbody>
@@ -297,7 +356,7 @@ const maxRevenueValue = computed(() => {
       </div>
     </div>
 
-    <!-- Add Movie Modal overlay -->
+    <!-- Add/Edit Movie Modal overlay -->
     <transition
       enter-active-class="transition duration-300 ease-out"
       enter-from-class="opacity-0"
@@ -311,15 +370,15 @@ const maxRevenueValue = computed(() => {
           <button @click="showAddMovieModal = false" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
             <span class="material-symbols-outlined">close</span>
           </button>
-          
-          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">Thêm Phim Mới</h3>
-          
+
+          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">{{ editingMovieId ? 'Chỉnh Sửa Phim' : 'Thêm Phim Mới' }}</h3>
+
           <form @submit.prevent="handleAddMovieSubmit" class="space-y-4">
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Tên phim</label>
               <input v-model="newMovieTitle" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Nhập tên phim" />
             </div>
-            
+
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Thể loại (ngăn cách bằng dấu phẩy)</label>
               <input v-model="newMovieGenre" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Hành Động, Viễn Tưởng" />
@@ -336,8 +395,63 @@ const maxRevenueValue = computed(() => {
               </div>
             </div>
 
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Đánh giá</label>
+              <input v-model.number="newMovieRating" type="number" min="0" max="10" step="0.1" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" />
+            </div>
+
             <button type="submit" class="w-full bg-primary-container text-white py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md red-glow">
-              Tạo phim mới
+              {{ editingMovieId ? 'Cập nhật' : 'Tạo phim mới' }}
+            </button>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Role Edit Modal -->
+    <transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div v-if="showRoleModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl border border-glass-stroke p-6 relative">
+          <button @click="showRoleModal = false" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+
+          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">Cập nhật phân quyền</h3>
+
+          <div v-if="selectedUser" class="mb-4 text-xs text-on-surface-variant">
+            {{ selectedUser.name }} - {{ selectedUser.email }}
+          </div>
+
+          <form @submit.prevent="handleSaveUserRole" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Vai trò</label>
+              <select v-model="selectedRoleCode" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
+                <option value="CUSTOMER">Customer</option>
+                <option value="BRANCH_ADMIN">Branch Admin</option>
+                <option value="STAFF">Branch Staff</option>
+                <option value="SUPER_ADMIN">Website Admin</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Chi nhánh</label>
+              <select v-model="selectedBranchId" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
+                <option value="">-- Không gán --</option>
+                <option v-for="branch in branchOptions" :key="branch.id" :value="branch.id">
+                  {{ branch.name }} - {{ branch.city }}
+                </option>
+              </select>
+            </div>
+
+            <button type="submit" class="w-full bg-primary-container text-white py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md red-glow">
+              Lưu thay đổi
             </button>
           </form>
         </div>

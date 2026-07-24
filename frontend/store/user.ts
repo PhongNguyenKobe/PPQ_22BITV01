@@ -1,146 +1,123 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { authService, setAuthToken, type UserProfile } from "~/services/api";
+import {
+  authService,
+  mapBackendUserToProfile,
+  setAuthToken,
+  type UserProfile,
+} from "~/services/api";
 
 export const useUserStore = defineStore("user", () => {
-  // Pre-configured mock accounts:
-  // 1. Customer: customer@gmail.com / customer123
-  // 2. Admin: admin@cineai.vn / admin123
-  // 3. Branch Admin: branch@cineai.vn / branch123
-  const registeredUsers = ref<UserProfile[]>([
-    {
-      id: "u1",
-      name: "Nguyễn Đăng Khách",
-      email: "customer@gmail.com",
-      role: "customer",
-    },
-    { id: "u2", name: "Admin CineAI", email: "admin@cineai.vn", role: "admin" },
-    {
-      id: "u3",
-      name: "Sala Branch Manager",
-      email: "branch@cineai.vn",
-      role: "branch-admin",
-      branchId: "b1",
-    },
-  ]);
-
+  const registeredUsers = ref<UserProfile[]>([]);
   const currentUser = ref<UserProfile | null>(null);
   const isAuthenticated = ref(false);
   const authToken = ref<string | null>(null);
 
+  function setSession(user: UserProfile | null, token: string | null) {
+    currentUser.value = user;
+    isAuthenticated.value = Boolean(user && token);
+    authToken.value = token;
+
+    if (process.client) {
+      if (user && token) {
+        localStorage.setItem("cineai_user", JSON.stringify(user));
+        localStorage.setItem("cineai_token", token);
+      } else {
+        localStorage.removeItem("cineai_user");
+        localStorage.removeItem("cineai_token");
+      }
+    }
+
+    setAuthToken(token);
+  }
+
+  async function refreshCurrentUser() {
+    if (!authToken.value) return;
+    try {
+      const backendUser = await authService.me();
+      const mappedUser = mapBackendUserToProfile(backendUser, authToken.value);
+      currentUser.value = mappedUser;
+      registeredUsers.value = [mappedUser];
+      if (process.client) {
+        localStorage.setItem("cineai_user", JSON.stringify(mappedUser));
+      }
+    } catch {
+      logout();
+    }
+  }
+
   // Initialize from client-side localStorage if available
   if (process.client) {
-    const saved = localStorage.getItem("cineai_user");
     const savedToken = localStorage.getItem("cineai_token");
-
+    const saved = localStorage.getItem("cineai_user");
     if (savedToken) {
       authToken.value = savedToken;
       setAuthToken(savedToken);
     }
-
     if (saved) {
       try {
         currentUser.value = JSON.parse(saved);
         isAuthenticated.value = true;
+        if (currentUser.value && savedToken) {
+          registeredUsers.value = [currentUser.value];
+        }
       } catch (e) {
         localStorage.removeItem("cineai_user");
+        localStorage.removeItem("cineai_token");
       }
+    }
+
+    if (savedToken) {
+      void refreshCurrentUser();
     }
   }
 
-  async function login(
-    email: string,
-    role: "customer" | "admin" | "branch-admin",
-    password?: string,
-  ): Promise<boolean> {
-    const defaultPasswordByRole: Record<
-      "customer" | "admin" | "branch-admin",
-      string
-    > = {
-      customer: "customer123",
-      admin: "admin123",
-      "branch-admin": "branch123",
-    };
-
-    const resolvedPassword = password || defaultPasswordByRole[role];
-
+  async function login(identifier: string, password: string): Promise<boolean> {
     try {
-      const backendUser = await authService.login(email, resolvedPassword);
-      if (backendUser.role !== role) {
-        throw new Error("Role mismatch");
-      }
-
-      const mappedUser: UserProfile = {
-        id: `u-${Date.now()}`,
-        name:
-          backendUser.email === "admin@cineai.vn"
-            ? "Admin CineAI"
-            : backendUser.email === "branch@cineai.vn"
-              ? "Sala Branch Manager"
-              : "Khách hàng CineAI",
-        email: backendUser.email,
-        role: backendUser.role,
-      };
-
-      currentUser.value = mappedUser;
-      isAuthenticated.value = true;
-      authToken.value = backendUser.access_token;
-
-      if (process.client) {
-        localStorage.setItem("cineai_user", JSON.stringify(mappedUser));
-        localStorage.setItem("cineai_token", backendUser.access_token);
-      }
-
-      setAuthToken(backendUser.access_token);
-      return true;
-    } catch (error) {
-      const matched = registeredUsers.value.find(
-        (u) => u.email === email && u.role === role,
+      const response = await authService.login({ identifier, password });
+      const mappedUser = mapBackendUserToProfile(
+        response.user,
+        response.access_token,
       );
-      if (matched) {
-        currentUser.value = matched;
-        isAuthenticated.value = true;
-        authToken.value = null;
-        if (process.client) {
-          localStorage.setItem("cineai_user", JSON.stringify(matched));
-          localStorage.removeItem("cineai_token");
-        }
-        setAuthToken(null);
-        return true;
-      }
+      registeredUsers.value = [mappedUser];
+      setSession(mappedUser, response.access_token);
+      return true;
+    } catch {
       return false;
     }
   }
 
-  function register(name: string, email: string): boolean {
-    const exists = registeredUsers.value.some((u) => u.email === email);
-    if (exists) return false;
-
-    const newUser: UserProfile = {
-      id: `u-${Date.now()}`,
-      name,
-      email,
-      role: "customer",
-    };
-
-    registeredUsers.value.push(newUser);
-    currentUser.value = newUser;
-    isAuthenticated.value = true;
-    if (process.client) {
-      localStorage.setItem("cineai_user", JSON.stringify(newUser));
+  async function register(payload: {
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+    dateOfBirth?: string;
+    gender?: string;
+  }): Promise<boolean> {
+    try {
+      const response = await authService.register({
+        full_name: payload.name,
+        email: payload.email,
+        phone: payload.phone || null,
+        password: payload.password,
+        date_of_birth: payload.dateOfBirth || null,
+        gender: payload.gender || null,
+      });
+      const mappedUser = mapBackendUserToProfile(
+        response.user,
+        response.access_token,
+      );
+      registeredUsers.value = [mappedUser];
+      setSession(mappedUser, response.access_token);
+      return true;
+    } catch {
+      return false;
     }
-    return true;
   }
 
   function logout() {
-    currentUser.value = null;
-    isAuthenticated.value = false;
-    authToken.value = null;
-    if (process.client) {
-      localStorage.removeItem("cineai_user");
-      localStorage.removeItem("cineai_token");
-    }
-    setAuthToken(null);
+    setSession(null, null);
   }
 
   return {
@@ -148,6 +125,7 @@ export const useUserStore = defineStore("user", () => {
     isAuthenticated,
     authToken,
     registeredUsers,
+    authToken,
     login,
     register,
     logout,

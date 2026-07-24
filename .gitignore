@@ -1,18 +1,33 @@
-# Nuxt generated files
-frontend/.nuxt/
-frontend/.output/
 
-# Node
-frontend/node_modules/
+# Nuxt build artifacts
+.nuxt
+.output
+frontend/.nuxt
+frontend/.output
+/frontend/.nuxt/
+/frontend/.output/
 
-# Python cache
+# Node dependencies
+node_modules
+/node_modules/
+
+# Environment variables
+.env
+frontend/.env
+backend/.env
+/.env
+/backend/.env
+/frontend/.env
+
+# Python
+__pycache__
+*.pyc
+/.venv/
+/backend/.venv/
+
+# VS Code
+.vscode
+
 __pycache__/
 *.pyc
-
-# Environment
-.env
-.venv/
-
-# OS
-.DS_Store
-Thumbs.db
+conflict_list.txt

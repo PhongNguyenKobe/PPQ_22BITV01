@@ -22,7 +22,7 @@ const combos = ref([
 onMounted(() => {
   // Redirect back if no seats selected
   if (selectedSeats.value.length === 0 || !selectedShowtime.value) {
-    navigateTo('/movies')
+    navigateTo('/products')
   }
 })
 

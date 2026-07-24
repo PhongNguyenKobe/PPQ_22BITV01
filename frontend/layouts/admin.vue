@@ -25,7 +25,7 @@ onMounted(() => {
       <div>
         <!-- Sidebar Brand -->
         <div class="h-20 flex items-center px-6 border-b border-glass-stroke">
-          <NuxtLink to="/movies" class="font-headline-md text-xl font-bold text-primary-container flex items-center gap-2">
+          <NuxtLink to="/products" class="font-headline-md text-xl font-bold text-primary-container flex items-center gap-2">
             <span class="material-symbols-outlined">shield</span>
             CineAI Portal
           </NuxtLink>
@@ -58,7 +58,7 @@ onMounted(() => {
           </NuxtLink>
 
           <NuxtLink
-            to="/movies"
+            to="/products"
             class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-sm transition-colors text-on-surface-variant hover:text-on-surface"
           >
             <span class="material-symbols-outlined text-lg">movie</span>
@@ -98,7 +98,7 @@ onMounted(() => {
           </h2>
         </div>
         <div class="flex items-center gap-4">
-          <NuxtLink to="/movies" class="text-xs font-bold bg-white/5 border border-glass-stroke hover:bg-white/10 px-4 py-2 rounded-xl text-on-surface flex items-center gap-2">
+          <NuxtLink to="/products" class="text-xs font-bold bg-white/5 border border-glass-stroke hover:bg-white/10 px-4 py-2 rounded-xl text-on-surface flex items-center gap-2">
             <span class="material-symbols-outlined text-sm">home</span>
             Quay về trang bán vé
           </NuxtLink>
@@ -112,3 +112,4 @@ onMounted(() => {
     </div>
   </div>
 </template>
+

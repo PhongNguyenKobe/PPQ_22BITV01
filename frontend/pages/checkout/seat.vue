@@ -1,27 +1,24 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
-import { useMoviesStore } from '~/store/movies'
 
 definePageMeta({
   layout: 'default'
 })
 
 const ticketsStore = useTicketsStore()
-const moviesStore = useMoviesStore()
-const { selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
-const { activeMovie } = storeToRefs(moviesStore)
+const { selectedMovie, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
 
 onMounted(() => {
-  // Redirect back to catalog if no showtime has been selected
+  // Redirect back to cinema selection if no showtime has been selected
   if (!selectedShowtime.value) {
-    navigateTo('/movies')
+    navigateTo('/checkout/cinema')
   }
 })
 
-function handleProceedToCombo() {
+function handleProceedToPayment() {
   if (selectedSeats.value.length === 0) return
-  navigateTo('/checkout/combo')
+  navigateTo('/checkout/payment')
 }
 </script>
 
@@ -30,22 +27,36 @@ function handleProceedToCombo() {
     <!-- Selection Breadcrumb / Header -->
     <div class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <NuxtLink to="/movies" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
+        <button @click="$router.back()" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
           <span class="material-symbols-outlined text-sm">arrow_back</span>
-          Quay lại Lịch Chiếu
-        </NuxtLink>
+          Quay lại Chọn Suất
+        </button>
         <h1 class="font-headline-lg text-2xl md:text-3xl font-black text-on-surface">
           Chọn Ghế Ngồi Thông Minh
         </h1>
       </div>
       
       <!-- Stepper Indicator -->
-      <div class="flex items-center gap-3 text-[10px] md:text-xs font-bold bg-surface-container-low border border-white/10 px-4 py-2.5 rounded-full overflow-x-auto whitespace-nowrap hide-scrollbar max-w-full">
-        <span class="text-primary-container">1. Chọn Ghế</span>
-        <span class="text-on-surface-variant">/</span>
-        <span class="text-on-surface-variant">2. Bắp Nước</span>
-        <span class="text-on-surface-variant">/</span>
-        <span class="text-on-surface-variant">3. Thanh Toán</span>
+      <div class="flex items-center justify-center gap-3 text-xs font-bold">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">1</div>
+          <span>Chọn Rạp</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">2</div>
+          <span>Chọn Suất</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">3</div>
+          <span>Chọn Ghế</span>
+        </div>
+        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">4</div>
+          <span>Thanh Toán</span>
+        </div>
       </div>
     </div>
 
@@ -61,7 +72,7 @@ function handleProceedToCombo() {
         <div class="glass-panel border border-glass-stroke rounded-2xl p-6 md:p-8 space-y-6">
           <div class="border-b border-glass-stroke/40 pb-4">
             <h3 class="font-bold text-lg text-on-surface mb-2">Thông Tin Suất Chiếu</h3>
-            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ activeMovie?.title }}</span>
+            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ selectedMovie?.name }}</span>
           </div>
 
           <div class="space-y-3 text-xs text-on-surface-variant border-b border-glass-stroke/40 pb-4">
@@ -110,7 +121,7 @@ function handleProceedToCombo() {
             </div>
             
             <button
-              @click="handleProceedToCombo"
+              @click="handleProceedToPayment"
               :disabled="selectedSeats.length === 0"
               class="bg-primary-container text-on-primary-container px-6 py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 red-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
             >

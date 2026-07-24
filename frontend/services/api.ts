@@ -1,25 +1,54 @@
 import axios from "axios";
 
 // Set this to false when backend (FastAPI) is running
-const USE_MOCK = true;
-const AUTH_USE_BACKEND = true;
-const API_BASE_URL = "http://localhost:8000/api";
-const API_V1_BASE_URL = "http://localhost:8000/api/v1";
+const USE_MOCK = false  
+const API_BASE_URL = import.meta.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
-});
+})
+// ----------------------------------------------------
+// Xử lý lỗi tập trung cho toàn bộ API module
+// ----------------------------------------------------
+export interface ApiError {
+  message: string
+  status?: number
+}
 
-export const setAuthToken = (token: string | null) => {
-  if (token) {
-    apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
-  } else {
-    delete apiClient.defaults.headers.common.Authorization;
+export function handleApiError(error: unknown): ApiError {
+  if (axios.isAxiosError(error)) {
+    return {
+      message:
+        (error.response?.data as any)?.detail ||
+        (error.response?.data as any)?.message ||
+        error.message ||
+        'Đã có lỗi xảy ra, vui lòng thử lại.',
+      status: error.response?.status,
+    }
   }
-};
+  if (error instanceof Error) {
+    return { message: error.message }
+  }
+  return { message: 'Lỗi không xác định' }
+}
+
+// Interceptor: mọi lỗi đi qua apiClient đều được chuẩn hóa thành ApiError
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => Promise.reject(handleApiError(error))
+)
+
+export function setAuthToken(token: string | null) {
+  if (token) {
+    apiClient.defaults.headers.common.Authorization = `Bearer ${token}`
+    return
+  }
+
+  delete apiClient.defaults.headers.common.Authorization
+}
 
 // TypeScript interfaces
 export interface Movie {
@@ -74,24 +103,188 @@ export interface UserTicket {
 }
 
 export interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
-  role: "customer" | "admin" | "branch-admin";
-  branchId?: string;
+  id: string
+  name: string
+  email: string
+  role: 'customer' | 'admin' | 'branch-admin' | 'staff'
+  branchId?: string
+  phone?: string | null
+  dateOfBirth?: string | null
+  gender?: string | null
+  token?: string
 }
 
-export interface AuthLoginResponse {
-  access_token: string;
-  token_type: string;
-  role: "customer" | "admin" | "branch-admin";
-  email: string;
+export interface BackendAdminUser {
+  id: string
+  email: string
+  phone: string | null
+  full_name: string
+  date_of_birth: string | null
+  gender: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  roles: BackendRole[]
+  branch_id: string | null
 }
 
-export interface AuthUserProfile {
-  email: string;
-  role: "customer" | "admin" | "branch-admin";
-  name: string;
+export interface BackendBranch {
+  id: string
+  code: string
+  name: string
+  city: string
+}
+
+export interface BackendRole {
+  id: number
+  code: string
+  name: string
+}
+
+export interface BackendUser {
+  id: string
+  email: string
+  phone: string | null
+  full_name: string
+  date_of_birth: string | null
+  gender: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  roles: BackendRole[]
+}
+
+export interface AuthCredentials {
+  identifier: string
+  password: string
+}
+
+export interface RegisterPayload {
+  email: string
+  phone?: string | null
+  full_name: string
+  date_of_birth?: string | null
+  gender?: string | null
+  password: string
+}
+
+export interface AuthResponse {
+  access_token: string
+  token_type: string
+  user: BackendUser
+}
+
+function mapBackendRoleToFrontend(roleCodes: string[]): UserProfile['role'] {
+  if (roleCodes.includes('SUPER_ADMIN')) return 'admin'
+  if (roleCodes.includes('BRANCH_ADMIN') || roleCodes.includes('STAFF')) return 'branch-admin'
+  return 'customer'
+}
+
+export function mapBackendUserToProfile(user: BackendUser, token?: string): UserProfile {
+  return {
+    id: user.id,
+    name: user.full_name,
+    email: user.email,
+    role: mapBackendRoleToFrontend(user.roles.map(role => role.code)),
+    phone: user.phone,
+    dateOfBirth: user.date_of_birth,
+    gender: user.gender,
+    token,
+  }
+}
+
+export function mapBackendAdminUserToProfile(user: BackendAdminUser): UserProfile {
+  return {
+    id: user.id,
+    name: user.full_name,
+    email: user.email,
+    role: mapBackendRoleToFrontend(user.roles.map(role => role.code)),
+    phone: user.phone,
+    dateOfBirth: user.date_of_birth,
+    gender: user.gender,
+    branchId: user.branch_id || undefined,
+  }
+}
+
+export const authService = {
+  async login(credentials: AuthCredentials): Promise<AuthResponse> {
+    const res = await apiClient.post<AuthResponse>('/auth/login', credentials)
+    return res.data
+  },
+
+  async register(payload: RegisterPayload): Promise<AuthResponse> {
+    const res = await apiClient.post<AuthResponse>('/auth/register', payload)
+    return res.data
+  },
+
+  async me(): Promise<BackendUser> {
+    const res = await apiClient.get<BackendUser>('/auth/me')
+    return res.data
+  }
+}
+// ----------------------------------------------------
+// usersApi: các thao tác liên quan tới người dùng (khách hàng)
+// dùng cho các tính năng tương lai: xem/sửa hồ sơ, lịch sử vé...
+// ----------------------------------------------------
+export interface UpdateProfilePayload {
+  full_name?: string
+  phone?: string | null
+  date_of_birth?: string | null
+  gender?: string | null
+}
+
+export const usersApi = {
+  async getProfile(): Promise<UserProfile> {
+    const res = await apiClient.get<BackendUser>('/users/me')
+    return mapBackendUserToProfile(res.data)
+  },
+
+  async updateProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
+    const res = await apiClient.patch<BackendUser>('/users/me', payload)
+    return mapBackendUserToProfile(res.data)
+  },
+
+  // TODO: backend chưa có endpoint /users/me/tickets,
+  // bổ sung khi có API vé của tôi
+  // async getMyTickets(): Promise<UserTicket[]> {
+  //   const res = await apiClient.get<UserTicket[]>('/users/me/tickets')
+  //   return res.data
+  // },
+}
+
+export const branchesService = {
+  /** Lấy danh sách rạp (public, không cần auth) */
+  async getAll(): Promise<BackendBranch[]> {
+    if (USE_MOCK) {
+      return [
+        { id: 'b1', code: 'CGV_HCM_Q1', name: 'CGV Quận 1', city: 'HCM' },
+        { id: 'b2', code: 'CGV_HCM_Q7', name: 'CGV Quận 7', city: 'HCM' },
+        { id: 'b3', code: 'BETA_HN_CG', name: 'Beta Cầu Giấy', city: 'Hà Nội' },
+      ]
+    }
+    const res = await apiClient.get<BackendBranch[]>('/branches')
+    return res.data
+  },
+}
+
+export const adminBackendService = {
+  async getBranches(): Promise<BackendBranch[]> {
+    const res = await apiClient.get<BackendBranch[]>('/admin/branches')
+    return res.data
+  },
+
+  async getUsers(): Promise<UserProfile[]> {
+    const res = await apiClient.get<BackendAdminUser[]>('/admin/users')
+    return res.data.map(mapBackendAdminUserToProfile)
+  },
+
+  async updateUserRole(userId: string, roleCode: 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN', branchId?: string | null): Promise<UserProfile> {
+    const res = await apiClient.patch<BackendAdminUser>(`/admin/users/${userId}/role`, {
+      role_code: roleCode,
+      branch_id: branchId || null,
+    })
+    return mapBackendAdminUserToProfile(res.data)
+  },
 }
 
 // ----------------------------------------------------
@@ -100,218 +293,183 @@ export interface AuthUserProfile {
 
 export const mockMovies: Movie[] = [
   {
-    id: "1",
-    title: "Dune: Part Two",
-    rating: 4.9,
-    genre: ["Viễn Tưởng", "Hành Động", "Kịch Tính"],
-    format: ["IMAX", "2D", "4DX"],
-    poster:
-      "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1925&auto=format&fit=crop",
-    trailer: "https://www.youtube.com/embed/Way9Dexny3w",
-    description:
-      "Paul Atreides hợp lực với Chani và người Fremen khi đang tìm cách trả thù những kẻ âm mưu hủy hoại gia đình mình. Đối mặt với sự lựa chọn giữa tình yêu của đời mình và số phận của vũ trụ được biết đến, anh cố gắng ngăn chặn một tương lai khủng khiếp mà chỉ anh mới có thể thấy trước.",
-    duration: 166,
-    releaseDate: "2024-03-01",
-    director: "Denis Villeneuve",
-    cast: ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson", "Austin Butler"],
+    id: '1',
+    title: 'Thành Phố Vô Hình: 2050',
+    rating: 4.8,
+    genre: ['Cyberpunk', 'Viễn Tưởng', 'Kịch Tính'],
+    format: ['IMAX', '2D', '4DX'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCy_q8U1fieQE3DjTaCLWjqCQwXrCZsXiBLHjmnmmQdpc2TKR3LyPghhABCJehjXUTnjJhNCXW204MFqaYE2F6SAkFM6Vcp0vNHexNphDczN1DfA7c4fQ83Pv_jeLe2omU0PmLCKdHJdLx_iKpnLYBNbgTbwQQMYq98mFTfrmA3tvGk4-TJWgr1DWg5lN4LBp0CtwANVnKNuRgWi-Dq5oCu-DNTlS1L5qxfTFgfiLAypE-U8kW4wGO2g-SRAcKQaGW6MHIKMPq5G1dl',
+    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+    description: 'Trong một thế giới nơi thực tại ảo thay thế cuộc sống thật, một lập trình viên phát hiện ra lỗ hổng có thể thay đổi nhân loại mãi mãi.',
+    duration: 120,
+    releaseDate: '2026-03-01',
+    director: 'Denis Villeneuve',
+    cast: ['Timothée Chalamet', 'Zendaya'],
     isFeatured: true,
     aiMatchReason:
       "Được gợi ý dựa trên sở thích xem phim sử thi viễn tưởng của bạn.",
   },
   {
-    id: "2",
-    title: "John Wick: Chapter 4",
-    rating: 4.8,
-    genre: ["Hành Động", "Kịch Tính"],
-    format: ["2D", "4DX", "IMAX"],
-    poster:
-      "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=2070&auto=format&fit=crop",
-    trailer: "https://www.youtube.com/embed/qEVUtrk8_B4",
-    description:
-      "John Wick tìm ra con đường để đánh bại High Table. Nhưng trước khi giành lại tự do, Wick phải đối mặt với một kẻ thù mới sở hữu liên minh hùng mạnh trên toàn cầu và những thế lực biến những người bạn cũ thành kẻ thù.",
-    duration: 169,
-    releaseDate: "2023-03-24",
-    director: "Chad Stahelski",
-    cast: [
-      "Keanu Reeves",
-      "Donnie Yen",
-      "Bill Skarsgård",
-      "Laurence Fishburne",
-    ],
+
+    id: '2',
+    title: 'Trí Tuệ Nhân Tạo: Khởi Nguyên',
+    rating: 4.9,
+    genre: ['Viễn Tưởng', 'Tâm Lý', 'Hành Động'],
+    format: ['2D', 'IMAX'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC5YIBPGdjmKme0u144QgxhV8kFAUzB1QpOuRZIMzt8bMyzaU8hQ5DjgSFoTUmM3f04pqnUAPat8sFJslT3l9Mk392K-C10eXrEz04WIwE9EWxd8XaKP9U26ATs1zj7tdZ2UESEna1GM0Kjh71Y2obVEe5h50Aq_u8rjZ42vBtcE8OnuHEGuYp7VFfcR-Xwly_ZqfFgungKXhbizP94owkAIWGm0hU8hJ_CWKer9U-8VR9pyK5XTkG1na7YoUIIdSUbrXO3BKipdHbV',
+    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+    description: 'Sự trỗi dậy của một ý thức nhân tạo vượt trội trong cơ thể sinh học lai, buộc con người phải định nghĩa lại ý nghĩa của sự sống.',
+    duration: 135,
+    releaseDate: '2026-04-15',
+    director: 'Chad Stahelski',
+    cast: ['Keanu Reeves', 'Donnie Yen'],
     isFeatured: true,
-    aiMatchReason:
-      "Bạn đã xem các phần trước của John Wick. AI đề xuất suất chiếu lúc 20:15 có tỷ lệ ghế đẹp cao.",
+    aiMatchReason: 'Bạn đã xem các phần trước của Trí Tuệ Nhân Tạo. AI đề xuất suất chiếu lúc 20:15 có tỷ lệ ghế đẹp cao.'
   },
   {
-    id: "3",
-    title: "Interstellar (Re-release)",
-    rating: 5.0,
-    genre: ["Viễn Tưởng", "Tâm Lý"],
-    format: ["IMAX", "2D"],
-    poster:
-      "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?q=80&w=2070&auto=format&fit=crop",
-    trailer: "https://www.youtube.com/embed/zSWdZVtXT7E",
-    description:
-      "Trong tương lai, Trái Đất dần trở nên không thể sinh sống được. Một nhóm nhà thám hiểm không gian du hành qua một hố đen vũ trụ để tìm kiếm một hành tinh mới có thể duy trì sự sống cho nhân loại.",
-    duration: 169,
-    releaseDate: "2014-11-07",
-    director: "Christopher Nolan",
-    cast: [
-      "Matthew McConaughey",
-      "Anne Hathaway",
-      "Jessica Chastain",
-      "Michael Caine",
-    ],
+    id: '3',
+    title: 'Vũ Trụ Vô Tận',
+    rating: 4.9,
+    genre: ['Khoa học viễn tưởng'],
+    format: ['IMAX', '2D'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAsXsmNAsVQJkGnBMFt8hVCOL3StF6Rpvk3zVnk32ITcyyDxsNGnR7UtMmJAhGIFYvawOokSkMOTMYIp2CwMUaiFN9tLkWhOCmnnIAWk-sxhiUj1WelW_trFZGAOEqI9YAYiXWITCmprEIqzsP7UOqcs4aB4EBCyzYc2nW-Nrr4FpdO-_u0ItPOzjjxSua2eKTU2QlwqaWuNNFxatNAXcpYXpjLXqDLaKX1h3aYS6WFGj5baKwnkYh_CFBZj7APY2TvvZGl6XZGfo6r',
+    trailer: 'https://www.youtube.com/embed/zSWdZVtXT7E',
+    description: 'Hành trình vượt qua các hố đen và ranh giới không gian để cứu rỗi nhân loại.',
+    duration: 145,
+    releaseDate: '2026-05-10',
+    director: 'Christopher Nolan',
+    cast: ['Matthew McConaughey', 'Anne Hathaway'],
     isFeatured: false,
     aiMatchReason:
       "Trùng khớp 98% với gu điện ảnh triết lý, du hành vũ trụ của bạn.",
   },
   {
-    id: "4",
-    title: "Techno-Dystopia: Final Signal",
+
+    id: '4',
+    title: 'Đường Đua Rực Lửa',
     rating: 4.7,
-    genre: ["Cyberpunk", "Viễn Tưởng", "Neon-Noir"],
-    format: ["2D", "3D"],
-    poster:
-      "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=2000&auto=format&fit=crop",
-    trailer: "https://www.youtube.com/embed/Way9Dexny3w",
-    description:
-      "Trong một siêu đô thị Neon bị tàn phá bởi sự kiểm soát của siêu AI Cyberdyne, một thám tử tư phát hiện ra tín hiệu radio cuối cùng từ quá khứ có thể lật đổ toàn bộ trật tự thế giới ảo.",
-    duration: 124,
-    releaseDate: "2026-02-15",
-    director: "Kenji Sato",
-    cast: ["René Takahashi", "Marcus Vance", "Sofia Chen"],
+    genre: ['Hành động'],
+    format: ['4DX', '2D'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCVJ0pF6H6Q6x8A11elmfSY5U7fHjvGgD8ie8NQiRJCfHOIWBQ34Y23J-KVL9r-jo8jhHcPWtPXOkGa99bo7a39ROR_JccyD1JVn3VY-YDelSKiqKHeqY3Hnpt0CYoPjgm8LB2_-YpajUqjPoDaseOsneaBKf9F6vfwW-5ewbeouS52Y9PvlX0X3TqDJEExTkwLiDyIHMgXBtIAb_ql1S7-wO7cOk58V6X_caFWDygy3Hf-NW59nnBb6yW9Wkrl_v-lK_Uesw087ruB',
+    trailer: 'https://www.youtube.com/embed/qEVUtrk8_B4',
+    description: 'Cuộc đua sinh tử của những tay lái kiệt xuất trong thành phố Tokyo tương lai rực rỡ sắc màu neon.',
+    duration: 110,
+    releaseDate: '2026-06-01',
+    director: 'Justin Lin',
+    cast: ['Vin Diesel', 'Paul Walker'],
+
     isFeatured: false,
     aiMatchReason:
       "Bộ phim khoa học viễn tưởng mới ra mắt, phù hợp với sở thích phim đen tối tương lai.",
   },
   {
-    id: "5",
-    title: "Mạng Lưới Thần Kinh (Neural Net)",
+    id: '5',
+    title: 'Bóng Đêm Thành Phố',
     rating: 4.5,
-    genre: ["Cyberpunk", "Kịch Tính"],
-    format: ["2D"],
-    poster:
-      "https://images.unsplash.com/photo-1544256718-3bcf237f3974?q=80&w=2071&auto=format&fit=crop",
-    trailer: "https://www.youtube.com/embed/Way9Dexny3w",
-    description:
-      "Một kỹ sư phần mềm trẻ vô tình kết nối bộ não của mình với mạng thần kinh AI toàn cầu và phát hiện ra một sự thật kinh hoàng về ý thức ảo ẩn sâu dưới các máy chủ đám mây.",
-    duration: 118,
-    releaseDate: "2026-05-10",
-    director: "Sarah Lin",
-    cast: ["Andy Wu", "Clara Smith", "David Miller"],
+    genre: ['Trinh thám'],
+    format: ['2D'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCrvOfBYGCh68jDrlUdA7mR9ysFqNwPqXy8FfHZDzq5IDhu1LaAKCnpZP_6r2RAuaf8U0pA2DwNq6n7-MecZPLYhOSpf4ChD3W1zkUYnn54td6jsxTo5mKTxEwHQH6lN5miOIQVr4UEz4CrvJNQyDm0vHtLxC5fC9X3sDVl80ssQ0th2KyjUgr3mJVU_PhROH7v7G_1MLeNRvdeq72eGHyz-7gFY-f2Y0-uKqqRGMgc_ZeItXtN-o45w6ufWbQfF-hzWLkYPXbjrkRa',
+    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+    description: 'Một thám tử tư đơn độc trong hành trình vạch trần âm mưu đen tối của thế lực ngầm núp bóng chính quyền.',
+    duration: 125,
+    releaseDate: '2026-06-15',
+    director: 'David Fincher',
+    cast: ['Brad Pitt', 'Morgan Freeman'],
     isFeatured: false,
-    aiMatchReason:
-      "Có lượng đánh giá tích cực rất cao từ những người dùng có gu giống bạn.",
+    aiMatchReason: 'Có lượng đánh giá tích cực rất cao từ những người dùng có gu giống bạn.'
   },
-];
+  {
+    id: '6',
+    title: 'Vùng Đất Kỳ Diệu',
+    rating: 4.8,
+    genre: ['Hoạt hình'],
+    format: ['2D', '3D'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDtf1Bo44PrFX22Kw9z86OmCD2kSMzYvn9FIBJNyiynU9kzhCUpjS2GrJAS471OpoZbKAdwO09wRpJEYOR1hnFxQZDHbjyzpq1Xqc_a5B4j96Jpkuw8cpDXaeawTNeKvQB7QAFWiQHMCxbUNEDjCedW8_sCwXuqiEmQ51RStuuqli-Edw1FCQoAdMcLsh0NYr_rhcZw6SXoQcSn1bGffo71EUG5coAtD66fcIQ8ZFXqy6DFUytSG6-HPjA7yzx6lllCPH8zHUvbjtRJ',
+    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+    description: 'Chuyến phiêu lưu của những sinh vật kỳ lạ và đầy màu sắc nhằm bảo vệ nguồn sáng của thế giới thần tiên.',
+    duration: 95,
+    releaseDate: '2026-07-01',
+    director: 'Hayao Miyazaki',
+    cast: ['Chiyo', 'Haku'],
+    isFeatured: false,
+    aiMatchReason: 'Hoạt hình ấm lòng, được AI bình chọn phù hợp cho gia đình.'
+  },
+  {
+    id: '7',
+    title: 'Vương Triều Sụp Đổ',
+    rating: 4.9,
+    genre: ['Sử thi', 'Hành động'],
+    format: ['2D', 'IMAX'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBEuXmT3DJgVIS-S5qYDVSEwlpd6AJEdTm4FNE6P_hDsDeIeHw12h3cqL8KUP_ZzJ1NPplkQMXFaDixf1SpqppnIEWvdntszhk32Wxotx-kSzP_-uH2pz6Rsn7jxg6zffbpTFuB8n14uS5xBA3L5LFb69siWHFi2XJCrSxvWL0oEaEXIcib0f9KtUzo32nAlJ9elce75zDdsYybXcDVEI0hAkhEhsAraeg2jRdMadn3UYG3CPCiZSKCREGmO9jCRIiKUfZIOL67qBIA',
+    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+    description: 'Trận chiến sinh tử hào hùng thời trung cổ giữa hai đế quốc hùng mạnh tranh giành ngai vàng.',
+    duration: 150,
+    releaseDate: '2026-07-05',
+    director: 'Ridley Scott',
+    cast: ['Russell Crowe', 'Joaquin Phoenix'],
+    isFeatured: false,
+    aiMatchReason: 'Sử thi chiến tranh hoành tráng, trùng khớp gu phim hành động lịch sử của bạn.'
+  },
+  {
+    id: '8',
+    title: 'Lời Nguyền Của Búp Bê',
+    rating: 4.1,
+    genre: ['Kinh dị'],
+    format: ['2D'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBZ-h6Nj0XbbSoeaY_kdXixgd94egb9YxZivSSas-cii0Z8O85It7_UYos6EHZN4akDfzdgmU9rIsXeUS3v3Y1L0fOlBF-YR8wEEHGHge0VJ1OiVcJCsLaZLKgrWGEGzWMPO_mY-WTnCsONl3wOCknvRhxC1sFPrPbwmX8G56lH6tdGRHdO3RyPEbt6B-DqCFvCtHlCaBTMOHHX2BdNzHDuWmiQhRIyKf2mXOZD_vIsrJnm6lvQNe-ZA7N71Z7fzpuYRnSEQrf82mb4',
+    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+    description: 'Con búp bê cổ mang lời nguyền oán hận gieo rắc kinh hoàng cho gia đình nhỏ chuyển đến ngôi nhà cổ.',
+    duration: 102,
+    releaseDate: '2026-07-08',
+    director: 'James Wan',
+    cast: ['Patrick Wilson', 'Vera Farmiga'],
+    isFeatured: false,
+    aiMatchReason: 'Kinh dị rùng rợn từ James Wan, được AI đề xuất cho các đêm cuối tuần.'
+  },
+  {
+    id: '9',
+    title: 'Mùa Hè Ở Venice',
+    rating: 4.4,
+    genre: ['Lãng mạn', 'Hài hước'],
+    format: ['2D'],
+    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAMSFtwCei8ZDrs4lICf_3j_TUSGR-62_yVaCzI_F_xPsPZBM8TfEzam-5eorL2CmtoinRaoyarRd9uNLCz4ZYNU83VGHY5A93LOV1bvjguYRd22aLBBDlIoF5b_Xl_MXmXYefjIbEG3KO9mQliQElFKVb91zfE67bSVea4S2vKMg8LGX5dEMhBayMvBYaoaC8mLeCcvSMKE6zLya3kaRyFrfRxnAoL_3keCFEa3QSXmEsRGGgv64V8he0mUxz4B5C6hl5kDL5p79ls',
+    trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
+    description: 'Mối tình mùa hè lãng mạn đầy tiếng cười của cặp đôi trẻ vô tình gặp nhau tại thành phố Venice xinh đẹp.',
+    duration: 108,
+    releaseDate: '2026-07-09',
+    director: 'Richard Linklater',
+    cast: ['Ethan Hawke', 'Julie Delpy'],
+    isFeatured: false,
+    aiMatchReason: 'Mối tình ngọt ngào lãng mạn kết hợp hài hước nhẹ nhàng.'
+  }
+]
 
 export const mockShowtimes: Showtime[] = [
-  // Dune
-  {
-    id: "s1",
-    movieId: "1",
-    branchName: "CineAI Hùng Vương",
-    screenName: "IMAX Phòng 1",
-    date: "2026-06-25",
-    time: "18:00",
-    price: 150000,
-  },
-  {
-    id: "s2",
-    movieId: "1",
-    branchName: "CineAI Hùng Vương",
-    screenName: "Phòng 3 (2D)",
-    date: "2026-06-25",
-    time: "20:30",
-    price: 90000,
-  },
-  {
-    id: "s3",
-    movieId: "1",
-    branchName: "CineAI Sala Q2",
-    screenName: "IMAX Phòng A",
-    date: "2026-06-25",
-    time: "19:00",
-    price: 160000,
-  },
-  {
-    id: "s4",
-    movieId: "1",
-    branchName: "CineAI Sala Q2",
-    screenName: "Phòng B (4DX)",
-    date: "2026-06-26",
-    time: "21:15",
-    price: 180000,
-  },
-  // John Wick
-  {
-    id: "s5",
-    movieId: "2",
-    branchName: "CineAI Hùng Vương",
-    screenName: "Phòng 2 (2D)",
-    date: "2026-06-25",
-    time: "19:30",
-    price: 90000,
-  },
-  {
-    id: "s6",
-    movieId: "2",
-    branchName: "CineAI Nguyễn Du",
-    screenName: "Phòng 1 (4DX)",
-    date: "2026-06-25",
-    time: "20:15",
-    price: 170000,
-  },
-  {
-    id: "s7",
-    movieId: "2",
-    branchName: "CineAI Sala Q2",
-    screenName: "Phòng C (2D)",
-    date: "2026-06-26",
-    time: "18:00",
-    price: 100000,
-  },
-  // Interstellar
-  {
-    id: "s8",
-    movieId: "3",
-    branchName: "CineAI Sala Q2",
-    screenName: "IMAX Phòng A",
-    date: "2026-06-25",
-    time: "15:30",
-    price: 160000,
-  },
-  {
-    id: "s9",
-    movieId: "3",
-    branchName: "CineAI Nguyễn Du",
-    screenName: "Phòng 2 (2D)",
-    date: "2026-06-26",
-    time: "19:45",
-    price: 95000,
-  },
-  // Techno-Dystopia
-  {
-    id: "s10",
-    movieId: "4",
-    branchName: "CineAI Sala Q2",
-    screenName: "Phòng D (3D)",
-    date: "2026-06-25",
-    time: "21:00",
-    price: 120000,
-  },
-  // Neural Net
-  {
-    id: "s11",
-    movieId: "5",
-    branchName: "CineAI Hùng Vương",
-    screenName: "Phòng 4 (2D)",
-    date: "2026-06-25",
-    time: "22:00",
-    price: 90000,
-  },
-];
+  // Thành Phố Vô Hình
+  { id: 's1', movieId: '1', branchName: 'CineAI Hùng Vương', screenName: 'IMAX Phòng 1', date: '2026-07-11', time: '18:00', price: 150000 },
+  { id: 's2', movieId: '1', branchName: 'CineAI Hùng Vương', screenName: 'Phòng 3 (2D)', date: '2026-07-11', time: '20:30', price: 90000 },
+  { id: 's3', movieId: '1', branchName: 'CineAI Sala Q2', screenName: 'IMAX Phòng A', date: '2026-07-11', time: '19:00', price: 160000 },
+  { id: 's4', movieId: '1', branchName: 'CineAI Sala Q2', screenName: 'Phòng B (4DX)', date: '2026-07-12', time: '21:15', price: 180000 },
+  // Trí Tuệ Nhân Tạo
+  { id: 's5', movieId: '2', branchName: 'CineAI Hùng Vương', screenName: 'Phòng 2 (2D)', date: '2026-07-11', time: '19:30', price: 90000 },
+  { id: 's6', movieId: '2', branchName: 'CineAI Nguyễn Du', screenName: 'Phòng 1 (4DX)', date: '2026-07-11', time: '20:15', price: 170000 },
+  { id: 's7', movieId: '2', branchName: 'CineAI Sala Q2', screenName: 'Phòng C (2D)', date: '2026-07-12', time: '18:00', price: 100000 },
+  // Vũ Trụ Vô Tận
+  { id: 's8', movieId: '3', branchName: 'CineAI Sala Q2', screenName: 'IMAX Phòng A', date: '2026-07-11', time: '15:30', price: 160000 },
+  { id: 's9', movieId: '3', branchName: 'CineAI Nguyễn Du', screenName: 'Phòng 2 (2D)', date: '2026-07-12', time: '19:45', price: 95000 },
+  // Đường Đua Rực Lửa
+  { id: 's10', movieId: '4', branchName: 'CineAI Sala Q2', screenName: 'Phòng D (2D)', date: '2026-07-11', time: '21:00', price: 120000 },
+  // Bóng Đêm Thành Phố
+  { id: 's11', movieId: '5', branchName: 'CineAI Hùng Vương', screenName: 'Phòng 4 (2D)', date: '2026-07-11', time: '22:00', price: 90000 },
+  // Vùng Đất Kỳ Diệu
+  { id: 's12', movieId: '6', branchName: 'CineAI Sala Q2', screenName: 'Phòng B (2D)', date: '2026-07-11', time: '14:00', price: 100000 },
+  // Vương Triều Sụp Đổ
+  { id: 's13', movieId: '7', branchName: 'CineAI Nguyễn Du', screenName: 'Phòng 1 (IMAX)', date: '2026-07-11', time: '17:00', price: 150000 },
+  // Lời Nguyền Của Búp Bê
+  { id: 's14', movieId: '8', branchName: 'CineAI Hùng Vương', screenName: 'Phòng 2 (2D)', date: '2026-07-11', time: '23:00', price: 95000 },
+  // Mùa Hè Ở Venice
+  { id: 's15', movieId: '9', branchName: 'CineAI Sala Q2', screenName: 'Phòng C (2D)', date: '2026-07-11', time: '16:30', price: 100000 }
+]
 
 export const generateSeats = (showtimeId: string): Seat[] => {
   const seats: Seat[] = [];
@@ -371,6 +529,129 @@ export const mockTickets: UserTicket[] = [
 ];
 
 // ----------------------------------------------------
+// Backend Schema types (matching FastAPI response)
+// ----------------------------------------------------
+export interface BackendMovie {
+  id: string
+  title: string
+  original_title: string | null
+  description: string | null
+  duration_min: number
+  release_date: string | null
+  age_rating: string | null
+  language: string | null
+  trailer_url: string | null
+  poster_url: string | null
+  status: string
+  created_at: string
+  updated_at: string
+  genres: { id: number; code: string; name: string }[]
+}
+
+export interface BackendShowtime {
+  id: string
+  movie_id: string
+  auditorium_id: string
+  starts_at: string
+  ends_at: string
+  status: string
+  base_price: number
+  branch_name: string
+  screen_name: string
+}
+
+export interface BackendSeat {
+  id: string
+  seat_row: string
+  seat_number: number
+  seat_type: string
+  is_active: boolean
+  status: string
+}
+
+// ----------------------------------------------------
+// Mapping functions: Backend → Frontend
+// ----------------------------------------------------
+export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
+  return {
+    id: bm.id,
+    title: bm.title,
+    rating: 0, // backend không có rating, để 0
+    genre: bm.genres.map(g => g.name),
+    format: [], // backend không có format, để trống
+    poster: bm.poster_url || 'https://placehold.co/500x750?text=No+Image',
+    trailer: bm.trailer_url || '',
+    description: bm.description || '',
+    duration: bm.duration_min,
+    releaseDate: bm.release_date || '',
+    director: '', // backend không có director
+    cast: [], // backend không có cast
+    isFeatured: bm.status === 'NOW_SHOWING',
+    aiMatchReason: undefined,
+  }
+}
+
+export function mapBackendShowtimeToFrontend(bs: BackendShowtime): Showtime {
+  // starts_at: "2026-07-11T18:00:00+07:00"
+  const startDate = new Date(bs.starts_at)
+  const dateStr = startDate.toISOString().split('T')[0] // "2026-07-11"
+  const timeStr = startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) // "18:00"
+  
+  return {
+    id: bs.id,
+    movieId: bs.movie_id,
+    branchName: bs.branch_name,
+    screenName: bs.screen_name,
+    date: dateStr,
+    time: timeStr,
+    price: Number(bs.base_price),
+  }
+}
+
+export function mapBackendSeatToFrontend(seat: BackendSeat): Seat {
+  let type: 'standard' | 'vip' | 'couple' = 'standard'
+  if (seat.seat_type === 'VIP') type = 'vip'
+  else if (seat.seat_type === 'COUPLE') type = 'couple'
+
+  return {
+    id: seat.id,
+    row: seat.seat_row,
+    number: seat.seat_number,
+    type,
+    status: seat.status as 'available' | 'selected' | 'occupied',
+    price: 0, // backend seat không có price riêng, sẽ tính sau
+  }
+}
+
+// ----------------------------------------------------
+// TMDB Detail Service (Nuxt server proxy)
+// ----------------------------------------------------
+export interface TmdbMovieDetail {
+  id: string
+  title: string
+  description: string
+  poster: string
+  rating: number
+  duration: number
+  releaseDate: string
+  genre: string[]
+  director: string
+  cast: string[]
+  trailerUrl: string
+}
+
+export const tmdbService = {
+  /**
+   * Fetch movie details from TMDB via Nuxt server proxy.
+   * Includes: poster, trailer YouTube URL, director, cast, genres, rating, duration.
+   */
+  async getMovieDetail(id: string | number): Promise<TmdbMovieDetail> {
+    const data = await $fetch<TmdbMovieDetail>(`/api/movies/${id}`)
+    return data
+  }
+}
+
+// ----------------------------------------------------
 // API Client Functions
 // ----------------------------------------------------
 
@@ -395,9 +676,9 @@ export const authService = {
 
 export const movieService = {
   async getAll(): Promise<Movie[]> {
-    if (USE_MOCK) return mockMovies;
-    const res = await apiClient.get<Movie[]>("/movies");
-    return res.data;
+    if (USE_MOCK) return mockMovies
+    const res = await apiClient.get<BackendMovie[]>('/movies')
+    return res.data.map(mapBackendMovieToFrontend)
   },
 
   async getById(id: string): Promise<Movie> {
@@ -406,24 +687,24 @@ export const movieService = {
       if (!m) throw new Error("Không tìm thấy phim");
       return m;
     }
-    const res = await apiClient.get<Movie>(`/movies/${id}`);
-    return res.data;
+    const res = await apiClient.get<BackendMovie>(`/movies/${id}`)
+    return mapBackendMovieToFrontend(res.data)
   },
 
   async getShowtimes(movieId: string): Promise<Showtime[]> {
     if (USE_MOCK) {
       return mockShowtimes.filter((s) => s.movieId === movieId);
     }
-    const res = await apiClient.get<Showtime[]>(`/movies/${movieId}/showtimes`);
-    return res.data;
+    const res = await apiClient.get<BackendShowtime[]>(`/movies/${movieId}/showtimes`)
+    return res.data.map(mapBackendShowtimeToFrontend)
   },
 
   async getSeats(showtimeId: string): Promise<Seat[]> {
     if (USE_MOCK) {
       return generateSeats(showtimeId);
     }
-    const res = await apiClient.get<Seat[]>(`/showtimes/${showtimeId}/seats`);
-    return res.data;
+    const res = await apiClient.get<BackendSeat[]>(`/showtimes/${showtimeId}/seats`)
+    return res.data.map(mapBackendSeatToFrontend)
   },
 
   async searchSemantically(query: string): Promise<Movie[]> {
@@ -456,10 +737,9 @@ export const movieService = {
       }
       return mockMovies;
     }
-    const res = await apiClient.post<Movie[]>("/movies/semantic-search", {
-      query,
-    });
-    return res.data;
+
+    const res = await apiClient.post<BackendMovie[]>('/movies/semantic-search', { query })
+    return res.data.map(mapBackendMovieToFrontend)
   },
 
   async getRecommendations(): Promise<Movie[]> {
@@ -467,10 +747,11 @@ export const movieService = {
       // Return 3 suggested movies
       return mockMovies.filter((m) => m.isFeatured || m.rating >= 4.8);
     }
-    const res = await apiClient.get<Movie[]>("/movies/recommendations");
-    return res.data;
-  },
-};
+
+    const res = await apiClient.get<BackendMovie[]>('/movies/recommendations')
+    return res.data.map(mapBackendMovieToFrontend)
+  }
+}
 
 export const checkoutService = {
   async processPayment(bookingDetails: {
@@ -531,10 +812,9 @@ export const aiService = {
         m.includes("chọn ghế")
       ) {
         return {
-          response:
-            "Để đặt vé, bạn hãy truy cập mục **Phim**, chọn phim yêu thích, chọn suất chiếu, sau đó sơ đồ phòng chiếu thông minh sẽ xuất hiện để bạn chọn ghế ngồi và tiến hành thanh toán nhé!",
-          action: "NAVIGATE_TO_MOVIES",
-        };
+          response: 'Để đặt vé, bạn hãy truy cập mục **Khám phá AI**, chọn phim yêu thích, chọn suất chiếu, sau đó sơ đồ phòng chiếu thông minh sẽ xuất hiện để bạn chọn ghế ngồi và tiến hành thanh toán nhé!',
+          action: 'NAVIGATE_TO_MOVIES'
+        }
       }
       if (
         m.includes("gợi ý") ||
@@ -542,10 +822,9 @@ export const aiService = {
         m.includes("recommend")
       ) {
         return {
-          response:
-            "Dựa trên sở thích của bạn, tôi đề xuất xem **Dune: Part Two** (Khoa học viễn tưởng hoành tráng) hoặc **John Wick: Chapter 4** (Hành động kịch tính nghẹt thở). Bạn có muốn xem lịch chiếu của bộ phim nào không?",
-          action: "SHOW_RECOMMENDATIONS",
-        };
+          response: 'Dựa trên sở thích của bạn, tôi đề xuất xem **Thành Phố Vô Hình: 2050** (Cyberpunk viễn tưởng hoành tráng) hoặc **Trí Tuệ Nhân Tạo: Khởi Nguyên** (Viễn tưởng, tâm lý). Bạn có muốn xem lịch chiếu của bộ phim nào không?',
+          action: 'SHOW_RECOMMENDATIONS'
+        }
       }
       if (m.includes("giá vé") || m.includes("bao nhiêu")) {
         return {
@@ -555,10 +834,9 @@ export const aiService = {
       }
       if (m.includes("lịch chiếu") || m.includes("hôm nay")) {
         return {
-          response:
-            "Hôm nay chúng tôi có các suất chiếu từ chiều tới tối muộn cho các phim hot như **Dune: Part Two**, **John Wick 4**, **Interstellar**... Bạn muốn kiểm tra suất chiếu ở chi nhánh Hùng Vương hay Sala Q2?",
-          action: "NAVIGATE_TO_MOVIES",
-        };
+          response: 'Hôm nay chúng tôi có các suất chiếu từ chiều tới tối muộn cho các phim hot như **Thành Phố Vô Hình: 2050**, **Trí Tuệ Nhân Tạo: Khởi Nguyên**, **Vũ Trụ Vô Tận**... Bạn muốn kiểm tra suất chiếu ở chi nhánh Hùng Vương hay Sala Q2?',
+          action: 'NAVIGATE_TO_MOVIES'
+        }
       }
       return {
         response:
@@ -577,29 +855,25 @@ export const aiService = {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       // Simulating a parsed action from speech-to-text
       const transcripts = [
-        "Cho tôi đặt vé phim Dune tối nay ở Sala",
+        "Cho tôi đặt vé phim Thành Phố Vô Hình tối nay ở Sala",
         "Tìm kiếm phim hành động hay nhất",
-        "Tôi muốn xem lịch chiếu John Wick",
-        "Đặt ghế VIP hàng F",
-      ];
-      const randomText =
-        transcripts[Math.floor(Math.random() * transcripts.length)];
-      let parsedAction = "UNKNOWN";
-      let data: any = {};
 
-      if (randomText.includes("Dune")) {
-        parsedAction = "BOOK_MOVIE";
-        data = {
-          movieId: "1",
-          date: "2026-06-25",
-          branchName: "CineAI Sala Q2",
-        };
-      } else if (randomText.includes("hành động")) {
-        parsedAction = "SEARCH_GENRE";
-        data = { genre: "Hành Động" };
-      } else if (randomText.includes("John Wick")) {
-        parsedAction = "VIEW_SHOWTIMES";
-        data = { movieId: "2" };
+        "Tôi muốn xem lịch chiếu Trí Tuệ Nhân Tạo",
+        "Đặt ghế VIP hàng F"
+      ]
+      const randomText = transcripts[Math.floor(Math.random() * transcripts.length)]
+      let parsedAction = 'UNKNOWN'
+      let data: any = {}
+
+      if (randomText.includes('Hình') || randomText.includes('Vô Hình')) {
+        parsedAction = 'BOOK_MOVIE'
+        data = { movieId: '1', date: '2026-07-11', branchName: 'CineAI Sala Q2' }
+      } else if (randomText.includes('hành động')) {
+        parsedAction = 'SEARCH_GENRE'
+        data = { genre: 'Hành Động' }
+      } else if (randomText.includes('Trí Tuệ') || randomText.includes('Nhân Tạo')) {
+        parsedAction = 'VIEW_SHOWTIMES'
+        data = { movieId: '2' }
       }
 
       return {
@@ -733,7 +1007,9 @@ export const adminService = {
         ],
       };
     }
-    const res = await apiClient.get(`/branch-admin/stats?branchId=${branchId}`);
-    return res.data;
-  },
-};
+
+    const res = await apiClient.get(`/branch-admin/stats?branchId=${branchId}`)
+    return res.data
+  }
+}
+
