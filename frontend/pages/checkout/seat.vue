@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { useBooking } from '~/composables/useBooking'
-import { movieService, type Seat } from '~/services/api'
+import { movieService } from '~/services/api'
 import { formatSeatLabel, formatPrice } from '~/utils/format'
 
 definePageMeta({
@@ -15,19 +15,38 @@ const ticketsStore = useTicketsStore()
 const { selectedShowtime, selectedSeats } = storeToRefs(ticketsStore)
 const { toggleSeat } = useBooking()
 
-const seats = ref<any[]>([])
+// Interface chuẩn cho Seat
+interface Seat {
+  id: string
+  row: string
+  number: number
+  type: 'standard' | 'vip' | 'couple'
+  status: 'available' | 'selected' | 'occupied'
+  price: number
+}
+
+const seats = ref<Seat[]>([])
 const loading = ref(false)
 const error = ref('')
 
+interface SeatRow {
+  row: string
+  seats: Seat[]
+}
+
 const seatRows = computed(() => {
-  const rows = new Map<string, any[]>()
+  const rows = new Map<string, Seat[]>()
   seats.value.forEach(seat => {
-    if (!rows.has(seat.seat_row)) {
-      rows.set(seat.seat_row, [])
+    if (!rows.has(seat.row)) {
+      rows.set(seat.row, [])
     }
-    rows.get(seat.seat_row)!.push(seat)
+    rows.get(seat.row)!.push(seat)
   })
-  return rows
+  const result: SeatRow[] = []
+  rows.forEach((rowSeats, rowKey) => {
+    result.push({ row: rowKey, seats: rowSeats })
+  })
+  return result
 })
 
 onMounted(async () => {
@@ -38,7 +57,7 @@ onMounted(async () => {
 
   loading.value = true
   try {
-    const response = await movieService.getShowtimeSeats(selectedShowtime.value.id)
+    const response = await movieService.getSeats(selectedShowtime.value.id)
     seats.value = response
   } catch (err) {
     error.value = 'Failed to load seats'
@@ -47,11 +66,11 @@ onMounted(async () => {
   }
 })
 
-const isSeatSelected = (seat: any) => {
+const isSeatSelected = (seat: Seat) => {
   return selectedSeats.value.some(s => s.id === seat.id)
 }
 
-const handleSeatClick = (seat: any) => {
+const handleSeatClick = (seat: Seat) => {
   toggleSeat(seat)
 }
 
@@ -65,10 +84,12 @@ const proceedToCombo = () => {
     <!-- Header -->
     <div>
       <h2 class="text-2xl font-bold text-on-surface mb-2">Chọn Ghế Ngồi</h2>
-      <p class="text-sm text-on-surface-variant">{{ selectedShowtime?.branch_name }} - {{ selectedShowtime?.screen_name }}</p>
+      <p class="text-sm text-on-surface-variant">
+        {{ selectedShowtime?.branchName }} - {{ selectedShowtime?.screenName }}
+      </p>
     </div>
 
-    <!-- Loading State -->
+    <!-- Loading -->
     <div v-if="loading" class="text-center py-12">
       <div class="inline-block animate-spin">
         <span class="material-symbols-outlined text-4xl text-primary-container">hourglass_empty</span>
@@ -76,8 +97,8 @@ const proceedToCombo = () => {
       <p class="text-sm text-on-surface-variant mt-2">Loading seats...</p>
     </div>
 
-    <!-- Error State -->
-    <div v-if="error" class="bg-error/10 border border-error/30 rounded-xl p-4 text-error text-sm">
+    <!-- Error -->
+    <div v-else-if="error" class="bg-error/10 border border-error/30 rounded-xl p-4 text-error text-sm">
       {{ error }}
     </div>
 
@@ -86,26 +107,29 @@ const proceedToCombo = () => {
       <!-- Screen -->
       <div class="text-center">
         <div class="inline-block bg-surface-variant text-on-surface-variant px-6 py-1 rounded-full text-xs font-semibold">
-          📺 Màn Hình
+          Màn Hình
         </div>
       </div>
 
       <!-- Seats -->
       <div class="space-y-3">
-        <div v-for="(rowSeats, row) of seatRows" :key="row" class="flex items-center justify-center gap-2">
-          <span class="w-6 text-center text-xs font-bold text-on-surface-variant">{{ row }}</span>
-          <div class="flex gap-1">
+        <div
+          v-for="seatRow of seatRows"
+          :key="seatRow.row"
+          class="flex items-center justify-center gap-2"
+        >
+          <span class="w-6 text-center text-xs font-bold text-on-surface-variant">{{ seatRow.row }}</span>
+          <div class="flex gap-1 flex-wrap justify-center">
             <button
-              v-for="seat of rowSeats"
+              v-for="seat of seatRow.seats"
               :key="seat.id"
               @click="handleSeatClick(seat)"
               class="w-8 h-8 rounded text-xs font-bold transition-all"
               :class="isSeatSelected(seat)
                 ? 'bg-primary-container text-white shadow-lg'
-                : 'bg-surface-variant text-on-surface-variant hover:bg-primary-container/30'
-              "
+                : 'bg-surface-variant text-on-surface-variant hover:bg-primary-container/30'"
             >
-              {{ seat.seat_number }}
+              {{ seat.number }}
             </button>
           </div>
         </div>
@@ -126,7 +150,10 @@ const proceedToCombo = () => {
 
     <!-- Action Buttons -->
     <div class="flex gap-3 pt-4">
-      <NuxtLink to="/checkout/cinema" class="flex-1 bg-surface-variant text-on-surface px-4 py-3 rounded-xl font-semibold hover:bg-surface-variant/80 transition-colors text-center">
+      <NuxtLink
+        to="/checkout/cinema"
+        class="flex-1 bg-surface-variant text-on-surface px-4 py-3 rounded-xl font-semibold hover:bg-surface-variant/80 transition-colors text-center"
+      >
         ← Quay Lại
       </NuxtLink>
       <button
@@ -139,11 +166,12 @@ const proceedToCombo = () => {
     </div>
 
     <!-- Summary -->
+     <NuxtLayout name="checkout">
     <template #summary>
       <div class="space-y-4 text-sm">
         <div>
           <p class="text-on-surface-variant text-xs">Suất Chiếu</p>
-          <p class="font-semibold text-on-surface">{{ formatPrice(selectedShowtime?.base_price || 0) }}/vé</p>
+          <p class="font-semibold text-on-surface">{{ formatPrice(selectedShowtime?.price || 0) }}/vé</p>
         </div>
         <div>
           <p class="text-on-surface-variant text-xs">Số Ghế Chọn</p>
@@ -157,11 +185,13 @@ const proceedToCombo = () => {
               :key="seat.id"
               class="bg-primary-container/20 text-primary-container text-xs px-2 py-1 rounded"
             >
-              {{ formatSeatLabel(seat.seat_row, seat.seat_number) }}
+              {{ formatSeatLabel(seat.row, seat.number) }}
             </span>
           </div>
         </div>
       </div>
     </template>
+    </NuxtLayout>
   </div>
 </template>
+
