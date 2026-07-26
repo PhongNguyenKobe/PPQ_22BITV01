@@ -14,6 +14,35 @@
 3. Nếu cần dữ liệu đăng nhập demo, chạy `python scripts/seed_demo_auth.py`.
 4. Khởi động API: `uvicorn app.main:app --reload`.
 
+### Chạy full stack bằng Docker
+1. Tạo file `.env` ở thư mục gốc (cùng cấp `docker-compose.yml`) với nội dung tối thiểu:
+
+```env
+POSTGRES_USER=ppq_user
+POSTGRES_PASSWORD=change-me
+POSTGRES_DB=movie_db
+POSTGRES_PORT=5432
+JWT_SECRET_KEY=change-this-secret
+TMDB_API_TOKEN=your_tmdb_token
+RUN_SEED=1
+```
+
+2. Build và chạy:
+
+```bash
+docker compose up --build
+```
+
+3. Truy cập:
+- Frontend: `http://localhost:3000`
+- Backend API docs: `http://localhost:8000/docs`
+
+4. Dừng:
+
+```bash
+docker compose down
+```
+
 ## 👤 User (Khách hàng)
 - **Đăng ký/Đăng nhập**: tạo tài khoản, lưu thông tin cá nhân.  
 - **Xem phim & lịch chiếu**: duyệt danh sách phim, trailer, suất chiếu.  

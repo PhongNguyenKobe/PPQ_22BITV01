@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 
 interface CartItem {
-  id: number
+  id: string | number
   name: string
   price: number
   imageUrl: string
@@ -14,11 +14,11 @@ export const useCartStore = defineStore('cart', {
     total: (state) => state.items.reduce((sum, i) => sum + i.price * i.qty, 0)
   },
   actions: {
-    addItem(product: { id: number; name: string; price: number; imageUrl: string }) {
+    addItem(product: { id: string | number; name: string; price: number; imageUrl: string }) {
       const existing = this.items.find((i) => i.id === product.id)
       existing ? existing.qty++ : this.items.push({ ...product, qty: 1 })
     },
-    removeItem(id: number) {
+    removeItem(id: string | number) {
       this.items = this.items.filter((i) => i.id !== id)
     },
     clearCart() {

@@ -7,7 +7,19 @@ definePageMeta({
 })
 
 const ticketsStore = useTicketsStore()
-const { selectedMovie, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
+const { selectedMovie, selectedCinema, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
+
+const backgroundStyle = computed(() => {
+  if (!selectedMovie.value?.imageUrl) return {}
+  return {
+    backgroundImage: `linear-gradient(90deg, rgba(18,20,20,0.95) 0%, rgba(18,20,20,0.82) 24%, rgba(18,20,20,0.68) 56%, rgba(18,20,20,0.92) 100%), url('${selectedMovie.value.imageUrl}')`,
+  }
+})
+
+const formattedMoviePrice = computed(() => {
+  if (!selectedMovie.value?.price) return 'Đang cập nhật'
+  return new Intl.NumberFormat('vi-VN').format(Number(selectedMovie.value.price) * 1000) + 'đ'
+})
 
 onMounted(() => {
   // Redirect back to cinema selection if no showtime has been selected
@@ -23,114 +35,271 @@ function handleProceedToPayment() {
 </script>
 
 <template>
-  <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop py-12">
-    <!-- Selection Breadcrumb / Header -->
-    <div class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div>
-        <button @click="$router.back()" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
-          <span class="material-symbols-outlined text-sm">arrow_back</span>
-          Quay lại Chọn Suất
-        </button>
-        <h1 class="font-headline-lg text-2xl md:text-3xl font-black text-on-surface">
-          Chọn Ghế Ngồi Thông Minh
-        </h1>
-      </div>
-      
-      <!-- Stepper Indicator -->
-      <div class="flex items-center justify-center gap-3 text-xs font-bold">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">1</div>
-          <span>Chọn Rạp</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">2</div>
-          <span>Chọn Suất</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">3</div>
-          <span>Chọn Ghế</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">4</div>
-          <span>Thanh Toán</span>
-        </div>
-      </div>
-    </div>
+  <section class="checkout-shell py-6 px-3 sm:px-5 md:px-8">
+    <div class="checkout-hero max-w-[1500px] mx-auto" :style="backgroundStyle">
+      <div class="checkout-overlay"></div>
 
-    <!-- Booking Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      <!-- Seat Map Grid (8 cols) -->
-      <div class="lg:col-span-8">
-        <SeatSelection />
-      </div>
+      <div class="checkout-grid">
+        <aside class="movie-column" v-if="selectedMovie">
+          <img :src="selectedMovie.imageUrl" :alt="selectedMovie.name" class="movie-poster" />
 
-      <!-- Ticket Selection Summary (4 cols) -->
-      <div class="lg:col-span-4" v-if="selectedShowtime">
-        <div class="glass-panel border border-glass-stroke rounded-2xl p-6 md:p-8 space-y-6">
-          <div class="border-b border-glass-stroke/40 pb-4">
-            <h3 class="font-bold text-lg text-on-surface mb-2">Thông Tin Suất Chiếu</h3>
-            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ selectedMovie?.name }}</span>
-          </div>
-
-          <div class="space-y-3 text-xs text-on-surface-variant border-b border-glass-stroke/40 pb-4">
-            <div class="flex justify-between">
-              <span>Rạp:</span>
-              <span class="font-bold text-on-surface">{{ selectedShowtime.branchName }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Phòng chiếu:</span>
-              <span class="font-bold text-on-surface uppercase">{{ selectedShowtime.screenName }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Ngày chiếu:</span>
-              <span class="font-bold text-on-surface">{{ selectedShowtime.date }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Giờ chiếu:</span>
-              <span class="font-bold text-on-surface text-sm text-primary">{{ selectedShowtime.time }}</span>
-            </div>
-          </div>
-
-          <!-- Selected seats selection report -->
-          <div class="border-b border-glass-stroke/40 pb-4">
-            <span class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Ghế Đã Chọn</span>
-            
-            <div v-if="selectedSeats.length === 0" class="text-xs text-on-surface-variant italic">
-              Vui lòng chọn ghế ngồi trên sơ đồ.
-            </div>
-
-            <div v-else class="flex flex-wrap gap-2">
-              <span
-                v-for="seat in selectedSeats"
-                :key="seat.id"
-                class="bg-primary-container/10 border border-primary-container/20 text-primary-container text-xs font-bold px-3 py-1 rounded-lg"
-              >
-                {{ seat.row }}{{ seat.number }}
+          <div class="movie-meta">
+            <h2 class="movie-title">{{ selectedMovie.name }}</h2>
+            <div class="movie-badges">
+              <span v-if="selectedMovie.rating" class="movie-rating">
+                <span class="material-symbols-outlined text-sm text-yellow-400">star</span>
+                {{ Number(selectedMovie.rating).toFixed(1) }}
               </span>
+              <span class="movie-dot">•</span>
+              <span>{{ selectedMovie.category || '2D' }}</span>
             </div>
+            <p class="movie-price">Giá từ {{ formattedMoviePrice }}</p>
+          </div>
+        </aside>
+
+        <main class="selection-column">
+          <div class="booking-stepper">
+            <div class="step done"><span>1</span><small>Chọn rạp</small></div>
+            <div class="step-line active"></div>
+            <div class="step done"><span>2</span><small>Chọn suất</small></div>
+            <div class="step-line active"></div>
+            <div class="step active"><span>3</span><small>Chọn ghế</small></div>
+            <div class="step-line"></div>
+            <div class="step"><span>4</span><small>Thanh toán</small></div>
           </div>
 
-          <!-- Total price summary -->
-          <div class="flex items-center justify-between border-t border-glass-stroke/10 pt-4">
-            <div class="flex flex-col">
-              <span class="text-xs text-on-surface-variant">Tổng cộng:</span>
-              <span class="text-xl font-black text-primary-fixed-dim">{{ totalAmount.toLocaleString() }} VNĐ</span>
+          <div class="selection-panel">
+            <div class="selection-header">
+              <h1>Chọn Ghế Ngồi</h1>
+              <p>Chọn vị trí phù hợp trong phòng chiếu để tiếp tục thanh toán.</p>
             </div>
-            
+            <SeatSelection />
+          </div>
+        </main>
+
+        <aside class="summary-column" v-if="selectedShowtime">
+          <div class="summary-card">
+            <h3>Vé Xem Phim</h3>
+
+            <div class="summary-block">
+              <div class="summary-row">
+                <span>Rạp</span>
+                <strong>{{ selectedCinema || selectedShowtime.branchName }}</strong>
+              </div>
+              <div class="summary-row">
+                <span>Suất chiếu</span>
+                <strong>{{ selectedShowtime.time }} • {{ selectedShowtime.date }}</strong>
+              </div>
+              <div class="summary-row">
+                <span>Phòng</span>
+                <strong>{{ selectedShowtime.screenName }}</strong>
+              </div>
+            </div>
+
+            <div class="summary-seats">
+              <p>Ghế đã chọn</p>
+              <div v-if="selectedSeats.length > 0" class="seat-tags">
+                <span v-for="seat in selectedSeats" :key="seat.id">{{ seat.row }}{{ seat.number }}</span>
+              </div>
+              <p v-else class="seat-empty">Chưa chọn ghế</p>
+            </div>
+
+            <div class="summary-total">
+              <span>Tổng cộng</span>
+              <strong>{{ totalAmount.toLocaleString() }} VNĐ</strong>
+            </div>
+
             <button
               @click="handleProceedToPayment"
               :disabled="selectedSeats.length === 0"
-              class="bg-primary-container text-on-primary-container px-6 py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 red-glow disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
+              class="summary-next"
             >
-              Tiếp tục
-              <span class="material-symbols-outlined text-xs">arrow_forward</span>
+              Tiếp tục thanh toán
             </button>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
-  </div>
+  </section>
 </template>
+
+<style scoped>
+.checkout-shell { min-height: calc(100vh - 72px); }
+
+.checkout-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: #1a1c1c;
+  background-position: center;
+  background-size: cover;
+}
+
+.checkout-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(18, 20, 20, 0.1) 0%, rgba(18, 20, 20, 0.28) 100%);
+}
+
+.checkout-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 280px;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  align-items: start;
+}
+
+.movie-column,
+.summary-card,
+.selection-panel {
+  background: rgba(31, 31, 31, 0.74);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.2rem;
+}
+
+.movie-column { padding: 1rem; }
+
+.movie-poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: 1rem;
+}
+
+.movie-meta { margin-top: 1rem; }
+.movie-title { font-size: 1.45rem; line-height: 1.08; font-weight: 900; color: #fff; }
+
+.movie-badges {
+  margin-top: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #d6d6d6;
+  font-size: 0.88rem;
+}
+
+.movie-dot { color: rgba(255,255,255,0.45); }
+.movie-rating { display: inline-flex; align-items: center; gap: 0.18rem; }
+.movie-price { margin-top: 0.75rem; color: #fbbf24; font-weight: 800; }
+
+.booking-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 0.25rem 0 1rem;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  color: #9ca3af;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.step span {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step.active,
+.step.done { color: #ffb4aa; }
+.step.active span,
+.step.done span { background: #ff7a1a; color: #fff; }
+
+.step-line { width: 72px; height: 2px; background: rgba(255,255,255,0.14); }
+.step-line.active { background: linear-gradient(90deg, #ff7a1a, #f59e0b); }
+
+.selection-panel { padding: 1.35rem; }
+.selection-header h1 { font-size: 2rem; line-height: 1.05; font-weight: 900; color: #fff; }
+.selection-header p { margin-top: 0.45rem; color: #c8c8c8; font-size: 0.95rem; margin-bottom: 0.9rem; }
+
+.summary-card { padding: 1.2rem; }
+.summary-card h3 { color: #fff; font-size: 1.5rem; font-weight: 900; text-transform: uppercase; }
+
+.summary-block {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(255,255,255,0.14);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.summary-row { display: flex; flex-direction: column; gap: 0.3rem; }
+.summary-row span { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.summary-row strong { color: #fff; font-size: 0.92rem; }
+
+.summary-seats { margin-top: 1rem; }
+.summary-seats p { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.seat-tags { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.seat-tags span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border-radius: 0.6rem;
+  padding: 0 0.6rem;
+  background: rgba(255,122,26,0.14);
+  color: #ffd1a8;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.seat-empty { margin-top: 0.55rem; color: #c7cad0; font-size: 0.9rem; text-transform: none; letter-spacing: normal; }
+
+.summary-total {
+  margin-top: 1.1rem;
+  border-top: 1px dashed rgba(255,255,255,0.14);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.summary-total span { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.summary-total strong { color: #fff; font-size: 1.2rem; font-weight: 900; }
+
+.summary-next {
+  margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  border-radius: 0.8rem;
+  background: #ff7a1a;
+  color: #fff;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.summary-next:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1200px) {
+  .checkout-grid { grid-template-columns: 240px minmax(0, 1fr); }
+  .summary-column { grid-column: 1 / -1; }
+}
+
+@media (max-width: 992px) {
+  .checkout-grid { grid-template-columns: 1fr; }
+  .booking-stepper { overflow-x: auto; justify-content: flex-start; padding-bottom: 0.3rem; }
+  .step-line { min-width: 44px; }
+}
+</style>

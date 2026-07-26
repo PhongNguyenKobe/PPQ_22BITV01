@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import delete, select, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,12 +12,35 @@ from app.models.user import Role, User, user_roles_table
 from app.schemas.admin import BranchRead, RevenueDataPoint, UserRoleUpdate
 
 
+async def _ensure_branch_staff_table(db: AsyncSession) -> None:
+    await db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS branch_staff (
+                branch_id UUID NOT NULL,
+                user_id UUID NOT NULL,
+                staff_role VARCHAR(30) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (branch_id, user_id)
+            )
+            """
+        )
+    )
+    await db.commit()
+
+
 async def list_users_with_branch_id(db: AsyncSession) -> list[tuple[User, UUID | None]]:
     users_result = await db.execute(select(User).options(selectinload(User.roles)).order_by(User.created_at.desc()))
     users = list(users_result.scalars().all())
 
-    branch_rows = await db.execute(text("SELECT user_id, branch_id FROM branch_staff WHERE is_active = TRUE"))
-    branch_map = {row.user_id: row.branch_id for row in branch_rows}
+    try:
+        branch_rows = await db.execute(text("SELECT user_id, branch_id FROM branch_staff WHERE is_active = TRUE"))
+        branch_map = {row.user_id: row.branch_id for row in branch_rows}
+    except ProgrammingError:
+        await db.rollback()
+        await _ensure_branch_staff_table(db)
+        branch_map = {}
 
     return [(user, branch_map.get(user.id)) for user in users]
 
@@ -68,6 +92,8 @@ async def set_user_role(db: AsyncSession, user: User, payload: UserRoleUpdate) -
 
     await db.execute(delete(user_roles_table).where(user_roles_table.c.user_id == user.id))
     await db.execute(user_roles_table.insert().values(user_id=user.id, role_id=role.id))
+
+    await _ensure_branch_staff_table(db)
 
     if payload.role_code in {"BRANCH_ADMIN", "STAFF"}:
         if payload.branch_id is None:

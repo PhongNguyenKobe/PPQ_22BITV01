@@ -37,24 +37,40 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const id = getRouterParam(event, 'id')
 
+  if (!config.tmdbToken) {
+    return {
+      id: String(id || ''),
+      title: `Movie #${id}`,
+      description: 'Dữ liệu chi tiết tạm thời do TMDB chưa cấu hình token.',
+      poster: 'https://placehold.co/500x750?text=No+Image',
+      rating: 0,
+      duration: 120,
+      releaseDate: '',
+      genre: ['General'],
+      director: '',
+      cast: [],
+      trailerUrl: '',
+    }
+  }
+
   try {
     // Fetch movie details, credits (cast/director), and videos (trailer) in parallel
     const [movie, credits, videos] = await Promise.all([
-      $fetch<TmdbMovie>(`https://api.themoviedb.org/3/movie/${id}`, {
+      $fetch<TmdbMovie>(`https://api.tmdb.org/3/movie/${id}`, {
         headers: {
           Authorization: `Bearer ${config.tmdbToken}`,
           Accept: 'application/json',
         },
         query: { language: 'vi-VN' },
       }),
-      $fetch<TmdbCredits>(`https://api.themoviedb.org/3/movie/${id}/credits`, {
+      $fetch<TmdbCredits>(`https://api.tmdb.org/3/movie/${id}/credits`, {
         headers: {
           Authorization: `Bearer ${config.tmdbToken}`,
           Accept: 'application/json',
         },
         query: { language: 'vi-VN' },
       }),
-      $fetch<TmdbVideosResponse>(`https://api.themoviedb.org/3/movie/${id}/videos`, {
+      $fetch<TmdbVideosResponse>(`https://api.tmdb.org/3/movie/${id}/videos`, {
         headers: {
           Authorization: `Bearer ${config.tmdbToken}`,
           Accept: 'application/json',
@@ -108,11 +124,19 @@ export default defineEventHandler(async (event) => {
     }
   } catch (error) {
     console.error(`TMDB movie detail fetch failed for id=${id}:`, error)
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Không thể lấy chi tiết phim từ TMDB',
-    })
+    return {
+      id: String(id || ''),
+      title: `Movie #${id}`,
+      description: 'Không thể lấy chi tiết TMDB, đang hiển thị dữ liệu tạm thời.',
+      poster: 'https://placehold.co/500x750?text=No+Image',
+      rating: 0,
+      duration: 120,
+      releaseDate: '',
+      genre: ['General'],
+      director: '',
+      cast: [],
+      trailerUrl: '',
+    }
   }
 })
 

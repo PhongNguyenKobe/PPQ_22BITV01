@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -30,9 +31,23 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> A
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
-    user = await get_user_by_identifier(db, payload.identifier)
-    if user is None or not verify_password(payload.password, user.password_hash):
+async def login(request: Request, db: AsyncSession = Depends(get_db)) -> AuthResponse:
+    content_type = request.headers.get("content-type", "")
+
+    identifier: str
+    password: str
+
+    if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        form = await request.form()
+        identifier = str(form.get("username") or "").strip()
+        password = str(form.get("password") or "")
+    else:
+        payload = LoginRequest.model_validate(await request.json())
+        identifier = payload.identifier
+        password = payload.password
+
+    user = await get_user_by_identifier(db, identifier)
+    if user is None or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")

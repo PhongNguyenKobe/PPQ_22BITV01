@@ -32,8 +32,25 @@ onMounted(async () => {
 
 // Get current product
 const currentProduct = computed(() => {
-  const id = parseInt(route.params.id as string)
-  return products.value.find((p) => p.id === id)
+  const id = String(route.params.id as string)
+  return products.value.find((p) => String(p.id) === id)
+})
+
+const trailerHref = computed(() => {
+  if (!currentProduct.value) return '#'
+  return currentProduct.value.trailerUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${currentProduct.value.name} trailer`)}`
+})
+
+const backgroundStyle = computed(() => {
+  if (!currentProduct.value) return {}
+  return {
+    backgroundImage: `linear-gradient(90deg, rgba(18,20,20,0.96) 0%, rgba(18,20,20,0.82) 40%, rgba(18,20,20,0.55) 68%, rgba(18,20,20,0.76) 100%), url('${currentProduct.value.imageUrl}')`,
+  }
+})
+
+const formattedPrice = computed(() => {
+  if (!currentProduct.value) return ''
+  return new Intl.NumberFormat('vi-VN').format(currentProduct.value.price * 1000) + 'đ'
 })
 
 // Start booking process
@@ -47,7 +64,14 @@ function startBooking() {
   // Set movie in tickets store
   ticketsStore.selectMovie({
     id: currentProduct.value.id,
-    name: currentProduct.value.name
+    name: currentProduct.value.name,
+    backendMovieId: currentProduct.value.backendMovieId || null,
+    imageUrl: currentProduct.value.imageUrl,
+    category: currentProduct.value.category,
+    price: currentProduct.value.price,
+    rating: currentProduct.value.rating || null,
+    description: currentProduct.value.description,
+    trailerUrl: currentProduct.value.trailerUrl || null,
   })
   
   // Navigate to cinema selection
@@ -69,86 +93,83 @@ function startBooking() {
     </NuxtLink>
   </div>
 
-  <!-- Product detail -->
-  <section v-else class="py-16 max-w-container-max mx-auto px-6 md:px-margin-desktop">
-    <!-- Breadcrumb -->
-    <div class="mb-6 flex items-center gap-2 text-sm text-on-surface-variant">
-      <NuxtLink to="/products" class="hover:text-primary">Sản phẩm</NuxtLink>
-      <span class="material-symbols-outlined text-base">chevron_right</span>
-      <span class="text-on-surface">{{ currentProduct.name }}</span>
-    </div>
+  <section v-else class="detail-shell py-6 px-3 sm:px-5 md:px-8">
+    <div class="detail-hero max-w-[1500px] mx-auto" :style="backgroundStyle">
+      <div class="detail-overlay"></div>
 
-    <!-- Product detail layout -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-      <!-- Image section -->
-      <div class="flex items-center justify-center">
-        <img
-          :src="currentProduct.imageUrl"
-          :alt="currentProduct.name"
-          class="w-full max-w-sm rounded-xl object-cover shadow-lg"
-        />
+      <div class="detail-topbar">
+        <NuxtLink to="/products" class="detail-backlink">
+          <span class="material-symbols-outlined text-base">arrow_back</span>
+          Quay lại danh sách phim
+        </NuxtLink>
       </div>
 
-      <!-- Info section -->
-      <div class="flex flex-col justify-start">
-        <!-- Title -->
-        <h1 class="text-3xl md:text-4xl font-bold text-on-surface mb-2">
-          {{ currentProduct.name }}
-        </h1>
+      <div class="detail-grid">
+        <div class="detail-copy">
+          <span class="detail-chip">{{ currentProduct.category }}</span>
 
-        <!-- Rating & Category -->
-        <div class="flex items-center gap-4 mb-6 pb-6 border-b border-outline-variant">
-          <div v-if="currentProduct.rating" class="flex items-center gap-1">
-            <span class="material-symbols-outlined text-yellow-500">star</span>
-            <span class="text-on-surface font-semibold">{{ currentProduct.rating.toFixed(1) }}</span>
+          <h1 class="detail-title">{{ currentProduct.name }}</h1>
+
+          <div class="detail-meta">
+            <div class="detail-meta-item">
+              <span class="material-symbols-outlined text-sm">calendar_today</span>
+              Đang mở bán
+            </div>
+            <div class="detail-meta-item">
+              <span class="material-symbols-outlined text-sm">sell</span>
+              {{ formattedPrice }}
+            </div>
+            <div v-if="currentProduct.rating" class="detail-meta-item">
+              <span class="material-symbols-outlined text-sm text-yellow-400">star</span>
+              {{ currentProduct.rating.toFixed(1) }} điểm
+            </div>
           </div>
-          <span class="px-3 py-1 bg-primary-container text-primary rounded-full text-sm font-bold">
-            {{ currentProduct.category }}
-          </span>
-        </div>
 
-        <!-- Description -->
-        <div class="mb-8">
-          <h3 class="text-lg font-bold text-on-surface mb-3">Mô tả Phim</h3>
-          <p class="text-on-surface-variant leading-relaxed">
-            {{ currentProduct.description || 'Không có mô tả chi tiết' }}
+          <p class="detail-description">
+            {{ currentProduct.description || 'Không có mô tả chi tiết cho phim này.' }}
           </p>
+
+          <div class="detail-actions">
+            <a
+              :href="trailerHref"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="detail-btn detail-btn-primary"
+            >
+              <span class="material-symbols-outlined text-base">play_arrow</span>
+              Xem Trailer
+            </a>
+
+            <button
+              @click="startBooking"
+              class="detail-btn detail-btn-secondary"
+            >
+              Đặt Vé
+            </button>
+          </div>
+
+          <div class="detail-facts">
+            <div class="detail-fact">
+              <span class="detail-fact-label">Định dạng:</span>
+              <span class="detail-fact-value">{{ currentProduct.category }}</span>
+            </div>
+            <div class="detail-fact">
+              <span class="detail-fact-label">Giá mở bán:</span>
+              <span class="detail-fact-value">{{ formattedPrice }}</span>
+            </div>
+            <div class="detail-fact">
+              <span class="detail-fact-label">Trải nghiệm:</span>
+              <span class="detail-fact-value">Chọn rạp, suất chiếu và ghế ngay trong vài bước</span>
+            </div>
+          </div>
         </div>
 
-        <!-- Call to action buttons -->
-        <div class="flex gap-4 flex-col md:flex-row mt-auto">
-          <!-- Xem trailer button -->
-          <button
-            class="flex-1 px-6 py-3 rounded-lg font-bold border-2 border-outline-variant bg-surface-container-high text-on-surface hover:border-primary hover:text-primary transition flex items-center justify-center gap-2"
-          >
-            <span class="material-symbols-outlined">play_circle</span>
-            Xem Trailer
-          </button>
-
-          <!-- Đặt vé button -->
-          <button
-            @click="startBooking"
-            class="flex-1 px-6 py-3 rounded-lg font-bold bg-primary text-on-primary hover:brightness-110 transition flex items-center justify-center gap-2"
-          >
-            <span class="material-symbols-outlined">confirmation_number</span>
-            Đặt Vé
-          </button>
-        </div>
-
-        <!-- Additional info -->
-        <div class="mt-8 pt-6 border-t border-outline-variant space-y-3 text-sm text-on-surface-variant">
-          <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined text-on-surface mt-0.5">info</span>
-            <span>Chọn rạp, suất chiếu và ghế yêu thích của bạn</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined text-on-surface mt-0.5">lock</span>
-            <span>Thanh toán an toàn qua nhiều phương thức</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined text-on-surface mt-0.5">confirmation_number</span>
-            <span>Nhận vé ngay sau khi thanh toán thành công</span>
-          </div>
+        <div class="detail-poster-col">
+          <img
+            :src="currentProduct.imageUrl"
+            :alt="currentProduct.name"
+            class="detail-poster"
+          />
         </div>
       </div>
     </div>
@@ -156,7 +177,210 @@ function startBooking() {
 </template>
 
 <style scoped>
-button {
+.detail-shell {
+  min-height: calc(100vh - 72px);
+}
+
+.detail-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.35rem;
+  min-height: 760px;
+  background-position: center;
+  background-size: cover;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.detail-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(18, 20, 20, 0.08) 0%, rgba(18, 20, 20, 0.35) 100%);
+}
+
+.detail-topbar {
+  position: relative;
+  z-index: 1;
+  padding: 1.3rem 1.5rem 0;
+}
+
+.detail-backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: #e2e2e2;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.detail-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) 340px;
+  gap: 3rem;
+  align-items: center;
+  min-height: 680px;
+  padding: 2.1rem 3rem 3rem;
+}
+
+.detail-copy {
+  max-width: 720px;
+}
+
+.detail-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  background: #ff7a1a;
+  color: #fff;
+  min-height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.detail-title {
+  margin-top: 1rem;
+  font-size: clamp(2.5rem, 4.2vw, 4.6rem);
+  line-height: 0.98;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.detail-meta {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.detail-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #e5e7eb;
+  font-size: 0.92rem;
+}
+
+.detail-description {
+  margin-top: 1.4rem;
+  color: #f3f4f6;
+  font-size: 1rem;
+  line-height: 1.9;
+  text-wrap: pretty;
+}
+
+.detail-actions {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.detail-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 48px;
+  min-width: 132px;
+  padding: 0 1.1rem;
+  border-radius: 0.8rem;
+  font-weight: 800;
   transition: all 0.2s ease;
+}
+
+.detail-btn-primary {
+  background: #ff7a1a;
+  color: #fff;
+}
+
+.detail-btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.detail-btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.detail-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.detail-facts {
+  margin-top: 2rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.detail-fact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.92rem;
+}
+
+.detail-fact-label {
+  color: #c7cad0;
+  font-weight: 700;
+}
+
+.detail-fact-value {
+  color: #ffffff;
+}
+
+.detail-poster-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.detail-poster {
+  width: min(100%, 320px);
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 1rem;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+@media (max-width: 1100px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    min-height: auto;
+    padding: 2rem 1.4rem 2.2rem;
+  }
+
+  .detail-copy {
+    max-width: none;
+  }
+
+  .detail-poster-col {
+    justify-content: flex-start;
+  }
+
+  .detail-hero {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .detail-title {
+    font-size: 2.2rem;
+  }
+
+  .detail-description {
+    font-size: 0.94rem;
+    line-height: 1.75;
+  }
+
+  .detail-poster {
+    width: 260px;
+  }
 }
 </style>

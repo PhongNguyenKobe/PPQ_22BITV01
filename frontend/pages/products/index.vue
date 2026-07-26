@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import ProductCard from "~/components/ProductCard.vue";
+import { useProductsStore } from '~/store/products'
 
 definePageMeta({
   layout: "default",
@@ -7,48 +9,21 @@ definePageMeta({
 
 
 // State
-const products = ref<any[]>([]);
-const loading = ref(true);
+const productsStore = useProductsStore()
+const { products, loading } = storeToRefs(productsStore)
 const error = ref("");
 
 const searchTerm = ref("");
 const selectedCategory = ref("All");
 const sortOption = ref<"none" | "price-asc" | "price-desc">("none");
 
-// Các loại vé
-const ticketTypes = ["2D", "IMAX", "4DX", "VIP"];
-
-// Fetch dữ liệu từ TMDB
+// Fetch dữ liệu phim từ backend catalog
 onMounted(async () => {
   try {
-    const data: any = await $fetch("/api/movies");
-
-    products.value = data.results.map((movie: any) => ({
-      id: movie.id,
-
-      // Tên phim
-      name: movie.title,
-
-      // Giá vé giả lập
-      price: (Math.floor(Math.random() * 16) + 7) * 10,
-
-      // Loại vé giả lập
-      category:
-        ticketTypes[Math.floor(Math.random() * ticketTypes.length)],
-
-      // Poster
-      imageUrl: movie.poster_path
-        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-        : "https://placehold.co/500x750?text=No+Image",
-
-      // Mô tả
-      description: movie.overview,
-    }));
+    await productsStore.fetchProducts()
   } catch (err) {
     console.error(err);
     error.value = "Không thể tải danh sách phim.";
-  } finally {
-    loading.value = false;
   }
 });
 // Danh mục
@@ -110,87 +85,41 @@ function clearFilters() {
   </div>
 
   <!-- Content -->
-  <section
-    v-else
-    class="py-16 max-w-container-max mx-auto px-6 md:px-margin-desktop"
-  >
-    <h2
-      class="font-headline-lg text-3xl font-bold text-on-surface mb-2"
-    >
-      Vé & Combo
-    </h2>
+  <section v-else class="products-shell py-10 max-w-container-max mx-auto px-4 sm:px-6 md:px-margin-desktop">
+    <div class="mb-7">
+      <p class="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Danh mục chiếu phim</p>
+      <h2 class="font-headline-lg text-3xl font-bold text-on-surface mt-2">PHIM</h2>
+      <p class="text-sm text-on-surface-variant mt-2">Khám phá phim đang nổi bật và đặt vé theo suất chiếu mong muốn.</p>
+    </div>
 
-    <p
-      class="text-sm text-on-surface-variant mb-8"
-    >
-      Tìm kiếm, lọc và sắp xếp sản phẩm.
-    </p>
-
-    <!-- Filter -->
-    <div class="flex flex-wrap gap-3 mb-6">
-
+    <div class="filters-wrap mb-5">
       <input
         v-model="searchTerm"
         type="text"
-        placeholder="Tìm theo tên sản phẩm..."
-        class="px-3 py-2 rounded-lg bg-surface-container-high border border-glass-stroke text-sm min-w-[220px]"
+        placeholder="Tìm theo tên phim..."
+        class="control-input"
       />
 
-      <select
-        v-model="selectedCategory"
-        class="px-3 py-2 rounded-lg bg-surface-container-high border border-glass-stroke text-sm"
-      >
-        <option
-          v-for="cat in categories"
-          :key="cat"
-          :value="cat"
-        >
+      <select v-model="selectedCategory" class="control-input">
+        <option v-for="cat in categories" :key="cat" :value="cat">
           {{ cat }}
         </option>
       </select>
 
-      <select
-        v-model="sortOption"
-        class="px-3 py-2 rounded-lg bg-surface-container-high border border-glass-stroke text-sm"
-      >
-        <option value="none">
-          Sắp xếp: mặc định
-        </option>
-
-        <option value="price-asc">
-          Giá: Thấp → Cao
-        </option>
-
-        <option value="price-desc">
-          Giá: Cao → Thấp
-        </option>
+      <select v-model="sortOption" class="control-input">
+        <option value="none">Sắp xếp: mặc định</option>
+        <option value="price-asc">Giá: Thấp → Cao</option>
+        <option value="price-desc">Giá: Cao → Thấp</option>
       </select>
 
-      <button
-        @click="clearFilters"
-        class="px-4 py-2 rounded-lg bg-surface-container border border-glass-stroke hover:bg-white/10 transition"
-      >
-        Xóa bộ lọc
-      </button>
-
+      <button @click="clearFilters" class="control-clear">Xóa bộ lọc</button>
     </div>
 
-    <!-- Count -->
-    <p
-      class="text-xs text-on-surface-variant mb-4"
-    >
-      Hiển thị
-      {{ filteredProducts.length }}
-      /
-      {{ products.length }}
-      sản phẩm
+    <p class="text-xs text-on-surface-variant mb-5">
+      Hiển thị {{ filteredProducts.length }} / {{ products.length }} phim
     </p>
 
-    <!-- Product Grid -->
-    <div
-      v-if="filteredProducts.length"
-      class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6"
-    >
+    <div v-if="filteredProducts.length" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
       <ProductCard
         v-for="product in filteredProducts"
         :key="product.id"
@@ -198,13 +127,57 @@ function clearFilters() {
       />
     </div>
 
-    <!-- Empty -->
-    <div
-      v-else
-      class="text-center py-10 text-on-surface-variant"
-    >
-      Không tìm thấy sản phẩm phù hợp.
+    <div v-else class="text-center py-10 text-on-surface-variant">
+      Không tìm thấy phim phù hợp.
     </div>
-
   </section>
 </template>
+
+<style scoped>
+.products-shell {
+  position: relative;
+}
+
+.filters-wrap {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr 0.9fr auto;
+  gap: 0.7rem;
+}
+
+.control-input {
+  width: 100%;
+  background: rgba(51, 53, 53, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.65rem;
+  padding: 0.56rem 0.72rem;
+  font-size: 0.9rem;
+  color: #e7eaef;
+}
+
+.control-input:focus {
+  outline: none;
+  border-color: rgba(229, 9, 20, 0.5);
+}
+
+.control-clear {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0.65rem;
+  padding: 0.56rem 0.9rem;
+  font-size: 0.84rem;
+  color: #e2e8f0;
+  font-weight: 700;
+}
+
+@media (max-width: 992px) {
+  .filters-wrap {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .filters-wrap {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -1,20 +1,8 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+"""Legacy backend entrypoint.
 
-from routers.movies import router as movie_router
+Keep this file as a thin wrapper so older launch commands like
+`uvicorn main:app --reload` continue to work while the app itself lives in
+`app.main`.
+"""
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(movie_router)
-
-@app.get("/")
-def root():
-    return {"message": "CineAI Backend Running"}
+from app.main import app
