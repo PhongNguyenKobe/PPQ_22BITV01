@@ -1,36 +1,21 @@
 from datetime import date
 from uuid import UUID
-<<<<<<< HEAD
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-=======
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
->>>>>>> f220d3b (SS12)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-<<<<<<< HEAD
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_roles
 from app.core.permissions import require_admin, require_branch_admin
-from app.db.session import get_db
-from app.schemas.movie import MovieRead
-from app.schemas.admin import AdminStatsResponse, BranchRead, UserRoleUpdate, AdminUserRead
-from app.models.user import User
-
-router = APIRouter()
-
-@router.get("/stats", response_model=AdminStatsResponse, dependencies=[Depends(require_admin)])
-async def get_admin_stats(
-=======
-from app.api.deps import require_roles
 from app.crud.admin import get_admin_stats, list_branches, list_users_with_branch_id, set_user_role
 from app.crud.user import create_user, get_user_by_id, update_user
 from app.db.session import get_db
 from app.models.catalog import Auditorium, Branch, Movie, Seat, SeatType, Showtime, Vendor
 from app.models.user import User
+from app.schemas.movie import MovieRead
 from app.schemas.admin import (
     AdminStatsResponse,
     AdminUserCreate,
@@ -79,6 +64,10 @@ async def _ensure_default_seat_types(db: AsyncSession) -> None:
     await db.commit()
 
 
+# ---------------------------------------------------------------------------
+# Movies
+# ---------------------------------------------------------------------------
+
 @router.post("/movies/import-tmdb", response_model=TmdbMovieImportResponse, status_code=status.HTTP_201_CREATED)
 async def import_tmdb_movie(
     payload: TmdbMovieImportPayload,
@@ -114,11 +103,42 @@ async def import_tmdb_movie(
     return TmdbMovieImportResponse(id=movie.id, title=movie.title, imported=True)
 
 
-@router.get("/stats", response_model=AdminStatsResponse)
-async def read_admin_stats(
->>>>>>> f220d3b (SS12)
+@router.post("/movies", response_model=MovieRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
+async def create_movie(
+    payload: dict,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
+) -> MovieRead:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid movie data")
+
+
+@router.put("/movies/{movie_id}", response_model=MovieRead, dependencies=[Depends(require_admin)])
+async def update_movie(
+    movie_id: UUID,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> MovieRead:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found")
+
+
+@router.delete("/movies/{movie_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
+async def delete_movie(
+    movie_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Stats
+# ---------------------------------------------------------------------------
+
+@router.get("/stats", response_model=AdminStatsResponse)
+async def read_admin_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
 ) -> AdminStatsResponse:
     return AdminStatsResponse(
         totalBranches=5,
@@ -128,20 +148,10 @@ async def read_admin_stats(
         revenueChartData=[]
     )
 
-@router.get("/users", dependencies=[Depends(require_admin)])
-async def list_all_users(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    role: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return {"total": 0, "users": []}
 
-<<<<<<< HEAD
-@router.put("/users/{user_id}/role", response_model=AdminUserRead, dependencies=[Depends(require_admin)])
-async def update_user_role(
-=======
+# ---------------------------------------------------------------------------
+# Users
+# ---------------------------------------------------------------------------
 
 @router.get("/users", response_model=list[AdminUserRead])
 async def read_admin_users(
@@ -253,181 +263,25 @@ async def delete_admin_user(
 
 @router.patch("/users/{user_id}/role", response_model=AdminUserRead)
 async def update_admin_user_role(
->>>>>>> f220d3b (SS12)
     user_id: UUID,
     payload: UserRoleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
 ) -> AdminUserRead:
-    if not current_user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user = await get_user_by_id(db, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
-async def delete_user(
-    user_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
+    updated_user = await set_user_role(db, user, payload)
 
-<<<<<<< HEAD
-@router.post("/movies", response_model=MovieRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
-async def create_movie(
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-) -> MovieRead:
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid movie data")
-
-@router.put("/movies/{movie_id}", response_model=MovieRead, dependencies=[Depends(require_admin)])
-async def update_movie(
-    movie_id: UUID,
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-) -> MovieRead:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found")
-
-@router.delete("/movies/{movie_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
-async def delete_movie(
-    movie_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.post("/showtimes", dependencies=[Depends(require_branch_admin)])
-async def create_showtime(
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.put("/showtimes/{showtime_id}", dependencies=[Depends(require_branch_admin)])
-async def update_showtime(
-    showtime_id: UUID,
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.delete("/showtimes/{showtime_id}", dependencies=[Depends(require_branch_admin)])
-async def delete_showtime(
-    showtime_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.get("/branches", dependencies=[Depends(require_admin)])
-async def list_branches(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return []
-
-@router.post("/branches", dependencies=[Depends(require_admin)])
-async def create_branch(
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.put("/branches/{branch_id}", dependencies=[Depends(require_admin)])
-async def update_branch(
-    branch_id: UUID,
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.delete("/branches/{branch_id}", dependencies=[Depends(require_admin)])
-async def delete_branch(
-    branch_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.get("/bookings", dependencies=[Depends(require_branch_admin)])
-async def list_branch_bookings(
-    start_date: str | None = None,
-    end_date: str | None = None,
-    status: str | None = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return {"total": 0, "bookings": []}
-
-@router.put("/bookings/{booking_id}/cancel", dependencies=[Depends(require_branch_admin)])
-async def cancel_booking(
-    booking_id: UUID,
-    reason: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.get("/payments", dependencies=[Depends(require_admin)])
-async def list_payments(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    status: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return {"total": 0, "payments": []}
-
-@router.post("/payments/{payment_id}/refund", dependencies=[Depends(require_admin)])
-async def refund_payment(
-    payment_id: UUID,
-    reason: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    pass
-
-@router.get("/reports/revenue", dependencies=[Depends(require_admin)])
-async def get_revenue_report(
-    start_date: str,
-    end_date: str,
-    group_by: str = Query("day", pattern="day|week|month"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return {}
-
-@router.get("/reports/occupancy", dependencies=[Depends(require_admin)])
-async def get_occupancy_report(
-    start_date: str,
-    end_date: str,
-    branch_id: UUID | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return {}
-
-@router.get("/reports/top-movies", dependencies=[Depends(require_admin)])
-async def get_top_movies(
-    start_date: str,
-    end_date: str,
-    limit: int = Query(10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    return []
-=======
     branch_rows = await list_users_with_branch_id(db)
     branch_id = next((item_branch for item_user, item_branch in branch_rows if item_user.id == updated_user.id), None)
     return AdminUserRead.model_validate(updated_user).model_copy(update={"branch_id": branch_id})
 
+
+# ---------------------------------------------------------------------------
+# Branches (full management)
+# ---------------------------------------------------------------------------
 
 @router.get("/branches/manage", response_model=list[BranchManageRead])
 async def read_admin_branches_manage(
@@ -570,6 +424,50 @@ async def delete_admin_branch(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot delete branch that is referenced by other records") from None
 
 
+# ---------------------------------------------------------------------------
+# Branches (simple listing - kept from HEAD, different path from /branches/manage)
+# ---------------------------------------------------------------------------
+
+@router.get("/branches", dependencies=[Depends(require_admin)])
+async def list_branches_simple(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return []
+
+
+@router.post("/branches", dependencies=[Depends(require_admin)])
+async def create_branch_simple(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    pass
+
+
+@router.put("/branches/{branch_id}", dependencies=[Depends(require_admin)])
+async def update_branch_simple(
+    branch_id: UUID,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    pass
+
+
+@router.delete("/branches/{branch_id}", dependencies=[Depends(require_admin)])
+async def delete_branch_simple(
+    branch_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Auditoriums
+# ---------------------------------------------------------------------------
+
 @router.get("/auditoriums", response_model=list[AuditoriumRead])
 async def read_admin_auditoriums(
     branch_id: UUID | None = None,
@@ -681,6 +579,10 @@ async def delete_admin_auditorium(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot delete auditorium that is referenced") from None
 
+
+# ---------------------------------------------------------------------------
+# Seat types & seats
+# ---------------------------------------------------------------------------
 
 @router.get("/seat-types", response_model=list[SeatTypeRead])
 async def read_admin_seat_types(
@@ -829,6 +731,10 @@ async def delete_admin_seat(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot delete seat that is referenced") from None
 
+
+# ---------------------------------------------------------------------------
+# Showtimes (admin management)
+# ---------------------------------------------------------------------------
 
 @router.get("/showtimes", response_model=list[ShowtimeAdminRead])
 async def read_admin_showtimes(
@@ -979,4 +885,92 @@ async def delete_admin_showtime(
 
     await db.delete(showtime)
     await db.commit()
->>>>>>> f220d3b (SS12)
+
+
+# ---------------------------------------------------------------------------
+# Bookings (HEAD-only stubs, no equivalent in SS12)
+# ---------------------------------------------------------------------------
+
+@router.get("/bookings", dependencies=[Depends(require_branch_admin)])
+async def list_branch_bookings(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    status: str | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return {"total": 0, "bookings": []}
+
+
+@router.put("/bookings/{booking_id}/cancel", dependencies=[Depends(require_branch_admin)])
+async def cancel_booking(
+    booking_id: UUID,
+    reason: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Payments (HEAD-only stubs)
+# ---------------------------------------------------------------------------
+
+@router.get("/payments", dependencies=[Depends(require_admin)])
+async def list_payments(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return {"total": 0, "payments": []}
+
+
+@router.post("/payments/{payment_id}/refund", dependencies=[Depends(require_admin)])
+async def refund_payment(
+    payment_id: UUID,
+    reason: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Reports (HEAD-only stubs)
+# ---------------------------------------------------------------------------
+
+@router.get("/reports/revenue", dependencies=[Depends(require_admin)])
+async def get_revenue_report(
+    start_date: str,
+    end_date: str,
+    group_by: str = Query("day", pattern="day|week|month"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return {}
+
+
+@router.get("/reports/occupancy", dependencies=[Depends(require_admin)])
+async def get_occupancy_report(
+    start_date: str,
+    end_date: str,
+    branch_id: UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return {}
+
+
+@router.get("/reports/top-movies", dependencies=[Depends(require_admin)])
+async def get_top_movies(
+    start_date: str,
+    end_date: str,
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return []

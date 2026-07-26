@@ -12,11 +12,8 @@ definePageMeta({
 })
 
 const ticketsStore = useTicketsStore()
-<<<<<<< HEAD
-const { selectedShowtime, selectedSeats } = storeToRefs(ticketsStore)
-const { toggleSeat } = useBooking()
-=======
 const { selectedMovie, selectedCinema, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
+const { toggleSeat } = useBooking()
 
 const backgroundStyle = computed(() => {
   if (!selectedMovie.value?.imageUrl) return {}
@@ -29,7 +26,6 @@ const formattedMoviePrice = computed(() => {
   if (!selectedMovie.value?.price) return 'Đang cập nhật'
   return new Intl.NumberFormat('vi-VN').format(Number(selectedMovie.value.price) * 1000) + 'đ'
 })
->>>>>>> f220d3b (SS12)
 
 // Interface chuẩn cho Seat
 interface Seat {
@@ -72,11 +68,13 @@ onMounted(async () => {
   }
 
   loading.value = true
+  error.value = ''
   try {
     const response = await movieService.getSeats(selectedShowtime.value.id)
     seats.value = response
   } catch (err) {
-    error.value = 'Failed to load seats'
+    console.error('Failed to load seats:', err)
+    error.value = 'Không thể tải sơ đồ ghế. Vui lòng thử lại.'
   } finally {
     loading.value = false
   }
@@ -90,64 +88,13 @@ const handleSeatClick = (seat: Seat) => {
   toggleSeat(seat)
 }
 
-const proceedToCombo = () => {
+const handleProceedToPayment = () => {
+  if (selectedSeats.value.length === 0) return
   navigateTo('/checkout/combo')
 }
 </script>
 
 <template>
-<<<<<<< HEAD
-  <div class="space-y-6">
-    <!-- Header -->
-    <div>
-      <h2 class="text-2xl font-bold text-on-surface mb-2">Chọn Ghế Ngồi</h2>
-      <p class="text-sm text-on-surface-variant">
-        {{ selectedShowtime?.branchName }} - {{ selectedShowtime?.screenName }}
-      </p>
-    </div>
-
-    <!-- Loading -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="inline-block animate-spin">
-        <span class="material-symbols-outlined text-4xl text-primary-container">hourglass_empty</span>
-      </div>
-      <p class="text-sm text-on-surface-variant mt-2">Loading seats...</p>
-    </div>
-
-    <!-- Error -->
-    <div v-else-if="error" class="bg-error/10 border border-error/30 rounded-xl p-4 text-error text-sm">
-      {{ error }}
-    </div>
-
-    <!-- Seat Grid -->
-    <div v-else class="space-y-4">
-      <!-- Screen -->
-      <div class="text-center">
-        <div class="inline-block bg-surface-variant text-on-surface-variant px-6 py-1 rounded-full text-xs font-semibold">
-          Màn Hình
-        </div>
-      </div>
-
-      <!-- Seats -->
-      <div class="space-y-3">
-        <div
-          v-for="seatRow of seatRows"
-          :key="seatRow.row"
-          class="flex items-center justify-center gap-2"
-        >
-          <span class="w-6 text-center text-xs font-bold text-on-surface-variant">{{ seatRow.row }}</span>
-          <div class="flex gap-1 flex-wrap justify-center">
-            <button
-              v-for="seat of seatRow.seats"
-              :key="seat.id"
-              @click="handleSeatClick(seat)"
-              class="w-8 h-8 rounded text-xs font-bold transition-all"
-              :class="isSeatSelected(seat)
-                ? 'bg-primary-container text-white shadow-lg'
-                : 'bg-surface-variant text-on-surface-variant hover:bg-primary-container/30'"
-            >
-              {{ seat.number }}
-=======
   <section class="checkout-shell py-6 px-3 sm:px-5 md:px-8">
     <div class="checkout-hero max-w-[1500px] mx-auto" :style="backgroundStyle">
       <div class="checkout-overlay"></div>
@@ -186,7 +133,53 @@ const proceedToCombo = () => {
               <h1>Chọn Ghế Ngồi</h1>
               <p>Chọn vị trí phù hợp trong phòng chiếu để tiếp tục thanh toán.</p>
             </div>
-            <SeatSelection />
+
+            <!-- Loading -->
+            <div v-if="loading" class="selection-empty">Đang tải sơ đồ ghế...</div>
+
+            <!-- Error -->
+            <div v-else-if="error" class="selection-empty">
+              <p>{{ error }}</p>
+            </div>
+
+            <!-- Seat Grid -->
+            <div v-else class="seat-map">
+              <div class="screen-indicator">
+                <div class="screen-label">Màn Hình</div>
+              </div>
+
+              <div class="seat-rows">
+                <div
+                  v-for="seatRow of seatRows"
+                  :key="seatRow.row"
+                  class="seat-row"
+                >
+                  <span class="row-label">{{ seatRow.row }}</span>
+                  <div class="row-seats">
+                    <button
+                      v-for="seat of seatRow.seats"
+                      :key="seat.id"
+                      @click="handleSeatClick(seat)"
+                      class="seat-btn"
+                      :class="isSeatSelected(seat) ? 'seat-selected' : 'seat-available'"
+                    >
+                      {{ seat.number }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="seat-legend">
+                <div class="legend-item">
+                  <span class="legend-swatch seat-available"></span>
+                  <span>Trống</span>
+                </div>
+                <div class="legend-item">
+                  <span class="legend-swatch seat-selected"></span>
+                  <span>Đang chọn</span>
+                </div>
+              </div>
+            </div>
           </div>
         </main>
 
@@ -212,14 +205,16 @@ const proceedToCombo = () => {
             <div class="summary-seats">
               <p>Ghế đã chọn</p>
               <div v-if="selectedSeats.length > 0" class="seat-tags">
-                <span v-for="seat in selectedSeats" :key="seat.id">{{ seat.row }}{{ seat.number }}</span>
+                <span v-for="seat in selectedSeats" :key="seat.id">
+                  {{ formatSeatLabel(seat.row, seat.number) }}
+                </span>
               </div>
               <p v-else class="seat-empty">Chưa chọn ghế</p>
             </div>
 
             <div class="summary-total">
               <span>Tổng cộng</span>
-              <strong>{{ totalAmount.toLocaleString() }} VNĐ</strong>
+              <strong>{{ formatPrice(totalAmount) }}</strong>
             </div>
 
             <button
@@ -228,74 +223,15 @@ const proceedToCombo = () => {
               class="summary-next"
             >
               Tiếp tục thanh toán
->>>>>>> f220d3b (SS12)
             </button>
+
+            <NuxtLink to="/checkout/cinema" class="summary-back-link">
+              ← Đổi rạp / suất chiếu
+            </NuxtLink>
           </div>
         </aside>
       </div>
-
-      <!-- Legend -->
-      <div class="flex justify-center gap-6 text-xs mt-6 pt-4 border-t border-glass-stroke">
-        <div class="flex items-center gap-2">
-          <div class="w-6 h-6 bg-surface-variant rounded"></div>
-          <span>Trống</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-6 h-6 bg-primary-container rounded"></div>
-          <span>Chọn</span>
-        </div>
-      </div>
     </div>
-<<<<<<< HEAD
-
-    <!-- Action Buttons -->
-    <div class="flex gap-3 pt-4">
-      <NuxtLink
-        to="/checkout/cinema"
-        class="flex-1 bg-surface-variant text-on-surface px-4 py-3 rounded-xl font-semibold hover:bg-surface-variant/80 transition-colors text-center"
-      >
-        ← Quay Lại
-      </NuxtLink>
-      <button
-        @click="proceedToCombo"
-        :disabled="selectedSeats.length === 0"
-        class="flex-1 bg-primary-container text-white px-4 py-3 rounded-xl font-semibold hover:bg-primary-container/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        Tiếp Tục ({{ selectedSeats.length }}) →
-      </button>
-    </div>
-
-    <!-- Summary -->
-     <NuxtLayout name="checkout">
-    <template #summary>
-      <div class="space-y-4 text-sm">
-        <div>
-          <p class="text-on-surface-variant text-xs">Suất Chiếu</p>
-          <p class="font-semibold text-on-surface">{{ formatPrice(selectedShowtime?.price || 0) }}/vé</p>
-        </div>
-        <div>
-          <p class="text-on-surface-variant text-xs">Số Ghế Chọn</p>
-          <p class="font-semibold text-on-surface">{{ selectedSeats.length }} ghế</p>
-        </div>
-        <div v-if="selectedSeats.length > 0" class="border-t border-glass-stroke pt-3">
-          <p class="text-on-surface-variant text-xs mb-2">Ghế Đã Chọn</p>
-          <div class="flex flex-wrap gap-1">
-            <span
-              v-for="seat of selectedSeats"
-              :key="seat.id"
-              class="bg-primary-container/20 text-primary-container text-xs px-2 py-1 rounded"
-            >
-              {{ formatSeatLabel(seat.row, seat.number) }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </template>
-    </NuxtLayout>
-  </div>
-</template>
-
-=======
   </section>
 </template>
 
@@ -403,6 +339,97 @@ const proceedToCombo = () => {
 .selection-header h1 { font-size: 2rem; line-height: 1.05; font-weight: 900; color: #fff; }
 .selection-header p { margin-top: 0.45rem; color: #c8c8c8; font-size: 0.95rem; margin-bottom: 0.9rem; }
 
+.selection-empty {
+  margin-top: 1rem;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #c7cad0;
+}
+
+.seat-map { margin-top: 0.5rem; }
+
+.screen-indicator { display: flex; justify-content: center; margin-bottom: 1.5rem; }
+.screen-label {
+  background: rgba(255,255,255,0.08);
+  color: #e5e7eb;
+  padding: 0.35rem 1.5rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.seat-rows { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.seat-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.row-label {
+  width: 1.5rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #9ca3af;
+}
+
+.row-seats { display: flex; gap: 0.3rem; flex-wrap: wrap; justify-content: center; }
+
+.seat-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.seat-available {
+  background: rgba(255,255,255,0.08);
+  color: #d6d6d6;
+}
+
+.seat-available:hover {
+  background: rgba(255,122,26,0.22);
+}
+
+.seat-selected {
+  background: #ff7a1a;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(255,122,26,0.35);
+}
+
+.seat-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(255,255,255,0.14);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #c7cad0;
+}
+
+.legend-swatch {
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 0.3rem;
+  display: inline-block;
+}
+
 .summary-card { padding: 1.2rem; }
 .summary-card h3 { color: #fff; font-size: 1.5rem; font-weight: 900; text-transform: uppercase; }
 
@@ -468,6 +495,14 @@ const proceedToCombo = () => {
   cursor: not-allowed;
 }
 
+.summary-back-link {
+  margin-top: 0.9rem;
+  display: block;
+  text-align: center;
+  color: #c7cad0;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 1200px) {
   .checkout-grid { grid-template-columns: 240px minmax(0, 1fr); }
   .summary-column { grid-column: 1 / -1; }
@@ -479,4 +514,3 @@ const proceedToCombo = () => {
   .step-line { min-width: 44px; }
 }
 </style>
->>>>>>> f220d3b (SS12)

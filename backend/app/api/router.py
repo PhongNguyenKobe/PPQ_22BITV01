@@ -9,12 +9,9 @@ from app.api.routes.checkout import router as checkout_router
 from app.api.routes.movies import router as movies_router
 from app.api.routes.showtimes import router as showtimes_router
 from app.api.routes.users import router as users_router
-<<<<<<< HEAD
 from app.api.routes.bookings import router as bookings_router
 from app.api.routes.payments import router as payments_router
-=======
 from app.api.routes.voice_booking import router as voice_booking_router
->>>>>>> f220d3b (SS12)
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -22,13 +19,10 @@ api_router.include_router(users_router, prefix="/users", tags=["users"])
 api_router.include_router(branches_router, prefix="/branches", tags=["branches"])
 api_router.include_router(movies_router, prefix="/movies", tags=["movies"])
 api_router.include_router(showtimes_router, prefix="/showtimes", tags=["showtimes"])
-<<<<<<< HEAD
 api_router.include_router(bookings_router, prefix="/bookings", tags=["bookings"])
 api_router.include_router(payments_router, prefix="/payments", tags=["payments"])
-=======
 api_router.include_router(checkout_router, prefix="/checkout", tags=["checkout"])
 api_router.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(voice_booking_router, prefix="/voice-booking", tags=["voice-booking"])
 api_router.include_router(branch_admin_router, prefix="/branch-admin", tags=["branch-admin"])
->>>>>>> f220d3b (SS12)
 api_router.include_router(admin_router, prefix="/admin", tags=["admin"])
