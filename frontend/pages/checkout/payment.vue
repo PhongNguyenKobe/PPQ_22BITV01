@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 
@@ -8,7 +8,7 @@ definePageMeta({
 })
 
 const ticketsStore = useTicketsStore()
-const { selectedMovie, selectedShowtime, selectedSeats, totalAmount, loading } = storeToRefs(ticketsStore)
+const { selectedMovie, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
 
 const selectedPayment = ref('Ví Momo')
 const processing = ref(false)
@@ -21,8 +21,19 @@ const paymentMethods = [
   { name: 'Quét Mã QR', icon: 'qr_code_scanner', desc: 'Quét mã QR để chuyển khoản nhanh' }
 ]
 
+const backgroundStyle = computed(() => {
+  if (!selectedMovie.value?.imageUrl) return {}
+  return {
+    backgroundImage: `linear-gradient(90deg, rgba(18,20,20,0.95) 0%, rgba(18,20,20,0.82) 24%, rgba(18,20,20,0.68) 56%, rgba(18,20,20,0.92) 100%), url('${selectedMovie.value.imageUrl}')`,
+  }
+})
+
+const formattedMoviePrice = computed(() => {
+  if (!selectedMovie.value?.price) return 'Đang cập nhật'
+  return new Intl.NumberFormat('vi-VN').format(Number(selectedMovie.value.price) * 1000) + 'đ'
+})
+
 onMounted(() => {
-  // If no seats selected, send them back to seat choice
   if (selectedSeats.value.length === 0 || !selectedShowtime.value) {
     navigateTo('/checkout/seat')
   }
@@ -35,8 +46,6 @@ async function handleConfirmPayment() {
   }
 
   processing.value = true
-  
-  // Simulate network payment validation delay
   await new Promise(resolve => setTimeout(resolve, 2000))
 
   try {
@@ -53,152 +62,402 @@ async function handleConfirmPayment() {
 </script>
 
 <template>
-  <div class="max-w-container-max mx-auto px-6 md:px-margin-desktop py-12">
-    <div class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div>
-        <NuxtLink to="/checkout/seat" class="text-xs text-on-surface-variant hover:text-primary-container flex items-center gap-1 mb-2">
-          <span class="material-symbols-outlined text-sm">arrow_back</span>
-          Quay lại Chọn Ghế
-        </NuxtLink>
-        <h1 class="font-headline-lg text-2xl md:text-3xl font-black text-on-surface">
-          Thanh Toán Đơn Vé
-        </h1>
-      </div>
-      
-      <!-- Stepper Indicator -->
-      <div class="flex items-center justify-center gap-3 text-xs font-bold">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">1</div>
-          <span>Chọn Rạp</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">2</div>
-          <span>Chọn Suất</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">3</div>
-          <span>Chọn Ghế</span>
-        </div>
-        <div class="w-8 h-0.5 bg-surface-container-highest"></div>
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">4</div>
-          <span>Thanh Toán</span>
-        </div>
-      </div>
-    </div>
+  <section class="checkout-shell py-6 px-3 sm:px-5 md:px-8">
+    <div class="checkout-hero max-w-[1500px] mx-auto" :style="backgroundStyle">
+      <div class="checkout-overlay"></div>
 
-    <!-- Payment contents layout -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      
-      <!-- Payment Methods (8 cols) -->
-      <div class="lg:col-span-8 space-y-6">
-        <div class="glass-panel border border-glass-stroke rounded-2xl p-6 md:p-8">
-          <h3 class="font-bold text-lg text-on-surface mb-6 flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary-container">payment</span>
-            Chọn Phương Thức Thanh Toán
-          </h3>
+      <div class="checkout-grid">
+        <aside class="movie-column" v-if="selectedMovie">
+          <img :src="selectedMovie.imageUrl" :alt="selectedMovie.name" class="movie-poster" />
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button
-              v-for="method in paymentMethods"
-              :key="method.name"
-              @click="selectedPayment = method.name; showQR = false"
-              class="border rounded-2xl p-4 text-left flex items-start gap-4 transition-all"
-              :class="selectedPayment === method.name
-                ? 'bg-primary-container/5 border-primary-container shadow-md'
-                : 'bg-surface border-glass-stroke hover:bg-white/5'"
+          <div class="movie-meta">
+            <h2 class="movie-title">{{ selectedMovie.name }}</h2>
+            <div class="movie-badges">
+              <span v-if="selectedMovie.rating" class="movie-rating">
+                <span class="material-symbols-outlined text-sm text-yellow-400">star</span>
+                {{ Number(selectedMovie.rating).toFixed(1) }}
+              </span>
+              <span class="movie-dot">•</span>
+              <span>{{ selectedMovie.category || '2D' }}</span>
+            </div>
+            <p class="movie-price">Giá từ {{ formattedMoviePrice }}</p>
+          </div>
+        </aside>
+
+        <main class="selection-column">
+          <div class="booking-stepper">
+            <div class="step done"><span>1</span><small>Chọn rạp</small></div>
+            <div class="step-line active"></div>
+            <div class="step done"><span>2</span><small>Chọn suất</small></div>
+            <div class="step-line active"></div>
+            <div class="step done"><span>3</span><small>Chọn ghế</small></div>
+            <div class="step-line active"></div>
+            <div class="step active"><span>4</span><small>Thanh toán</small></div>
+          </div>
+
+          <div class="selection-panel">
+            <div class="selection-header">
+              <h1>Thanh Toán Đơn Vé</h1>
+              <p>Chọn phương thức thanh toán và xác nhận giao dịch.</p>
+            </div>
+
+            <div class="methods-grid">
+              <button
+                v-for="method in paymentMethods"
+                :key="method.name"
+                @click="selectedPayment = method.name; showQR = false"
+                :class="['method-card', selectedPayment === method.name ? 'method-active' : '']"
+              >
+                <div class="method-icon">
+                  <span class="material-symbols-outlined">{{ method.icon }}</span>
+                </div>
+                <h3>{{ method.name }}</h3>
+                <p>{{ method.desc }}</p>
+                <span v-if="selectedPayment === method.name" class="method-check material-symbols-outlined">check_circle</span>
+              </button>
+            </div>
+
+            <div class="method-note">
+              Bạn sẽ được chuyển tới cổng thanh toán an toàn sau khi bấm xác nhận.
+            </div>
+
+            <div
+              v-if="selectedPayment === 'Quét Mã QR' && showQR"
+              class="qr-panel"
             >
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-surface-container border border-glass-stroke text-primary-container">
-                <span class="material-symbols-outlined">{{ method.icon }}</span>
+              <h4>Quét Mã QR Để Thanh Toán</h4>
+              <p>Mã QR chứa thông tin chuyển khoản cho giao dịch hiện tại.</p>
+              <div class="qr-image-box">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=CineAI_Checkout_Booking" alt="Mock QR Code Checkout" class="w-full h-full" />
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="summary-column" v-if="selectedShowtime">
+          <div class="summary-card">
+            <h3>Đơn Hàng</h3>
+
+            <div class="summary-block">
+              <div class="summary-row">
+                <span>Rạp</span>
+                <strong>{{ selectedShowtime.branchName }}</strong>
+              </div>
+              <div class="summary-row">
+                <span>Suất chiếu</span>
+                <strong>{{ selectedShowtime.time }} • {{ selectedShowtime.date }}</strong>
+              </div>
+              <div class="summary-row">
+                <span>Phòng</span>
+                <strong>{{ selectedShowtime.screenName }}</strong>
+              </div>
+            </div>
+
+            <div class="summary-seats">
+              <p>Ghế đã chọn</p>
+              <div class="seat-tags">
+                <span v-for="seat in selectedSeats" :key="seat.id">{{ seat.row }}{{ seat.number }}</span>
+              </div>
+            </div>
+
+            <div class="summary-pricing">
+              <div>
+                <span>{{ selectedSeats.length }} vé x {{ selectedShowtime.price.toLocaleString('vi-VN') }}đ</span>
+                <strong>{{ totalAmount.toLocaleString('vi-VN') }}đ</strong>
               </div>
               <div>
-                <span class="block text-sm font-semibold text-on-surface">{{ method.name }}</span>
-                <span class="text-xs text-on-surface-variant block mt-1">{{ method.desc }}</span>
+                <span>Phí dịch vụ</span>
+                <strong>0đ</strong>
               </div>
+              <div>
+                <span>Phương thức</span>
+                <strong>{{ selectedPayment }}</strong>
+              </div>
+            </div>
+
+            <div class="summary-total">
+              <span>Tổng thanh toán</span>
+              <strong>{{ totalAmount.toLocaleString('vi-VN') }} VNĐ</strong>
+            </div>
+
+            <button
+              @click="handleConfirmPayment"
+              :disabled="processing"
+              class="summary-next"
+            >
+              <template v-if="processing">
+                <span class="loading-state">
+                  <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Đang xác thực...
+                </span>
+              </template>
+              <template v-else>
+                Xác Nhận Thanh Toán
+              </template>
             </button>
           </div>
-        </div>
-
-        <!-- Simulated Scan QR Modal Box -->
-        <div v-if="selectedPayment === 'Quét Mã QR' && showQR" class="glass-panel border border-purple-500/20 rounded-2xl p-6 md:p-8 flex flex-col items-center text-center">
-          <span class="bg-secondary-container/20 border border-secondary-container/30 text-secondary text-[11px] font-bold px-3 py-1 rounded-full inline-flex items-center gap-1.5 backdrop-blur-md mb-4">
-            <span class="material-symbols-outlined text-xs">qr_code</span>
-            Cổng thanh toán tự động
-          </span>
-          <h4 class="font-bold text-base text-on-surface mb-2">Quét Mã QR Để Thanh Toán</h4>
-          <p class="text-xs text-on-surface-variant max-w-sm mb-6">Mã QR bên dưới chứa thông tin tài khoản và tổng số tiền thanh toán của bạn.</p>
-          
-          <!-- Mock QR image -->
-          <div class="w-48 h-48 bg-white p-3 rounded-2xl border border-glass-stroke mb-4 shadow-xl">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=CineAI_Checkout_Booking" alt="Mock QR Code Checkout" class="w-full h-full" />
-          </div>
-          
-          <span class="text-xs text-on-surface-variant">Vui lòng quét mã và xác nhận chuyển khoản để hoàn tất.</span>
-        </div>
+        </aside>
       </div>
-
-      <!-- Summary & Confirm (4 cols) -->
-      <div class="lg:col-span-4" v-if="selectedShowtime">
-        <div class="glass-panel border border-glass-stroke rounded-2xl p-6 md:p-8 space-y-6">
-          <div>
-            <h3 class="font-bold text-lg text-on-surface mb-2">Đơn Vé Của Bạn</h3>
-            <span class="text-sm font-semibold text-primary-fixed-dim block">{{ selectedMovie?.name }}</span>
-          </div>
-
-          <div class="space-y-3 text-xs text-on-surface-variant border-t border-glass-stroke/40 pt-4">
-            <div class="flex justify-between">
-              <span>Rạp:</span>
-              <span class="font-bold text-on-surface">{{ selectedShowtime.branchName }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Suất chiếu:</span>
-              <span class="font-bold text-on-surface text-primary">{{ selectedShowtime.time }} | {{ selectedShowtime.date }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Phòng chiếu:</span>
-              <span class="font-bold text-on-surface uppercase">{{ selectedShowtime.screenName }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Ghế ngồi:</span>
-              <div class="flex flex-wrap gap-1 justify-end max-w-[60%]">
-                <span v-for="seat in selectedSeats" :key="seat.id" class="font-bold text-on-surface">
-                  {{ seat.row }}{{ seat.number }},
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="border-t border-glass-stroke/40 pt-4 space-y-4">
-            <div class="flex justify-between items-center text-xs">
-              <span class="text-on-surface-variant">Phương thức:</span>
-              <span class="font-bold text-on-surface">{{ selectedPayment }}</span>
-            </div>
-            
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-on-surface-variant">Tổng số tiền:</span>
-              <span class="text-lg font-black text-primary">{{ totalAmount.toLocaleString() }} VNĐ</span>
-            </div>
-          </div>
-
-          <!-- Proceed to validation button -->
-          <button
-            @click="handleConfirmPayment"
-            :disabled="processing"
-            class="w-full bg-primary-container text-on-primary-container py-3.5 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 red-glow disabled:opacity-50"
-          >
-            <template v-if="processing">
-              <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              Đang xác thực...
-            </template>
-            <template v-else>
-              Xác Nhận Thanh Toán
-            </template>
-          </button>
-        </div>
-      </div>
-
     </div>
-  </div>
+  </section>
 </template>
+
+<style scoped>
+.checkout-shell { min-height: calc(100vh - 72px); }
+
+.checkout-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: #1a1c1c;
+  background-position: center;
+  background-size: cover;
+}
+
+.checkout-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(18, 20, 20, 0.1) 0%, rgba(18, 20, 20, 0.28) 100%);
+}
+
+.checkout-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 280px;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  align-items: start;
+}
+
+.movie-column,
+.summary-card,
+.selection-panel {
+  background: rgba(31, 31, 31, 0.74);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.2rem;
+}
+
+.movie-column { padding: 1rem; }
+
+.movie-poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: 1rem;
+}
+
+.movie-meta { margin-top: 1rem; }
+.movie-title { font-size: 1.45rem; line-height: 1.08; font-weight: 900; color: #fff; }
+
+.movie-badges {
+  margin-top: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #d6d6d6;
+  font-size: 0.88rem;
+}
+
+.movie-dot { color: rgba(255,255,255,0.45); }
+.movie-rating { display: inline-flex; align-items: center; gap: 0.18rem; }
+.movie-price { margin-top: 0.75rem; color: #fbbf24; font-weight: 800; }
+
+.booking-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 0.25rem 0 1rem;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  color: #9ca3af;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.step span {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step.active,
+.step.done { color: #ffb4aa; }
+.step.active span,
+.step.done span { background: #ff7a1a; color: #fff; }
+
+.step-line { width: 72px; height: 2px; background: rgba(255,255,255,0.14); }
+.step-line.active { background: linear-gradient(90deg, #ff7a1a, #f59e0b); }
+
+.selection-panel { padding: 1.35rem; }
+.selection-header h1 { font-size: 2rem; line-height: 1.05; font-weight: 900; color: #fff; }
+.selection-header p { margin-top: 0.45rem; color: #c8c8c8; font-size: 0.95rem; }
+
+.methods-grid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.method-card {
+  position: relative;
+  text-align: left;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 122, 26, 0.24);
+  background: rgba(255,255,255,0.03);
+  padding: 0.95rem;
+  min-height: 124px;
+  transition: all 0.2s ease;
+}
+
+.method-card:hover { transform: translateY(-2px); border-color: rgba(255, 122, 26, 0.5); }
+.method-icon { margin-bottom: 0.35rem; color: #ffd1a8; }
+.method-card h3 { color: #fff; font-weight: 800; font-size: 0.9rem; }
+.method-card p { color: #c7cad0; font-size: 0.8rem; margin-top: 0.28rem; line-height: 1.5; }
+
+.method-check {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  color: #ff7a1a;
+  font-size: 1.1rem;
+}
+
+.method-active {
+  border-color: rgba(255, 122, 26, 0.65);
+  background: rgba(255, 122, 26, 0.12);
+}
+
+.method-note {
+  margin-top: 1rem;
+  border-radius: 0.8rem;
+  background: rgba(255,255,255,0.05);
+  padding: 0.75rem 0.9rem;
+  color: #c7cad0;
+  font-size: 0.9rem;
+}
+
+.qr-panel {
+  margin-top: 1rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 122, 26, 0.28);
+  background: rgba(255,255,255,0.04);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.qr-panel h4 { color: #fff; font-weight: 800; }
+.qr-panel p { color: #c7cad0; font-size: 0.85rem; }
+
+.qr-image-box {
+  margin-top: 0.45rem;
+  width: 190px;
+  height: 190px;
+  border-radius: 0.85rem;
+  background: #fff;
+  padding: 0.5rem;
+}
+
+.summary-card { padding: 1.2rem; }
+.summary-card h3 { color: #fff; font-size: 1.5rem; font-weight: 900; text-transform: uppercase; }
+
+.summary-block {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(255,255,255,0.14);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.summary-row { display: flex; flex-direction: column; gap: 0.3rem; }
+.summary-row span { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.summary-row strong { color: #fff; font-size: 0.92rem; }
+
+.summary-seats { margin-top: 1rem; }
+.summary-seats p { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.seat-tags { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.seat-tags span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border-radius: 0.6rem;
+  padding: 0 0.6rem;
+  background: rgba(255,122,26,0.14);
+  color: #ffd1a8;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.summary-pricing {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(255,255,255,0.14);
+  display: grid;
+  gap: 0.8rem;
+}
+
+.summary-pricing > div { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; }
+.summary-pricing span { color: #aeb3bb; font-size: 0.82rem; }
+.summary-pricing strong { color: #fff; font-size: 0.9rem; font-weight: 700; }
+
+.summary-total {
+  margin-top: 1rem;
+  border-top: 1px dashed rgba(255,255,255,0.14);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.summary-total span { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.summary-total strong { color: #fff; font-size: 1.2rem; font-weight: 900; }
+
+.summary-next {
+  margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  border-radius: 0.8rem;
+  background: #ff7a1a;
+  color: #fff;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.summary-next:disabled { opacity: 0.45; cursor: not-allowed; }
+.loading-state { display: inline-flex; align-items: center; gap: 0.45rem; }
+
+@media (max-width: 1200px) {
+  .checkout-grid { grid-template-columns: 240px minmax(0, 1fr); }
+  .summary-column { grid-column: 1 / -1; }
+}
+
+@media (max-width: 992px) {
+  .checkout-grid { grid-template-columns: 1fr; }
+  .methods-grid { grid-template-columns: 1fr; }
+  .booking-stepper { overflow-x: auto; justify-content: flex-start; padding-bottom: 0.3rem; }
+  .step-line { min-width: 44px; }
+}
+</style>

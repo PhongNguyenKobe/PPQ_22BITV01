@@ -1,460 +1,1004 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
-import { adminBackendService, adminService, type BackendBranch, type Movie, type UserProfile } from '~/services/api'
+import { computed, onMounted, ref } from 'vue'
+import {
+  adminBackendService,
+  movieService,
+  type AdminAuditorium,
+  type AdminBranchManage,
+  type AdminSeat,
+  type AdminSeatType,
+  type AdminShowtime,
+  type Movie,
+  type TmdbPopularMovie,
+  type UserProfile,
+} from '~/services/api'
 
 definePageMeta({
-  layout: 'admin'
+  layout: 'admin',
+  middleware: ['auth', 'super-admin'],
 })
 
-const activeTab = ref<'movies' | 'branches' | 'users'>('movies')
+type AdminTab = 'users' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'
+type AdminTabItem = {
+  key: AdminTab
+  label: string
+  icon: string
+  description: string
+}
 
-// Stats
-const totalBranches = ref(0)
-const totalMovies = ref(0)
-const totalUsers = ref(0)
-const totalRevenue = ref(0)
-const revenueChartData = ref<{ label: string; value: number }[]>([])
+const tabItems: AdminTabItem[] = [
+  { key: 'users', label: 'Người dùng', icon: 'group', description: 'Tài khoản và phân quyền' },
+  { key: 'branches', label: 'Chi nhánh', icon: 'location_city', description: 'Khu vực và cụm rạp' },
+  { key: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters', description: 'Màn hình và sức chứa' },
+  { key: 'seats', label: 'Ghế ngồi', icon: 'event_seat', description: 'Sơ đồ ghế theo phòng' },
+  { key: 'showtimes', label: 'Suất chiếu', icon: 'schedule', description: 'Lịch chiếu đang mở bán' },
+]
 
-// Lists
-const moviesList = ref<Movie[]>([])
-const usersList = ref<UserProfile[]>([])
-const branchOptions = ref<BackendBranch[]>([])
-const branchesList = ref([
-  { id: 'b1', name: 'CineAI Hùng Vương', city: 'TP. Hồ Chí Minh', screens: 6, status: 'Hoạt động' },
-  { id: 'b2', name: 'CineAI Sala Q2', city: 'TP. Hồ Chí Minh', screens: 8, status: 'Hoạt động' },
-  { id: 'b3', name: 'CineAI Nguyễn Du', city: 'TP. Hồ Chí Minh', screens: 4, status: 'Hoạt động' },
-  { id: 'b4', name: 'CineAI Vincom Bà Triệu', city: 'Hà Nội', screens: 5, status: 'Hoạt động' },
-  { id: 'b5', name: 'CineAI Đà Nẵng Plaza', city: 'Đà Nẵng', screens: 4, status: 'Bảo trì' }
-])
+const activeTab = ref<AdminTab>('users')
+const loading = ref(false)
+const error = ref('')
 
-// Add/Edit Movie Modal Dialog Form State
-const showAddMovieModal = ref(false)
-const editingMovieId = ref<string | null>(null)
-const newMovieTitle = ref('')
-const newMovieGenre = ref('')
-const newMovieDirector = ref('')
-const newMovieDuration = ref(120)
-const newMovieRating = ref(4.5)
+const users = ref<UserProfile[]>([])
+const branches = ref<AdminBranchManage[]>([])
+const auditoriums = ref<AdminAuditorium[]>([])
+const seats = ref<AdminSeat[]>([])
+const seatTypes = ref<AdminSeatType[]>([])
+const showtimes = ref<AdminShowtime[]>([])
+const movies = ref<Movie[]>([])
+const tmdbMovies = ref<TmdbPopularMovie[]>([])
 
-const showRoleModal = ref(false)
-const selectedUser = ref<UserProfile | null>(null)
-const selectedRoleCode = ref<'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN'>('CUSTOMER')
-const selectedBranchId = ref('')
+const userForm = ref({
+  fullName: '',
+  email: '',
+  password: '',
+  phone: '',
+  roleCode: 'CUSTOMER' as 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN',
+  branchId: '',
+})
+
+const branchForm = ref({
+  code: '',
+  name: '',
+  addressLine: '',
+  city: '',
+  district: '',
+  phone: '',
+})
+
+const auditoriumForm = ref({
+  branchId: '',
+  code: '',
+  name: '',
+  totalSeats: 100,
+  screenType: '2D',
+})
+
+const seatForm = ref({
+  auditoriumId: '',
+  row: 'A',
+  number: 1,
+  seatTypeId: 1,
+})
+
+const showtimeForm = ref({
+  movieId: '',
+  auditoriumId: '',
+  startsAt: '',
+  endsAt: '',
+  basePrice: 90000,
+  status: 'OPEN' as 'OPEN' | 'CLOSED' | 'CANCELLED',
+})
+
+const showtimeMovieOptions = computed(() => {
+  const tmdbOptions = tmdbMovies.value.map((movie) => ({
+    value: `tmdb:${movie.tmdb_id}`,
+    label: `${movie.title} (TMDB)`,
+  }))
+  const backendOptions = movies.value.map((movie) => ({
+    value: movie.id,
+    label: `${movie.title} (DB)`,
+  }))
+  return [...tmdbOptions, ...backendOptions]
+})
+
+const stats = computed(() => ({
+  users: users.value.length,
+  branches: branches.value.length,
+  auditoriums: auditoriums.value.length,
+  seats: seats.value.length,
+  showtimes: showtimes.value.length,
+}))
+
+const activeTabMeta = computed(
+  () => tabItems.find((tab) => tab.key === activeTab.value) || tabItems[0],
+)
+
+const branchNameMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const branch of branches.value) {
+    map.set(branch.id, branch.name)
+  }
+  return map
+})
 
 onMounted(async () => {
+  await loadAll()
+})
+
+async function loadAll() {
+  loading.value = true
+  error.value = ''
   try {
-    const stats = await adminService.getSuperAdminStats()
-    totalBranches.value = stats.totalBranches
-    totalMovies.value = stats.totalMovies
-    totalUsers.value = stats.totalUsers
-    totalRevenue.value = stats.totalRevenue
-    revenueChartData.value = stats.revenueChartData
-    moviesList.value = stats.moviesList
-    usersList.value = await adminBackendService.getUsers()
-    branchOptions.value = await adminBackendService.getBranches()
-  } catch (e) {
-    console.error('Failed to load admin stats:', e)
-  }
-})
+    const [
+      usersData,
+      branchData,
+      auditoriumData,
+      seatTypeData,
+      showtimeData,
+      movieData,
+      tmdbMovieData,
+    ] = await Promise.all([
+      adminBackendService.getUsers(),
+      adminBackendService.getBranchesManage(),
+      adminBackendService.getAuditoriums(),
+      adminBackendService.getSeatTypes(),
+      adminBackendService.getShowtimes(),
+      movieService.getAll(),
+      movieService.getPopularFromTmdb(),
+    ])
 
-function openAddMovieModal() {
-  editingMovieId.value = null
-  newMovieTitle.value = ''
-  newMovieGenre.value = ''
-  newMovieDirector.value = ''
-  newMovieDuration.value = 120
-  newMovieRating.value = 4.5
-  showAddMovieModal.value = true
-}
+    users.value = usersData
+    branches.value = branchData
+    auditoriums.value = auditoriumData
+    seatTypes.value = seatTypeData
+    showtimes.value = showtimeData
+    movies.value = movieData
+    tmdbMovies.value = tmdbMovieData
 
-function openEditMovieModal(movie: Movie) {
-  editingMovieId.value = movie.id
-  newMovieTitle.value = movie.title
-  newMovieGenre.value = movie.genre.join(', ')
-  newMovieDirector.value = movie.director
-  newMovieDuration.value = movie.duration
-  newMovieRating.value = movie.rating
-  showAddMovieModal.value = true
-}
-
-function handleDeleteMovie(id: string) {
-  moviesList.value = moviesList.value.filter(m => m.id !== id)
-  totalMovies.value = moviesList.value.length
-}
-
-function openRoleModal(user: UserProfile) {
-  selectedUser.value = user
-  selectedRoleCode.value = user.role === 'branch-admin' ? 'BRANCH_ADMIN' : user.role === 'admin' ? 'SUPER_ADMIN' : 'CUSTOMER'
-  selectedBranchId.value = user.branchId || ''
-  showRoleModal.value = true
-}
-
-async function handleSaveUserRole() {
-  if (!selectedUser.value) return
-  const updated = await adminBackendService.updateUserRole(
-    selectedUser.value.id,
-    selectedRoleCode.value,
-    selectedBranchId.value || undefined,
-  )
-  usersList.value = usersList.value.map(user => (user.id === updated.id ? updated : user))
-  showRoleModal.value = false
-  selectedUser.value = null
-}
-
-function handleAddMovieSubmit() {
-  if (!newMovieTitle.value) return
-
-  if (editingMovieId.value) {
-    // Edit existing
-    const idx = moviesList.value.findIndex(m => m.id === editingMovieId.value)
-    if (idx !== -1) {
-      moviesList.value[idx].title = newMovieTitle.value
-      moviesList.value[idx].genre = newMovieGenre.value.split(',').map(s => s.trim())
-      moviesList.value[idx].director = newMovieDirector.value
-      moviesList.value[idx].duration = newMovieDuration.value
-      moviesList.value[idx].rating = newMovieRating.value
+    if (!showtimeForm.value.movieId && showtimeMovieOptions.value.length > 0) {
+      showtimeForm.value.movieId = showtimeMovieOptions.value[0].value
     }
-  } else {
-    // Add new
-    const created: Movie = {
-      id: `m-${Date.now()}`,
-      title: newMovieTitle.value,
-      genre: newMovieGenre.value.split(',').map(s => s.trim()),
-      director: newMovieDirector.value || 'N/A',
-      duration: newMovieDuration.value || 120,
-      rating: newMovieRating.value || 4.5,
-      poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=300',
-      trailer: 'https://www.youtube.com/embed/Way9Dexny3w',
-      description: 'Bộ phim mới được nhập vào hệ thống CineAI.',
-      releaseDate: new Date().toISOString().substring(0, 10),
-      format: ['2D', '3D'],
-      cast: ['Diễn viên A', 'Diễn viên B']
+    if (!auditoriumForm.value.branchId && branches.value.length > 0) {
+      auditoriumForm.value.branchId = branches.value[0].id
     }
-    moviesList.value.unshift(created)
-    totalMovies.value = moviesList.value.length
+    if (!seatForm.value.auditoriumId && auditoriums.value.length > 0) {
+      seatForm.value.auditoriumId = auditoriums.value[0].id
+    }
+  } catch (e: any) {
+    error.value = e?.message || 'Không thể tải dữ liệu admin.'
+  } finally {
+    loading.value = false
   }
-
-  showAddMovieModal.value = false
-  newMovieTitle.value = ''
-  newMovieGenre.value = ''
-  newMovieDirector.value = ''
 }
 
-// Find max revenue for chart proportions
-const maxRevenueValue = computed(() => {
-  if (revenueChartData.value.length === 0) return 1
-  return Math.max(...revenueChartData.value.map(c => c.value))
-})
+function roleToCode(role: UserProfile['role']) {
+  if (role === 'admin') return 'SUPER_ADMIN'
+  if (role === 'branch-admin') return 'BRANCH_ADMIN'
+  if (role === 'staff') return 'STAFF'
+  return 'CUSTOMER'
+}
+
+function toIso(value: string) {
+  const date = new Date(value)
+  return date.toISOString()
+}
+
+async function createUser() {
+  await adminBackendService.createUser({
+    full_name: userForm.value.fullName,
+    email: userForm.value.email,
+    password: userForm.value.password,
+    phone: userForm.value.phone || null,
+    role_code: userForm.value.roleCode,
+    branch_id: userForm.value.branchId || null,
+  })
+  userForm.value = {
+    fullName: '',
+    email: '',
+    password: '',
+    phone: '',
+    roleCode: 'CUSTOMER',
+    branchId: '',
+  }
+  users.value = await adminBackendService.getUsers()
+}
+
+async function updateUserRole(user: UserProfile) {
+  const next = window.prompt('Nhập role code: CUSTOMER | BRANCH_ADMIN | STAFF | SUPER_ADMIN', roleToCode(user.role))
+  if (!next) return
+  const branch = window.prompt('Nhập branch id (để trống nếu không gán):', user.branchId || '')
+  const updated = await adminBackendService.updateUserRole(user.id, next as any, branch || null)
+  users.value = users.value.map((u) => (u.id === updated.id ? updated : u))
+}
+
+async function updateUserActive(user: UserProfile) {
+  const target = !user.isActive
+  await adminBackendService.updateUser(user.id, { is_active: target })
+  users.value = await adminBackendService.getUsers()
+}
+
+async function softDeleteUser(user: UserProfile) {
+  if (!window.confirm(`Khoá tài khoản ${user.email}?`)) return
+  await adminBackendService.deleteUser(user.id)
+  users.value = await adminBackendService.getUsers()
+}
+
+async function createBranch() {
+  await adminBackendService.createBranch({
+    code: branchForm.value.code,
+    name: branchForm.value.name,
+    address_line: branchForm.value.addressLine,
+    city: branchForm.value.city,
+    district: branchForm.value.district || null,
+    phone: branchForm.value.phone || null,
+    is_active: true,
+  })
+  branchForm.value = { code: '', name: '', addressLine: '', city: '', district: '', phone: '' }
+  branches.value = await adminBackendService.getBranchesManage()
+}
+
+async function editBranch(branch: AdminBranchManage) {
+  const name = window.prompt('Tên chi nhánh', branch.name)
+  if (!name) return
+  const city = window.prompt('Thành phố', branch.city)
+  if (!city) return
+  const addressLine = window.prompt('Địa chỉ', branch.address_line)
+  if (!addressLine) return
+  await adminBackendService.updateBranch(branch.id, { name, city, address_line: addressLine })
+  branches.value = await adminBackendService.getBranchesManage()
+}
+
+async function deleteBranch(branch: AdminBranchManage) {
+  if (!window.confirm(`Xoá chi nhánh ${branch.name}?`)) return
+  await adminBackendService.deleteBranch(branch.id)
+  branches.value = await adminBackendService.getBranchesManage()
+}
+
+async function createAuditorium() {
+  await adminBackendService.createAuditorium({
+    branch_id: auditoriumForm.value.branchId,
+    code: auditoriumForm.value.code,
+    name: auditoriumForm.value.name,
+    total_seats: auditoriumForm.value.totalSeats,
+    screen_type: auditoriumForm.value.screenType,
+    is_active: true,
+  })
+  auditoriumForm.value.code = ''
+  auditoriumForm.value.name = ''
+  auditoriumForm.value.totalSeats = 100
+  auditoriums.value = await adminBackendService.getAuditoriums()
+}
+
+async function editAuditorium(item: AdminAuditorium) {
+  const name = window.prompt('Tên phòng', item.name)
+  if (!name) return
+  const capacityRaw = window.prompt('Số ghế', String(item.total_seats))
+  if (!capacityRaw) return
+  await adminBackendService.updateAuditorium(item.id, {
+    name,
+    total_seats: Number(capacityRaw),
+  })
+  auditoriums.value = await adminBackendService.getAuditoriums()
+}
+
+async function deleteAuditorium(item: AdminAuditorium) {
+  if (!window.confirm(`Xoá phòng ${item.name}?`)) return
+  await adminBackendService.deleteAuditorium(item.id)
+  auditoriums.value = await adminBackendService.getAuditoriums()
+}
+
+async function createSeat() {
+  await adminBackendService.createSeat({
+    auditorium_id: seatForm.value.auditoriumId,
+    seat_row: seatForm.value.row,
+    seat_number: seatForm.value.number,
+    seat_type_id: seatForm.value.seatTypeId,
+    is_active: true,
+  })
+  seats.value = await adminBackendService.getSeats(seatForm.value.auditoriumId)
+}
+
+async function loadSeatsByAuditorium() {
+  if (!seatForm.value.auditoriumId) return
+  seats.value = await adminBackendService.getSeats(seatForm.value.auditoriumId)
+}
+
+async function editSeat(item: AdminSeat) {
+  const row = window.prompt('Hàng ghế', item.seat_row)
+  if (!row) return
+  const numberRaw = window.prompt('Số ghế', String(item.seat_number))
+  if (!numberRaw) return
+  await adminBackendService.updateSeat(item.id, { seat_row: row, seat_number: Number(numberRaw) })
+  await loadSeatsByAuditorium()
+}
+
+async function deleteSeat(item: AdminSeat) {
+  if (!window.confirm(`Xoá ghế ${item.seat_row}${item.seat_number}?`)) return
+  await adminBackendService.deleteSeat(item.id)
+  await loadSeatsByAuditorium()
+}
+
+async function createShowtime() {
+  let movieId = showtimeForm.value.movieId
+
+  if (movieId.startsWith('tmdb:')) {
+    const tmdbId = Number(movieId.replace('tmdb:', ''))
+    const tmdbMovie = tmdbMovies.value.find((item) => item.tmdb_id === tmdbId)
+    if (!tmdbMovie) {
+      throw new Error('Không tìm thấy phim TMDB để import')
+    }
+
+    const imported = await adminBackendService.importTmdbMovie({
+      tmdb_id: tmdbMovie.tmdb_id,
+      title: tmdbMovie.title,
+      overview: tmdbMovie.overview || null,
+      poster_path: tmdbMovie.poster_path || null,
+      release_date: tmdbMovie.release_date || null,
+      original_title: tmdbMovie.original_title || null,
+      language: 'vi-VN',
+      duration_min: 120,
+    })
+    movieId = imported.id
+  }
+
+  await adminBackendService.createShowtime({
+    movie_id: movieId,
+    auditorium_id: showtimeForm.value.auditoriumId,
+    starts_at: toIso(showtimeForm.value.startsAt),
+    ends_at: toIso(showtimeForm.value.endsAt),
+    base_price: showtimeForm.value.basePrice,
+    status: showtimeForm.value.status,
+  })
+  movies.value = await movieService.getAll()
+  showtimes.value = await adminBackendService.getShowtimes()
+}
+
+async function editShowtime(item: AdminShowtime) {
+  const priceRaw = window.prompt('Giá vé', String(item.base_price))
+  if (!priceRaw) return
+  const statusRaw = window.prompt('Trạng thái OPEN | CLOSED | CANCELLED', item.status)
+  if (!statusRaw) return
+  await adminBackendService.updateShowtime(item.id, {
+    base_price: Number(priceRaw),
+    status: statusRaw as 'OPEN' | 'CLOSED' | 'CANCELLED',
+  })
+  showtimes.value = await adminBackendService.getShowtimes()
+}
+
+async function deleteShowtime(item: AdminShowtime) {
+  if (!window.confirm(`Xoá suất chiếu ${item.id}?`)) return
+  await adminBackendService.deleteShowtime(item.id)
+  showtimes.value = await adminBackendService.getShowtimes()
+}
+
+function fmtDateTime(value: string) {
+  return new Date(value).toLocaleString('vi-VN')
+}
+
+function fmtCurrency(value: number) {
+  return Number(value).toLocaleString('vi-VN') + 'đ'
+}
+
+function resolveUserBranchName(branchId: string | null | undefined) {
+  if (!branchId) return '-'
+  return branchNameMap.value.get(branchId) || branchId
+}
+
+function roleBadgeClass(role: UserProfile['role']) {
+  if (role === 'admin') return 'badge role-admin'
+  if (role === 'branch-admin') return 'badge role-branch-admin'
+  if (role === 'staff') return 'badge role-staff'
+  return 'badge role-customer'
+}
+
+function showtimeStatusClass(status: AdminShowtime['status']) {
+  if (status === 'OPEN') return 'badge status-open'
+  if (status === 'CLOSED') return 'badge status-closed'
+  return 'badge status-cancelled'
+}
 </script>
 
 <template>
-  <div class="space-y-8">
-
-    <!-- Stats Cards Overview Row -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-      <!-- Revenue stats -->
-      <div class="glass-panel border border-glass-stroke p-6 rounded-2xl flex items-center justify-between shadow-md">
+  <div class="admin-page space-y-5">
+    <section class="hero-panel">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <span class="text-xs text-on-surface-variant uppercase tracking-wider font-bold block mb-1">Tổng doanh thu</span>
-          <span class="text-2xl font-black text-primary">{{ totalRevenue.toLocaleString() }}đ</span>
+          <p class="hero-kicker">CineAI Admin</p>
+          <h1 class="hero-title">Trang chủ quản trị vận hành</h1>
+          <p class="hero-subtitle">
+            Tổng quan hiệu suất hệ thống rạp, phân quyền người dùng và điều phối lịch chiếu theo thời gian thực.
+          </p>
         </div>
-        <div class="w-12 h-12 bg-primary-container/10 border border-primary-container/20 rounded-xl flex items-center justify-center text-primary-container">
-          <span class="material-symbols-outlined text-[28px]">monitoring</span>
-        </div>
-      </div>
-
-      <!-- Branches count -->
-      <div class="glass-panel border border-glass-stroke p-6 rounded-2xl flex items-center justify-between shadow-md">
-        <div>
-          <span class="text-xs text-on-surface-variant uppercase tracking-wider font-bold block mb-1">Tổng chi nhánh</span>
-          <span class="text-2xl font-black text-on-surface">{{ totalBranches }}</span>
-        </div>
-        <div class="w-12 h-12 bg-surface-container-high border border-glass-stroke rounded-xl flex items-center justify-center text-on-surface-variant">
-          <span class="material-symbols-outlined text-[28px]">storefront</span>
-        </div>
-      </div>
-
-      <!-- Movies count -->
-      <div class="glass-panel border border-glass-stroke p-6 rounded-2xl flex items-center justify-between shadow-md">
-        <div>
-          <span class="text-xs text-on-surface-variant uppercase tracking-wider font-bold block mb-1">Phim quản lý</span>
-          <span class="text-2xl font-black text-on-surface">{{ totalMovies }}</span>
-        </div>
-        <div class="w-12 h-12 bg-surface-container-high border border-glass-stroke rounded-xl flex items-center justify-center text-on-surface-variant">
-          <span class="material-symbols-outlined text-[28px]">movie</span>
-        </div>
-      </div>
-
-      <!-- Users count -->
-      <div class="glass-panel border border-glass-stroke p-6 rounded-2xl flex items-center justify-between shadow-md">
-        <div>
-          <span class="text-xs text-on-surface-variant uppercase tracking-wider font-bold block mb-1">Khách hàng</span>
-          <span class="text-2xl font-black text-secondary">{{ totalUsers }}</span>
-        </div>
-        <div class="w-12 h-12 bg-secondary-container/10 border border-secondary-container/20 rounded-xl flex items-center justify-center text-secondary">
-          <span class="material-symbols-outlined text-[28px]">groups</span>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Chart row -->
-    <div class="glass-panel border border-glass-stroke p-6 md:p-8 rounded-2xl shadow-lg">
-      <h3 class="font-bold text-base text-on-surface mb-6 flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary-container">bar_chart</span>
-        Biểu Đồ Doanh Thu Hệ Thống
-      </h3>
-
-      <!-- Visual Bar Chart -->
-      <div class="h-64 flex items-end gap-4 md:gap-8 justify-center pt-8 border-b border-glass-stroke">
-        <div
-          v-for="bar in revenueChartData"
-          :key="bar.label"
-          class="flex flex-col items-center flex-1 max-w-[60px] group relative"
-        >
-          <!-- Value popup tooltip -->
-          <span class="absolute -top-8 bg-black/85 border border-glass-stroke text-[10px] font-bold text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-lg">
-            {{ (bar.value / 1000000).toFixed(1) }}Mđ
-          </span>
-          <!-- Bar column -->
-          <div
-            class="w-full rounded-t-lg bg-gradient-to-t from-primary-container/60 to-primary-container transition-all hover:brightness-110"
-            :style="{ height: `${(bar.value / maxRevenueValue) * 160}px` }"
-          ></div>
-          <span class="text-xs text-on-surface-variant font-bold mt-2 pb-2 truncate w-full text-center">{{ bar.label }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Data Tables Area -->
-    <div class="glass-panel border border-glass-stroke rounded-2xl overflow-hidden shadow-lg">
-      <!-- Tabs header -->
-      <div class="bg-surface-container-high/80 border-b border-glass-stroke flex items-center justify-between px-6 py-4">
-        <div class="flex items-center gap-4">
-          <button
-            @click="activeTab = 'movies'"
-            class="text-sm font-bold pb-2 transition-all border-b-2"
-            :class="activeTab === 'movies' ? 'border-primary-container text-on-surface' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
-          >
-            Quản Lý Phim
-          </button>
-          <button
-            @click="activeTab = 'branches'"
-            class="text-sm font-bold pb-2 transition-all border-b-2"
-            :class="activeTab === 'branches' ? 'border-primary-container text-on-surface' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
-          >
-            Quản Lý Chi Nhánh
-          </button>
-          <button
-            @click="activeTab = 'users'"
-            class="text-sm font-bold pb-2 transition-all border-b-2"
-            :class="activeTab === 'users' ? 'border-primary-container text-on-surface' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
-          >
-            Quản Lý Thành Viên
-          </button>
-        </div>
-
         <button
-          v-if="activeTab === 'movies'"
-          @click="openAddMovieModal"
-          class="bg-primary-container hover:bg-opacity-90 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 red-glow transition-all"
+          @click="loadAll"
+          class="action-ghost"
         >
-          <span class="material-symbols-outlined text-sm">add</span>
-          Thêm Phim Mới
+          <span class="material-symbols-outlined text-base">refresh</span>
+          Làm mới dữ liệu
+        </button>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div class="metric-card">
+        <div class="metric-icon metric-green">
+          <span class="material-symbols-outlined">group</span>
+        </div>
+        <div>
+          <p class="metric-label">Tổng người dùng</p>
+          <p class="metric-value">{{ stats.users }}</p>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon metric-blue">
+          <span class="material-symbols-outlined">storefront</span>
+        </div>
+        <div>
+          <p class="metric-label">Chi nhánh</p>
+          <p class="metric-value">{{ stats.branches }}</p>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon metric-violet">
+          <span class="material-symbols-outlined">theaters</span>
+        </div>
+        <div>
+          <p class="metric-label">Phòng chiếu</p>
+          <p class="metric-value">{{ stats.auditoriums }}</p>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon metric-amber">
+          <span class="material-symbols-outlined">event_seat</span>
+        </div>
+        <div>
+          <p class="metric-label">Ghế</p>
+          <p class="metric-value">{{ stats.seats }}</p>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon metric-pink">
+          <span class="material-symbols-outlined">schedule</span>
+        </div>
+        <div>
+          <p class="metric-label">Suất chiếu</p>
+          <p class="metric-value">{{ stats.showtimes }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel p-3 md:p-4">
+      <div class="flex flex-wrap gap-2">
+        <button
+          v-for="tab in tabItems"
+          :key="tab.key"
+          @click="activeTab = tab.key"
+          class="tab-btn"
+          :class="activeTab === tab.key
+            ? 'tab-btn-active'
+            : 'tab-btn-idle'"
+        >
+          <span class="material-symbols-outlined text-base">{{ tab.icon }}</span>
+          {{ tab.label }}
         </button>
       </div>
 
-      <!-- Tab Contents -->
-      <div class="p-6">
+      <div class="tab-desc">
+        <p class="text-sm font-semibold text-on-surface">{{ activeTabMeta.label }}</p>
+        <p class="text-xs text-on-surface-variant mt-0.5">{{ activeTabMeta.description }}</p>
+      </div>
+    </section>
 
-        <!-- Movies Table -->
-        <div v-if="activeTab === 'movies'" class="overflow-x-auto">
-          <table class="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr class="border-b border-glass-stroke text-on-surface-variant uppercase tracking-wider font-bold">
-                <th class="py-3.5 px-4">Tên Phim</th>
-                <th class="py-3.5 px-4">Đạo Diễn</th>
-                <th class="py-3.5 px-4">Thể Loại</th>
-                <th class="py-3.5 px-4 text-center">Thời Lượng</th>
-                <th class="py-3.5 px-4 text-center">Đánh Giá</th>
-                <th class="py-3.5 px-4 text-right">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-glass-stroke/40">
-              <tr v-for="movie in moviesList" :key="movie.id" class="hover:bg-white/5 transition-colors">
-                <td class="py-4 px-4 font-bold text-on-surface">{{ movie.title }}</td>
-                <td class="py-4 px-4 text-on-surface-variant">{{ movie.director }}</td>
-                <td class="py-4 px-4 text-on-surface-variant">{{ movie.genre.join(', ') }}</td>
-                <td class="py-4 px-4 text-center text-on-surface-variant font-mono">{{ movie.duration }} phút</td>
-                <td class="py-4 px-4 text-center text-yellow-500 font-bold">★ {{ movie.rating.toFixed(1) }}</td>
-                <td class="py-4 px-4 text-right space-x-2">
-                  <button @click="openEditMovieModal(movie)" class="text-blue-400 hover:text-blue-300 font-semibold">Sửa</button>
-                  <button @click="handleDeleteMovie(movie.id)" class="text-red-400 hover:text-red-300 font-semibold">Xóa</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+    <p v-if="error" class="panel border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</p>
+    <p v-if="loading" class="panel border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">Đang tải dữ liệu mới nhất...</p>
+
+    <section v-if="activeTab === 'users'" class="space-y-4">
+      <div class="panel p-5 space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-lg font-bold text-on-surface">Tạo người dùng mới</h3>
+          <span class="pill-muted">Users: {{ users.length }}</span>
         </div>
+        <form class="grid md:grid-cols-3 gap-3" @submit.prevent="createUser">
+          <input v-model="userForm.fullName" placeholder="Họ tên" class="field-input" required />
+          <input v-model="userForm.email" type="email" placeholder="Email" class="field-input" required />
+          <input v-model="userForm.password" type="password" placeholder="Mật khẩu" class="field-input" required />
+          <input v-model="userForm.phone" placeholder="SĐT" class="field-input" />
+          <select v-model="userForm.roleCode" class="field-input">
+            <option value="CUSTOMER">CUSTOMER</option>
+            <option value="BRANCH_ADMIN">BRANCH_ADMIN</option>
+            <option value="STAFF">STAFF</option>
+            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+          </select>
+          <select v-model="userForm.branchId" class="field-input">
+            <option value="">Không gán chi nhánh</option>
+            <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+          </select>
+          <button class="md:col-span-3 action-primary">Tạo user</button>
+        </form>
+      </div>
 
-        <!-- Branches Table -->
-        <div v-if="activeTab === 'branches'" class="overflow-x-auto">
-          <table class="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr class="border-b border-glass-stroke text-on-surface-variant uppercase tracking-wider font-bold">
-                <th class="py-3.5 px-4">Tên Chi Nhánh</th>
-                <th class="py-3.5 px-4">Khu Vực</th>
-                <th class="py-3.5 px-4 text-center">Số Phòng Chiếu</th>
-                <th class="py-3.5 px-4 text-center">Trạng Thái</th>
+      <div class="panel overflow-hidden">
+        <div class="overflow-auto">
+          <table class="w-full text-sm min-w-[860px]">
+            <thead class="table-head">
+              <tr class="text-left text-on-surface-variant">
+                <th class="px-4 py-3">Tên</th>
+                <th class="px-4 py-3">Email</th>
+                <th class="px-4 py-3">Role</th>
+                <th class="px-4 py-3">Trạng thái</th>
+                <th class="px-4 py-3">Chi nhánh</th>
+                <th class="px-4 py-3">Hành động</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-glass-stroke/40">
-              <tr v-for="branch in branchesList" :key="branch.id" class="hover:bg-white/5 transition-colors">
-                <td class="py-4 px-4 font-bold text-on-surface">{{ branch.name }}</td>
-                <td class="py-4 px-4 text-on-surface-variant">{{ branch.city }}</td>
-                <td class="py-4 px-4 text-center text-on-surface-variant font-mono">{{ branch.screens }}</td>
-                <td class="py-4 px-4 text-center">
-                  <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px]" :class="branch.status === 'Hoạt động' ? 'bg-green-950 text-green-400 border border-green-500/20' : 'bg-yellow-950 text-yellow-400 border border-yellow-500/20'">
-                    {{ branch.status }}
+            <tbody>
+              <tr v-for="u in users" :key="u.id" class="table-row">
+                <td class="px-4 py-3 font-semibold text-on-surface">{{ u.name }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ u.email }}</td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="roleBadgeClass(u.role)">{{ u.role }}</span>
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                    :class="u.isActive ? 'badge status-open' : 'badge status-cancelled'"
+                  >
+                    {{ u.isActive ? 'Đang hoạt động' : 'Đã khoá' }}
                   </span>
                 </td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ resolveUserBranchName(u.branchId) }}</td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-2">
+                    <button @click="updateUserRole(u)" class="action-link action-link-blue">Đổi role</button>
+                    <button @click="updateUserActive(u)" class="action-link action-link-amber">Khoá/Mở</button>
+                    <button @click="softDeleteUser(u)" class="action-link action-link-rose">Xoá mềm</button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
+      </div>
+    </section>
 
-        <!-- Users Table -->
-        <div v-if="activeTab === 'users'" class="overflow-x-auto">
-          <table class="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr class="border-b border-glass-stroke text-on-surface-variant uppercase tracking-wider font-bold">
-                <th class="py-3.5 px-4">Họ Tên</th>
-                <th class="py-3.5 px-4">Email</th>
-                <th class="py-3.5 px-4">Phân Quyền</th>
-                <th class="py-3.5 px-4">Thao Tác</th>
+    <section v-if="activeTab === 'branches'" class="space-y-4">
+      <div class="panel p-5 space-y-4">
+        <h3 class="text-lg font-bold text-on-surface">Tạo chi nhánh / khu vực</h3>
+        <form class="grid md:grid-cols-3 gap-3" @submit.prevent="createBranch">
+          <input v-model="branchForm.code" placeholder="Mã" class="field-input" required />
+          <input v-model="branchForm.name" placeholder="Tên chi nhánh" class="field-input" required />
+          <input v-model="branchForm.city" placeholder="Thành phố" class="field-input" required />
+          <input v-model="branchForm.addressLine" placeholder="Địa chỉ" class="field-input md:col-span-2" required />
+          <input v-model="branchForm.district" placeholder="Quận/Huyện" class="field-input" />
+          <input v-model="branchForm.phone" placeholder="SĐT" class="field-input" />
+          <button class="md:col-span-3 action-primary">Tạo chi nhánh</button>
+        </form>
+      </div>
+
+      <div class="panel overflow-hidden">
+        <div class="overflow-auto">
+          <table class="w-full text-sm min-w-[760px]">
+            <thead class="table-head">
+              <tr class="text-left text-on-surface-variant">
+                <th class="px-4 py-3">Code</th>
+                <th class="px-4 py-3">Tên</th>
+                <th class="px-4 py-3">City</th>
+                <th class="px-4 py-3">Số phòng</th>
+                <th class="px-4 py-3">Hành động</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-glass-stroke/40">
-              <tr v-for="user in usersList" :key="user.id" class="hover:bg-white/5 transition-colors">
-                <td class="py-4 px-4 font-bold text-on-surface">{{ user.name }}</td>
-                <td class="py-4 px-4 text-on-surface-variant font-mono">{{ user.email }}</td>
-                <td class="py-4 px-4 capitalize">
-                  <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px]" :class="user.role === 'admin' ? 'bg-red-950 text-red-400 border border-red-500/20' : user.role === 'branch-admin' ? 'bg-purple-950 text-purple-400 border border-purple-500/20' : 'bg-blue-950 text-blue-400 border border-blue-500/20'">
-                    {{ user.role }}
-                  </span>
-                </td>
-                <td class="py-4 px-4">
-                  <button @click="openRoleModal(user)" class="text-primary-container font-semibold hover:underline">Chỉnh sửa</button>
+            <tbody>
+              <tr v-for="b in branches" :key="b.id" class="table-row">
+                <td class="px-4 py-3 font-semibold text-on-surface">{{ b.code }}</td>
+                <td class="px-4 py-3 text-on-surface">{{ b.name }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ b.city }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ b.auditoriums_count }}</td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-2">
+                    <button @click="editBranch(b)" class="action-link action-link-blue">Sửa</button>
+                    <button @click="deleteBranch(b)" class="action-link action-link-rose">Xoá</button>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-
       </div>
-    </div>
+    </section>
 
-    <!-- Add/Edit Movie Modal overlay -->
-    <transition
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition duration-200 ease-in"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <div v-if="showAddMovieModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-2xl border border-glass-stroke p-6 relative">
-          <button @click="showAddMovieModal = false" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+    <section v-if="activeTab === 'auditoriums'" class="space-y-4">
+      <div class="panel p-5 space-y-4">
+        <h3 class="text-lg font-bold text-on-surface">Tạo phòng chiếu</h3>
+        <form class="grid md:grid-cols-3 gap-3" @submit.prevent="createAuditorium">
+          <select v-model="auditoriumForm.branchId" class="field-input" required>
+            <option value="" disabled>Chọn chi nhánh</option>
+            <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+          </select>
+          <input v-model="auditoriumForm.code" placeholder="Mã phòng" class="field-input" required />
+          <input v-model="auditoriumForm.name" placeholder="Tên phòng" class="field-input" required />
+          <input v-model.number="auditoriumForm.totalSeats" type="number" placeholder="Số ghế" class="field-input" required />
+          <input v-model="auditoriumForm.screenType" placeholder="Loại màn hình" class="field-input" />
+          <button class="md:col-span-3 action-primary">Tạo phòng</button>
+        </form>
+      </div>
 
-          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">{{ editingMovieId ? 'Chỉnh Sửa Phim' : 'Thêm Phim Mới' }}</h3>
-
-          <form @submit.prevent="handleAddMovieSubmit" class="space-y-4">
-            <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Tên phim</label>
-              <input v-model="newMovieTitle" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Nhập tên phim" />
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Thể loại (ngăn cách bằng dấu phẩy)</label>
-              <input v-model="newMovieGenre" type="text" required class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Hành Động, Viễn Tưởng" />
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Đạo diễn</label>
-                <input v-model="newMovieDirector" type="text" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" placeholder="Denis Villeneuve" />
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Thời lượng (phút)</label>
-                <input v-model.number="newMovieDuration" type="number" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" />
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Đánh giá</label>
-              <input v-model.number="newMovieRating" type="number" min="0" max="10" step="0.1" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface" />
-            </div>
-
-            <button type="submit" class="w-full bg-primary-container text-white py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md red-glow">
-              {{ editingMovieId ? 'Cập nhật' : 'Tạo phim mới' }}
-            </button>
-          </form>
+      <div class="panel overflow-hidden">
+        <div class="overflow-auto">
+          <table class="w-full text-sm min-w-[760px]">
+            <thead class="table-head">
+              <tr class="text-left text-on-surface-variant">
+                <th class="px-4 py-3">Phòng</th>
+                <th class="px-4 py-3">Chi nhánh</th>
+                <th class="px-4 py-3">Số ghế</th>
+                <th class="px-4 py-3">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="a in auditoriums" :key="a.id" class="table-row">
+                <td class="px-4 py-3 text-on-surface">{{ a.name }} ({{ a.code }})</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ a.branch_name }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ a.total_seats }}</td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-2">
+                    <button @click="editAuditorium(a)" class="action-link action-link-blue">Sửa</button>
+                    <button @click="deleteAuditorium(a)" class="action-link action-link-rose">Xoá</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    </transition>
+    </section>
 
-    <!-- Role Edit Modal -->
-    <transition
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition duration-200 ease-in"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <div v-if="showRoleModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-2xl border border-glass-stroke p-6 relative">
-          <button @click="showRoleModal = false" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-
-          <h3 class="font-headline-md text-lg font-bold text-on-surface mb-6">Cập nhật phân quyền</h3>
-
-          <div v-if="selectedUser" class="mb-4 text-xs text-on-surface-variant">
-            {{ selectedUser.name }} - {{ selectedUser.email }}
-          </div>
-
-          <form @submit.prevent="handleSaveUserRole" class="space-y-4">
-            <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Vai trò</label>
-              <select v-model="selectedRoleCode" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
-                <option value="CUSTOMER">Customer</option>
-                <option value="BRANCH_ADMIN">Branch Admin</option>
-                <option value="STAFF">Branch Staff</option>
-                <option value="SUPER_ADMIN">Website Admin</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Chi nhánh</label>
-              <select v-model="selectedBranchId" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
-                <option value="">-- Không gán --</option>
-                <option v-for="branch in branchOptions" :key="branch.id" :value="branch.id">
-                  {{ branch.name }} - {{ branch.city }}
-                </option>
-              </select>
-            </div>
-
-            <button type="submit" class="w-full bg-primary-container text-white py-3 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md red-glow">
-              Lưu thay đổi
-            </button>
-          </form>
+    <section v-if="activeTab === 'seats'" class="space-y-4">
+      <div class="panel p-5 space-y-4">
+        <h3 class="text-lg font-bold text-on-surface">Tạo ghế trong phòng</h3>
+        <div class="grid md:grid-cols-5 gap-3">
+          <select v-model="seatForm.auditoriumId" @change="loadSeatsByAuditorium" class="field-input">
+            <option value="" disabled>Chọn phòng</option>
+            <option v-for="a in auditoriums" :key="a.id" :value="a.id">{{ a.branch_name }} - {{ a.name }}</option>
+          </select>
+          <input v-model="seatForm.row" placeholder="Hàng" class="field-input" />
+          <input v-model.number="seatForm.number" type="number" placeholder="Số" class="field-input" />
+          <select v-model.number="seatForm.seatTypeId" class="field-input">
+            <option v-for="st in seatTypes" :key="st.id" :value="st.id">{{ st.code }}</option>
+          </select>
+          <button @click="createSeat" class="action-primary">Tạo ghế</button>
         </div>
       </div>
-    </transition>
 
+      <div class="panel overflow-hidden">
+        <div class="overflow-auto">
+          <table class="w-full text-sm min-w-[760px]">
+            <thead class="table-head">
+              <tr class="text-left text-on-surface-variant">
+                <th class="px-4 py-3">Ghế</th>
+                <th class="px-4 py-3">Loại</th>
+                <th class="px-4 py-3">Phòng</th>
+                <th class="px-4 py-3">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in seats" :key="s.id" class="table-row">
+                <td class="px-4 py-3 font-semibold text-on-surface">{{ s.seat_row }}{{ s.seat_number }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ s.seat_type_code }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ s.branch_name }} - {{ s.auditorium_name }}</td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-2">
+                    <button @click="editSeat(s)" class="action-link action-link-blue">Sửa</button>
+                    <button @click="deleteSeat(s)" class="action-link action-link-rose">Xoá</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="activeTab === 'showtimes'" class="space-y-4">
+      <div class="panel p-5 space-y-4">
+        <h3 class="text-lg font-bold text-on-surface">Tạo suất chiếu</h3>
+        <p class="text-xs text-on-surface-variant">Phim chọn từ TMDB sẽ được import tự động vào catalog nội bộ trước khi tạo suất.</p>
+        <form class="grid md:grid-cols-3 gap-3" @submit.prevent="createShowtime">
+          <select v-model="showtimeForm.movieId" class="field-input" required>
+            <option value="" disabled>Chọn phim</option>
+            <option v-for="m in showtimeMovieOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
+          </select>
+          <select v-model="showtimeForm.auditoriumId" class="field-input" required>
+            <option value="" disabled>Chọn phòng</option>
+            <option v-for="a in auditoriums" :key="a.id" :value="a.id">{{ a.branch_name }} - {{ a.name }}</option>
+          </select>
+          <input v-model.number="showtimeForm.basePrice" type="number" placeholder="Giá vé" class="field-input" required />
+          <input v-model="showtimeForm.startsAt" type="datetime-local" class="field-input" required />
+          <input v-model="showtimeForm.endsAt" type="datetime-local" class="field-input" required />
+          <select v-model="showtimeForm.status" class="field-input">
+            <option value="OPEN">OPEN</option>
+            <option value="CLOSED">CLOSED</option>
+            <option value="CANCELLED">CANCELLED</option>
+          </select>
+          <button class="md:col-span-3 action-primary">Tạo suất chiếu</button>
+        </form>
+      </div>
+
+      <div class="panel overflow-hidden">
+        <div class="overflow-auto">
+          <table class="w-full text-sm min-w-[960px]">
+            <thead class="table-head">
+              <tr class="text-left text-on-surface-variant">
+                <th class="px-4 py-3">Phim</th>
+                <th class="px-4 py-3">Rạp/Phòng</th>
+                <th class="px-4 py-3">Bắt đầu</th>
+                <th class="px-4 py-3">Giá</th>
+                <th class="px-4 py-3">Trạng thái</th>
+                <th class="px-4 py-3">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="st in showtimes" :key="st.id" class="table-row">
+                <td class="px-4 py-3 font-semibold text-on-surface">{{ st.movie_title }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ st.branch_name }} - {{ st.auditorium_name }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ fmtDateTime(st.starts_at) }}</td>
+                <td class="px-4 py-3 text-on-surface">{{ fmtCurrency(st.base_price) }}</td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="showtimeStatusClass(st.status)">{{ st.status }}</span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-2">
+                    <button @click="editShowtime(st)" class="action-link action-link-blue">Sửa</button>
+                    <button @click="deleteShowtime(st)" class="action-link action-link-rose">Xoá</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
+
+<style scoped>
+.admin-page {
+  --surface: #121414;
+  --card: #1a1c1c;
+  --line: rgba(255, 255, 255, 0.08);
+  --text-main: #e2e2e2;
+  --text-soft: #b3b3b3;
+  background:
+    radial-gradient(90% 130% at 0% 0%, rgba(229, 9, 20, 0.08) 0%, #121414 45%, #121414 100%);
+  color: var(--text-main);
+  min-height: 100%;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.24);
+}
+
+.hero-panel {
+  background: linear-gradient(120deg, rgba(26, 28, 28, 0.98) 0%, rgba(36, 18, 21, 0.95) 100%);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.24);
+}
+
+.hero-kicker {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+  color: #ffb4aa;
+}
+
+.hero-title {
+  margin-top: 0.42rem;
+  font-size: 1.7rem;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.hero-subtitle {
+  margin-top: 0.42rem;
+  max-width: 50rem;
+  font-size: 0.9rem;
+  color: var(--text-soft);
+}
+
+.metric-card {
+  background: rgba(30, 32, 32, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+}
+
+.metric-icon {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.metric-green { background: linear-gradient(135deg, #22c55e, #16a34a); }
+.metric-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.metric-violet { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.metric-amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.metric-pink { background: linear-gradient(135deg, #ec4899, #db2777); }
+
+.metric-label {
+  font-size: 0.73rem;
+  color: var(--text-soft);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.metric-value {
+  margin-top: 0.2rem;
+  font-size: 1.4rem;
+  color: var(--text-main);
+  font-weight: 900;
+}
+
+.action-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e2e2;
+  padding: 0.62rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.action-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.8rem;
+  border: 1px solid;
+  padding: 0.55rem 0.78rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.tab-btn-active {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, #e50914, #9f1239);
+  box-shadow: 0 12px 24px -16px rgba(229, 9, 20, 0.9);
+}
+
+.tab-btn-idle {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #b3b3b3;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-btn-idle:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tab-desc {
+  margin-top: 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.7rem 0.9rem;
+}
+
+.pill-muted {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  padding: 0.24rem 0.6rem;
+}
+
+.field-input {
+  background: rgba(30, 32, 32, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.875rem;
+  color: #f5f5f5;
+  transition: all 0.2s ease;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: rgba(229, 9, 20, 0.65);
+  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.15);
+}
+
+.action-primary {
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #e50914 0%, #be0812 100%);
+  padding: 0.6rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.action-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -16px rgba(229, 9, 20, 0.95);
+}
+
+.action-link {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.6rem;
+  padding: 0.32rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.2s ease;
+}
+
+.action-link:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.action-link-blue { color: #7dd3fc; }
+.action-link-amber { color: #fcd34d; }
+.action-link-rose { color: #fda4af; }
+
+.table-head {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.table-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.table-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.badge {
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+
+.role-admin { background: rgba(229, 9, 20, 0.16); border-color: rgba(229, 9, 20, 0.28); color: #fecaca; }
+.role-branch-admin { background: rgba(139, 92, 246, 0.18); border-color: rgba(139, 92, 246, 0.28); color: #ddd6fe; }
+.role-staff { background: rgba(59, 130, 246, 0.18); border-color: rgba(59, 130, 246, 0.28); color: #bfdbfe; }
+.role-customer { background: rgba(34, 197, 94, 0.16); border-color: rgba(34, 197, 94, 0.26); color: #bbf7d0; }
+
+.status-open { background: rgba(34, 197, 94, 0.16); border-color: rgba(34, 197, 94, 0.26); color: #bbf7d0; }
+.status-closed { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.28); color: #fde68a; }
+.status-cancelled { background: rgba(148, 163, 184, 0.16); border-color: rgba(148, 163, 184, 0.26); color: #cbd5e1; }
+
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 1.35rem;
+  }
+}
+</style>

@@ -68,6 +68,15 @@ export interface Movie {
   aiMatchReason?: string
 }
 
+export interface TmdbPopularMovie {
+  tmdb_id: number
+  title: string
+  overview: string
+  poster_path: string | null
+  release_date: string | null
+  original_title: string | null
+}
+
 export interface Showtime {
   id: string
   movieId: string
@@ -107,6 +116,7 @@ export interface UserProfile {
   name: string
   email: string
   role: 'customer' | 'admin' | 'branch-admin' | 'staff'
+  isActive: boolean
   branchId?: string
   phone?: string | null
   dateOfBirth?: string | null
@@ -133,6 +143,222 @@ export interface BackendBranch {
   code: string
   name: string
   city: string
+}
+
+export interface AdminBranchManage {
+  id: string
+  vendor_id: string
+  code: string
+  name: string
+  address_line: string
+  city: string
+  district: string | null
+  phone: string | null
+  is_active: boolean
+  auditoriums_count: number
+}
+
+export interface AdminAuditorium {
+  id: string
+  branch_id: string
+  branch_name: string
+  code: string
+  name: string
+  total_seats: number
+  screen_type: string | null
+  is_active: boolean
+}
+
+export interface AdminSeatType {
+  id: number
+  code: string
+  name: string
+}
+
+export interface AdminSeat {
+  id: string
+  auditorium_id: string
+  auditorium_name: string
+  branch_name: string
+  seat_row: string
+  seat_number: number
+  seat_type_id: number
+  seat_type_code: string
+  is_active: boolean
+}
+
+export interface AdminShowtime {
+  id: string
+  movie_id: string
+  movie_title: string
+  auditorium_id: string
+  auditorium_name: string
+  branch_name: string
+  starts_at: string
+  ends_at: string
+  status: string
+  base_price: number
+}
+
+export interface BranchAdminSalesPoint {
+  label: string
+  tickets: number
+}
+
+export interface BranchAdminPromo {
+  code: string
+  discount: number
+  desc: string
+  active: boolean
+}
+
+export interface BranchAdminStats {
+  branchId: string
+  branchName: string
+  ticketsSold: number
+  activeShowtimes: number
+  activePromos: number
+  branchRevenue: number
+  salesChartData: BranchAdminSalesPoint[]
+  showtimesList: AdminShowtime[]
+  promotionsList: BranchAdminPromo[]
+}
+
+export interface MovieRequestPayload {
+  title: string
+  original_title?: string | null
+  description?: string | null
+  duration_min: number
+  release_date?: string | null
+  age_rating?: string | null
+  language?: string | null
+  trailer_url?: string | null
+  poster_url?: string | null
+  status: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'
+  genres: string[]
+}
+
+export interface MovieRequestCreatePayload {
+  request_type: 'CREATE' | 'UPDATE' | 'DELETE'
+  target_movie_id?: string | null
+  payload: MovieRequestPayload
+}
+
+export interface MovieRequest {
+  id: string
+  requested_by_id: string
+  target_movie_id: string | null
+  request_type: 'CREATE' | 'UPDATE' | 'DELETE'
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  payload: MovieRequestPayload
+  review_note: string | null
+  created_at: string
+}
+
+export interface AdminCreateUserPayload {
+  email: string
+  full_name: string
+  password: string
+  phone?: string | null
+  date_of_birth?: string | null
+  gender?: string | null
+  role_code: 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN'
+  branch_id?: string | null
+}
+
+export interface AdminUpdateUserPayload {
+  full_name?: string
+  phone?: string | null
+  date_of_birth?: string | null
+  gender?: string | null
+  is_active?: boolean
+}
+
+export interface AdminCreateBranchPayload {
+  vendor_id?: string | null
+  code: string
+  name: string
+  address_line: string
+  city: string
+  district?: string | null
+  phone?: string | null
+  is_active?: boolean
+}
+
+export interface AdminUpdateBranchPayload {
+  code?: string
+  name?: string
+  address_line?: string
+  city?: string
+  district?: string | null
+  phone?: string | null
+  is_active?: boolean
+}
+
+export interface AdminCreateAuditoriumPayload {
+  branch_id: string
+  code: string
+  name: string
+  total_seats: number
+  screen_type?: string | null
+  is_active?: boolean
+}
+
+export interface AdminUpdateAuditoriumPayload {
+  code?: string
+  name?: string
+  total_seats?: number
+  screen_type?: string | null
+  is_active?: boolean
+}
+
+export interface AdminCreateSeatPayload {
+  auditorium_id: string
+  seat_row: string
+  seat_number: number
+  seat_type_id: number
+  is_active?: boolean
+}
+
+export interface AdminUpdateSeatPayload {
+  seat_row?: string
+  seat_number?: number
+  seat_type_id?: number
+  is_active?: boolean
+}
+
+export interface AdminCreateShowtimePayload {
+  movie_id: string
+  auditorium_id: string
+  starts_at: string
+  ends_at: string
+  status?: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  base_price: number
+}
+
+export interface AdminImportTmdbMoviePayload {
+  tmdb_id: number
+  title: string
+  overview?: string | null
+  poster_path?: string | null
+  release_date?: string | null
+  original_title?: string | null
+  language?: string | null
+  duration_min?: number
+}
+
+export interface AdminImportTmdbMovieResult {
+  id: string
+  title: string
+  imported: boolean
+}
+
+export interface AdminUpdateShowtimePayload {
+  auditorium_id?: string
+  starts_at?: string
+  ends_at?: string
+  status?: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  base_price?: number
 }
 
 export interface BackendRole {
@@ -175,8 +401,31 @@ export interface AuthResponse {
 }
 
 function mapBackendRoleToFrontend(roleCodes: string[]): UserProfile['role'] {
-  if (roleCodes.includes('SUPER_ADMIN')) return 'admin'
-  if (roleCodes.includes('BRANCH_ADMIN') || roleCodes.includes('STAFF')) return 'branch-admin'
+
+  const roles = roleCodes.map(r => r.toUpperCase())
+
+  if (
+    roles.includes('SUPER_ADMIN') ||
+    roles.includes('ADMIN')
+  ) {
+    return 'admin'
+  }
+
+
+  if (
+    roles.includes('BRANCH_ADMIN')
+  ) {
+    return 'branch-admin'
+  }
+
+
+  if (
+    roles.includes('STAFF')
+  ) {
+    return 'staff'
+  }
+
+
   return 'customer'
 }
 
@@ -186,6 +435,7 @@ export function mapBackendUserToProfile(user: BackendUser, token?: string): User
     name: user.full_name,
     email: user.email,
     role: mapBackendRoleToFrontend(user.roles.map(role => role.code)),
+    isActive: user.is_active,
     phone: user.phone,
     dateOfBirth: user.date_of_birth,
     gender: user.gender,
@@ -199,6 +449,7 @@ export function mapBackendAdminUserToProfile(user: BackendAdminUser): UserProfil
     name: user.full_name,
     email: user.email,
     role: mapBackendRoleToFrontend(user.roles.map(role => role.code)),
+    isActive: user.is_active,
     phone: user.phone,
     dateOfBirth: user.date_of_birth,
     gender: user.gender,
@@ -284,6 +535,122 @@ export const adminBackendService = {
       branch_id: branchId || null,
     })
     return mapBackendAdminUserToProfile(res.data)
+  },
+
+  async createUser(payload: AdminCreateUserPayload): Promise<UserProfile> {
+    const res = await apiClient.post<BackendAdminUser>('/admin/users', payload)
+    return mapBackendAdminUserToProfile(res.data)
+  },
+
+  async updateUser(userId: string, payload: AdminUpdateUserPayload): Promise<UserProfile> {
+    const res = await apiClient.patch<BackendAdminUser>(`/admin/users/${userId}`, payload)
+    return mapBackendAdminUserToProfile(res.data)
+  },
+
+  async deleteUser(userId: string): Promise<void> {
+    await apiClient.delete(`/admin/users/${userId}`)
+  },
+
+  async getBranchesManage(): Promise<AdminBranchManage[]> {
+    const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
+    return res.data
+  },
+
+  async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
+    const res = await apiClient.post<AdminBranchManage>('/admin/branches/manage', payload)
+    return res.data
+  },
+
+  async updateBranch(branchId: string, payload: AdminUpdateBranchPayload): Promise<AdminBranchManage> {
+    const res = await apiClient.patch<AdminBranchManage>(`/admin/branches/manage/${branchId}`, payload)
+    return res.data
+  },
+
+  async deleteBranch(branchId: string): Promise<void> {
+    await apiClient.delete(`/admin/branches/manage/${branchId}`)
+  },
+
+  async getAuditoriums(branchId?: string): Promise<AdminAuditorium[]> {
+    const res = await apiClient.get<AdminAuditorium[]>('/admin/auditoriums', {
+      params: branchId ? { branch_id: branchId } : undefined,
+    })
+    return res.data
+  },
+
+  async createAuditorium(payload: AdminCreateAuditoriumPayload): Promise<AdminAuditorium> {
+    const res = await apiClient.post<AdminAuditorium>('/admin/auditoriums', payload)
+    return res.data
+  },
+
+  async updateAuditorium(auditoriumId: string, payload: AdminUpdateAuditoriumPayload): Promise<AdminAuditorium> {
+    const res = await apiClient.patch<AdminAuditorium>(`/admin/auditoriums/${auditoriumId}`, payload)
+    return res.data
+  },
+
+  async deleteAuditorium(auditoriumId: string): Promise<void> {
+    await apiClient.delete(`/admin/auditoriums/${auditoriumId}`)
+  },
+
+  async getSeatTypes(): Promise<AdminSeatType[]> {
+    const res = await apiClient.get<AdminSeatType[]>('/admin/seat-types')
+    return res.data
+  },
+
+  async getSeats(auditoriumId?: string): Promise<AdminSeat[]> {
+    const res = await apiClient.get<AdminSeat[]>('/admin/seats', {
+      params: auditoriumId ? { auditorium_id: auditoriumId } : undefined,
+    })
+    return res.data
+  },
+
+  async createSeat(payload: AdminCreateSeatPayload): Promise<AdminSeat> {
+    const res = await apiClient.post<AdminSeat>('/admin/seats', payload)
+    return res.data
+  },
+
+  async updateSeat(seatId: string, payload: AdminUpdateSeatPayload): Promise<AdminSeat> {
+    const res = await apiClient.patch<AdminSeat>(`/admin/seats/${seatId}`, payload)
+    return res.data
+  },
+
+  async deleteSeat(seatId: string): Promise<void> {
+    await apiClient.delete(`/admin/seats/${seatId}`)
+  },
+
+  async getShowtimes(branchId?: string): Promise<AdminShowtime[]> {
+    const res = await apiClient.get<AdminShowtime[]>('/admin/showtimes', {
+      params: branchId ? { branch_id: branchId } : undefined,
+    })
+    return res.data
+  },
+
+  async createShowtime(payload: AdminCreateShowtimePayload): Promise<AdminShowtime> {
+    const res = await apiClient.post<AdminShowtime>('/admin/showtimes', payload)
+    return res.data
+  },
+
+  async updateShowtime(showtimeId: string, payload: AdminUpdateShowtimePayload): Promise<AdminShowtime> {
+    const res = await apiClient.patch<AdminShowtime>(`/admin/showtimes/${showtimeId}`, payload)
+    return res.data
+  },
+
+  async deleteShowtime(showtimeId: string): Promise<void> {
+    await apiClient.delete(`/admin/showtimes/${showtimeId}`)
+  },
+
+  async importTmdbMovie(payload: AdminImportTmdbMoviePayload): Promise<AdminImportTmdbMovieResult> {
+    const res = await apiClient.post<AdminImportTmdbMovieResult>('/admin/movies/import-tmdb', payload)
+    return res.data
+  },
+
+  async getMyMovieRequests(): Promise<MovieRequest[]> {
+    const res = await apiClient.get<MovieRequest[]>('/branch-admin/movie-requests')
+    return res.data
+  },
+
+  async submitMovieRequest(payload: MovieRequestCreatePayload): Promise<MovieRequest> {
+    const res = await apiClient.post<MovieRequest>('/branch-admin/movie-requests', payload)
+    return res.data
   },
 }
 
@@ -669,6 +1036,12 @@ export const movieService = {
     if (USE_MOCK) {
       return mockShowtimes.filter(s => s.movieId === movieId)
     }
+    // Internal showtimes endpoint expects backend UUID movie IDs.
+    // TMDB numeric IDs should not be sent to this API.
+    const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(movieId)
+    if (!uuidLike) {
+      return []
+    }
     const res = await apiClient.get<BackendShowtime[]>(`/movies/${movieId}/showtimes`)
     return res.data.map(mapBackendShowtimeToFrontend)
   },
@@ -707,6 +1080,19 @@ export const movieService = {
     }
     const res = await apiClient.get<BackendMovie[]>('/movies/recommendations')
     return res.data.map(mapBackendMovieToFrontend)
+  },
+
+  async getPopularFromTmdb(): Promise<TmdbPopularMovie[]> {
+    const data = await $fetch<{ results?: any[] }>('/api/movies')
+    const results = Array.isArray(data?.results) ? data.results : []
+    return results.map((item: any) => ({
+      tmdb_id: Number(item.id),
+      title: String(item.title || item.name || ''),
+      overview: String(item.overview || ''),
+      poster_path: item.poster_path ? String(item.poster_path) : null,
+      release_date: item.release_date ? String(item.release_date) : null,
+      original_title: item.original_title ? String(item.original_title) : null,
+    }))
   }
 }
 
@@ -852,10 +1238,10 @@ export const adminService = {
         ],
         moviesList: mockMovies,
         usersList: [
-          { id: 'u1', name: 'Nguyễn Văn A', email: 'vana@gmail.com', role: 'customer' },
-          { id: 'u2', name: 'Trần Thị B', email: 'thib@gmail.com', role: 'customer' },
-          { id: 'u3', name: 'Đặng Thanh Phong', email: 'phongnd@cineai.vn', role: 'admin' },
-          { id: 'u4', name: 'Võ Toàn Phú', email: 'phuvt@cineai.vn', role: 'branch-admin', branchId: 'b1' }
+          { id: 'u1', name: 'Nguyễn Văn A', email: 'vana@gmail.com', role: 'customer', isActive: true },
+          { id: 'u2', name: 'Trần Thị B', email: 'thib@gmail.com', role: 'customer', isActive: true },
+          { id: 'u3', name: 'Đặng Thanh Phong', email: 'phongnd@cineai.vn', role: 'admin', isActive: true },
+          { id: 'u4', name: 'Võ Toàn Phú', email: 'phuvt@cineai.vn', role: 'branch-admin', branchId: 'b1', isActive: true }
         ]
       }
     }
@@ -863,17 +1249,11 @@ export const adminService = {
     return res.data
   },
 
-  async getBranchAdminStats(branchId: string): Promise<{
-    ticketsSold: number
-    activeShowtimes: number
-    activePromos: number
-    branchRevenue: number
-    salesChartData: { label: string; tickets: number }[]
-    showtimesList: Showtime[]
-    promotionsList: { code: string; discount: number; desc: string; active: boolean }[]
-  }> {
+  async getBranchAdminStats(branchId?: string): Promise<BranchAdminStats> {
     if (USE_MOCK) {
       return {
+        branchId: 'b1',
+        branchName: 'CineAI Sala Q2',
         ticketsSold: 345,
         activeShowtimes: 8,
         activePromos: 3,
@@ -887,7 +1267,18 @@ export const adminService = {
           { label: 'Thứ Bảy', tickets: 110 },
           { label: 'Chủ Nhật', tickets: 120 }
         ],
-        showtimesList: mockShowtimes.filter(s => s.branchName.includes('Sala')),
+        showtimesList: mockShowtimes.filter(s => s.branchName.includes('Sala')).map((showtime, index) => ({
+          id: showtime.id,
+          movie_id: showtime.movieId,
+          movie_title: mockMovies.find(movie => movie.id === showtime.movieId)?.title || 'Phim đã ẩn',
+          auditorium_id: `aud-${index + 1}`,
+          auditorium_name: showtime.screenName,
+          branch_name: showtime.branchName,
+          starts_at: `${showtime.date}T${showtime.time}:00+07:00`,
+          ends_at: `${showtime.date}T${showtime.time}:00+07:00`,
+          status: 'OPEN',
+          base_price: showtime.price,
+        })),
         promotionsList: [
           { code: 'AISELECTION', discount: 15, desc: 'Giảm 15% cho phim do AI gợi ý', active: true },
           { code: 'WEEKEND30', discount: 10, desc: 'Giảm 10k/vé dịp cuối tuần', active: true },
@@ -895,8 +1286,141 @@ export const adminService = {
         ]
       }
     }
-    const res = await apiClient.get(`/branch-admin/stats?branchId=${branchId}`)
+    const res = await apiClient.get<BranchAdminStats>('/branch-admin/stats', {
+      params: branchId ? { branchId } : undefined,
+    })
     return res.data
   }
+}
+
+export const legacyAdminBackendService = {
+  async getUsers(): Promise<UserProfile[]> {
+    const res = await apiClient.get<BackendAdminUser[]>('/admin/users')
+    return res.data.map(mapBackendAdminUserToProfile)
+  },
+
+  async createUser(payload: AdminCreateUserPayload): Promise<UserProfile> {
+    const res = await apiClient.post<BackendAdminUser>('/admin/users', payload)
+    return mapBackendAdminUserToProfile(res.data)
+  },
+
+  async updateUser(userId: string, payload: AdminUpdateUserPayload): Promise<UserProfile> {
+    const res = await apiClient.patch<BackendAdminUser>(`/admin/users/${userId}`, payload)
+    return mapBackendAdminUserToProfile(res.data)
+  },
+
+  async deleteUser(userId: string): Promise<void> {
+    await apiClient.delete(`/admin/users/${userId}`)
+  },
+
+  async updateUserRole(userId: string, roleCode: 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN', branchId?: string | null): Promise<UserProfile> {
+    const res = await apiClient.patch<BackendAdminUser>(`/admin/users/${userId}/role`, {
+      role_code: roleCode,
+      branch_id: branchId,
+    })
+    return mapBackendAdminUserToProfile(res.data)
+  },
+
+  async getBranchesManage(): Promise<AdminBranchManage[]> {
+    const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
+    return res.data
+  },
+
+  async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
+    const res = await apiClient.post<AdminBranchManage>('/admin/branches/manage', payload)
+    return res.data
+  },
+
+  async updateBranch(branchId: string, payload: AdminUpdateBranchPayload): Promise<AdminBranchManage> {
+    const res = await apiClient.patch<AdminBranchManage>(`/admin/branches/manage/${branchId}`, payload)
+    return res.data
+  },
+
+  async deleteBranch(branchId: string): Promise<void> {
+    await apiClient.delete(`/admin/branches/manage/${branchId}`)
+  },
+
+  async getAuditoriums(branchId?: string): Promise<AdminAuditorium[]> {
+    const res = await apiClient.get<AdminAuditorium[]>('/admin/auditoriums', {
+      params: branchId ? { branch_id: branchId } : undefined,
+    })
+    return res.data
+  },
+
+  async createAuditorium(payload: AdminCreateAuditoriumPayload): Promise<AdminAuditorium> {
+    const res = await apiClient.post<AdminAuditorium>('/admin/auditoriums', payload)
+    return res.data
+  },
+
+  async updateAuditorium(auditoriumId: string, payload: AdminUpdateAuditoriumPayload): Promise<AdminAuditorium> {
+    const res = await apiClient.patch<AdminAuditorium>(`/admin/auditoriums/${auditoriumId}`, payload)
+    return res.data
+  },
+
+  async deleteAuditorium(auditoriumId: string): Promise<void> {
+    await apiClient.delete(`/admin/auditoriums/${auditoriumId}`)
+  },
+
+  async getSeatTypes(): Promise<AdminSeatType[]> {
+    const res = await apiClient.get<AdminSeatType[]>('/admin/seat-types')
+    return res.data
+  },
+
+  async getSeats(auditoriumId?: string): Promise<AdminSeat[]> {
+    const res = await apiClient.get<AdminSeat[]>('/admin/seats', {
+      params: auditoriumId ? { auditorium_id: auditoriumId } : undefined,
+    })
+    return res.data
+  },
+
+  async createSeat(payload: AdminCreateSeatPayload): Promise<AdminSeat> {
+    const res = await apiClient.post<AdminSeat>('/admin/seats', payload)
+    return res.data
+  },
+
+  async updateSeat(seatId: string, payload: AdminUpdateSeatPayload): Promise<AdminSeat> {
+    const res = await apiClient.patch<AdminSeat>(`/admin/seats/${seatId}`, payload)
+    return res.data
+  },
+
+  async deleteSeat(seatId: string): Promise<void> {
+    await apiClient.delete(`/admin/seats/${seatId}`)
+  },
+
+  async getShowtimes(branchId?: string): Promise<AdminShowtime[]> {
+    const res = await apiClient.get<AdminShowtime[]>('/admin/showtimes', {
+      params: branchId ? { branch_id: branchId } : undefined,
+    })
+    return res.data
+  },
+
+  async createShowtime(payload: AdminCreateShowtimePayload): Promise<AdminShowtime> {
+    const res = await apiClient.post<AdminShowtime>('/admin/showtimes', payload)
+    return res.data
+  },
+
+  async updateShowtime(showtimeId: string, payload: AdminUpdateShowtimePayload): Promise<AdminShowtime> {
+    const res = await apiClient.patch<AdminShowtime>(`/admin/showtimes/${showtimeId}`, payload)
+    return res.data
+  },
+
+  async deleteShowtime(showtimeId: string): Promise<void> {
+    await apiClient.delete(`/admin/showtimes/${showtimeId}`)
+  },
+
+  async importTmdbMovie(payload: AdminImportTmdbMoviePayload): Promise<AdminImportTmdbMovieResult> {
+    const res = await apiClient.post<AdminImportTmdbMovieResult>('/admin/movies/import-tmdb', payload)
+    return res.data
+  },
+
+  async getMyMovieRequests(): Promise<MovieRequest[]> {
+    const res = await apiClient.get<MovieRequest[]>('/branch-admin/movie-requests')
+    return res.data
+  },
+
+  async submitMovieRequest(payload: MovieRequestCreatePayload): Promise<MovieRequest> {
+    const res = await apiClient.post<MovieRequest>('/branch-admin/movie-requests', payload)
+    return res.data
+  },
 }
 

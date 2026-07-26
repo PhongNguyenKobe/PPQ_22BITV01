@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { adminBackendService, adminService, mockMovies, type MovieRequest, type Showtime } from '~/services/api'
+import { adminBackendService, adminService, movieService, type AdminAuditorium, type AdminShowtime, type Movie, type MovieRequest } from '~/services/api'
 
 definePageMeta({
-  layout: 'admin'
+  layout: 'admin',
+  middleware: ['auth', 'branch-admin']
 })
 
 const activeTab = ref<'showtimes' | 'movies' | 'screens' | 'promos'>('showtimes')
+const branchId = ref('')
 
 // Stats
 const ticketsSold = ref(0)
@@ -14,23 +16,19 @@ const activeShowtimes = ref(0)
 const activePromos = ref(0)
 const branchRevenue = ref(0)
 const salesChartData = ref<{ label: string; tickets: number }[]>([])
+const branchName = ref('')
 
 // Lists
-const showtimesList = ref<Showtime[]>([])
+const showtimesList = ref<AdminShowtime[]>([])
 const promotionsList = ref<{ code: string; discount: number; desc: string; active: boolean }[]>([])
 const myMovieRequests = ref<MovieRequest[]>([])
-
-const screensList = ref([
-  { id: 'sc1', name: 'IMAX Room A', type: 'IMAX 3D', capacity: 120, status: 'Hoạt động' },
-  { id: 'sc2', name: 'Screen Room B', type: '4DX Dolby', capacity: 80, status: 'Hoạt động' },
-  { id: 'sc3', name: 'Screen Room C', type: 'Standard 2D', capacity: 100, status: 'Hoạt động' },
-  { id: 'sc4', name: 'Screen Room D', type: 'Standard 2D', capacity: 100, status: 'Đang dọn dẹp' }
-])
+const movies = ref<Movie[]>([])
+const auditoriums = ref<AdminAuditorium[]>([])
 
 // Add Showtime Form Modal State
 const showAddShowtimeModal = ref(false)
-const selectMovieId = ref('1')
-const selectScreenName = ref('IMAX Room A')
+const selectMovieId = ref('')
+const selectAuditoriumId = ref('')
 const inputDate = ref('2026-06-25')
 const inputTime = ref('20:00')
 const inputPrice = ref(90000)
@@ -51,7 +49,9 @@ const movieStatus = ref<'UPCOMING' | 'NOW_SHOWING' | 'ENDED'>('UPCOMING')
 
 onMounted(async () => {
   try {
-    const stats = await adminService.getBranchAdminStats('b1')
+    const stats = await adminService.getBranchAdminStats()
+    branchId.value = stats.branchId
+    branchName.value = stats.branchName
     ticketsSold.value = stats.ticketsSold
     activeShowtimes.value = stats.activeShowtimes
     activePromos.value = stats.activePromos
@@ -59,35 +59,45 @@ onMounted(async () => {
     salesChartData.value = stats.salesChartData
     showtimesList.value = stats.showtimesList
     promotionsList.value = stats.promotionsList
+
+    movies.value = await movieService.getAll()
+    auditoriums.value = await adminBackendService.getAuditoriums(stats.branchId)
     myMovieRequests.value = await adminBackendService.getMyMovieRequests()
+
+    if (!selectMovieId.value && movies.value.length > 0) {
+      selectMovieId.value = movies.value[0].id
+    }
+    if (!selectAuditoriumId.value && auditoriums.value.length > 0) {
+      selectAuditoriumId.value = auditoriums.value[0].id
+    }
   } catch (e) {
     console.error('Failed to load branch admin stats:', e)
   }
 })
 
-function handleDeleteShowtime(id: string) {
-  showtimesList.value = showtimesList.value.filter(s => s.id !== id)
-  activeShowtimes.value = showtimesList.value.length
+async function handleDeleteShowtime(id: string) {
+  await adminBackendService.deleteShowtime(id)
+  await refreshBranchData()
 }
 
-function handleAddShowtimeSubmit() {
-  const movie = mockMovies.find(m => m.id === selectMovieId.value)
-  const created: Showtime = {
-    id: `s-${Date.now()}`,
-    movieId: selectMovieId.value,
-    branchName: 'CineAI Sala Q2',
-    screenName: selectScreenName.value,
-    date: inputDate.value,
-    time: inputTime.value,
-    price: inputPrice.value
-  }
-  
-  showtimesList.value.unshift(created)
-  activeShowtimes.value = showtimesList.value.length
-  
-  // Close and reset
+async function handleAddShowtimeSubmit() {
+  const selectedMovie = movies.value.find(movie => movie.id === selectMovieId.value)
+  const startsAt = new Date(`${inputDate.value}T${inputTime.value}:00`)
+  const endsAt = new Date(startsAt)
+  endsAt.setMinutes(endsAt.getMinutes() + (selectedMovie?.duration || 120) + 15)
+
+  await adminBackendService.createShowtime({
+    movie_id: selectMovieId.value,
+    auditorium_id: selectAuditoriumId.value,
+    starts_at: startsAt.toISOString(),
+    ends_at: endsAt.toISOString(),
+    base_price: inputPrice.value,
+    status: 'OPEN',
+  })
+
   showAddShowtimeModal.value = false
   inputTime.value = '20:00'
+  await refreshBranchData()
 }
 
 async function handleSubmitMovieRequest() {
@@ -132,16 +142,26 @@ async function handleSubmitMovieRequest() {
   }
 }
 
+async function refreshBranchData() {
+  const stats = await adminService.getBranchAdminStats(branchId.value || undefined)
+  branchId.value = stats.branchId
+  branchName.value = stats.branchName
+  ticketsSold.value = stats.ticketsSold
+  activeShowtimes.value = stats.activeShowtimes
+  activePromos.value = stats.activePromos
+  branchRevenue.value = stats.branchRevenue
+  salesChartData.value = stats.salesChartData
+  showtimesList.value = stats.showtimesList
+  promotionsList.value = stats.promotionsList
+  auditoriums.value = await adminBackendService.getAuditoriums(stats.branchId)
+  movies.value = await movieService.getAll()
+  myMovieRequests.value = await adminBackendService.getMyMovieRequests()
+}
+
 const maxTicketSalesValue = computed(() => {
   if (salesChartData.value.length === 0) return 1
   return Math.max(...salesChartData.value.map(c => c.tickets))
 })
-
-// Helper to translate movieId to movieTitle
-function getMovieTitle(id: string): string {
-  const m = mockMovies.find(item => item.id === id)
-  return m ? m.title : 'Phim đã ẩn'
-}
 </script>
 
 <template>
@@ -155,6 +175,7 @@ function getMovieTitle(id: string): string {
         <div>
           <span class="text-xs text-on-surface-variant uppercase tracking-wider font-bold block mb-1">Doanh thu chi nhánh</span>
           <span class="text-2xl font-black text-purple-400">{{ branchRevenue.toLocaleString() }}đ</span>
+          <div class="text-[11px] text-on-surface-variant mt-1">{{ branchName }}</div>
         </div>
         <div class="w-12 h-12 bg-purple-950/20 border border-purple-500/20 rounded-xl flex items-center justify-center text-purple-400 animate-pulse">
           <span class="material-symbols-outlined text-[28px]">payments</span>
@@ -286,11 +307,11 @@ function getMovieTitle(id: string): string {
             </thead>
             <tbody class="divide-y divide-glass-stroke/40">
               <tr v-for="showtime in showtimesList" :key="showtime.id" class="hover:bg-white/5 transition-colors">
-                <td class="py-4 px-4 font-bold text-on-surface">{{ getMovieTitle(showtime.movieId) }}</td>
-                <td class="py-4 px-4 text-on-surface-variant uppercase font-mono">{{ showtime.screenName }}</td>
-                <td class="py-4 px-4 text-center text-on-surface-variant">{{ showtime.date }}</td>
-                <td class="py-4 px-4 text-center text-purple-400 font-bold">{{ showtime.time }}</td>
-                <td class="py-4 px-4 text-center text-on-surface-variant font-mono">{{ showtime.price.toLocaleString() }}đ</td>
+                <td class="py-4 px-4 font-bold text-on-surface">{{ showtime.movie_title }}</td>
+                <td class="py-4 px-4 text-on-surface-variant uppercase font-mono">{{ showtime.branch_name }} - {{ showtime.auditorium_name }}</td>
+                <td class="py-4 px-4 text-center text-on-surface-variant">{{ fmtDateTime(showtime.starts_at) }}</td>
+                <td class="py-4 px-4 text-center text-purple-400 font-bold">{{ fmtDateTime(showtime.ends_at) }}</td>
+                <td class="py-4 px-4 text-center text-on-surface-variant font-mono">{{ Number(showtime.base_price).toLocaleString() }}đ</td>
                 <td class="py-4 px-4 text-right">
                   <button @click="handleDeleteShowtime(showtime.id)" class="text-red-400 hover:text-red-300 font-semibold">Xóa</button>
                 </td>
@@ -318,7 +339,7 @@ function getMovieTitle(id: string): string {
                     <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Chọn phim cũ</label>
                     <select v-model="movieTargetId" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface">
                       <option value="">-- Không chọn --</option>
-                      <option v-for="movie in mockMovies" :key="movie.id" :value="movie.id">{{ movie.title }}</option>
+                      <option v-for="movie in movies" :key="movie.id" :value="movie.id">{{ movie.title }}</option>
                     </select>
                   </div>
                 </div>
@@ -414,13 +435,13 @@ function getMovieTitle(id: string): string {
               </tr>
             </thead>
             <tbody class="divide-y divide-glass-stroke/40">
-              <tr v-for="screen in screensList" :key="screen.id" class="hover:bg-white/5 transition-colors">
-                <td class="py-4 px-4 font-bold text-on-surface">{{ screen.name }}</td>
-                <td class="py-4 px-4 text-on-surface-variant font-bold font-mono">{{ screen.type }}</td>
-                <td class="py-4 px-4 text-center text-on-surface-variant font-mono">{{ screen.capacity }}</td>
+              <tr v-for="screen in auditoriums" :key="screen.id" class="hover:bg-white/5 transition-colors">
+                <td class="py-4 px-4 font-bold text-on-surface">{{ screen.branch_name }} - {{ screen.name }}</td>
+                <td class="py-4 px-4 text-on-surface-variant font-bold font-mono">{{ screen.screen_type || '2D' }}</td>
+                <td class="py-4 px-4 text-center text-on-surface-variant font-mono">{{ screen.total_seats }}</td>
                 <td class="py-4 px-4 text-center">
-                  <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px]" :class="screen.status === 'Hoạt động' ? 'bg-green-950 text-green-400 border border-green-500/20' : 'bg-yellow-950 text-yellow-400 border border-yellow-500/20'">
-                    {{ screen.status }}
+                  <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px]" :class="screen.is_active ? 'bg-green-950 text-green-400 border border-green-500/20' : 'bg-yellow-950 text-yellow-400 border border-yellow-500/20'">
+                    {{ screen.is_active ? 'Hoạt động' : 'Tạm dừng' }}
                   </span>
                 </td>
               </tr>
@@ -478,17 +499,14 @@ function getMovieTitle(id: string): string {
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Chọn phim</label>
               <select v-model="selectMovieId" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface focus:ring-1 focus:ring-purple-500">
-                <option v-for="movie in mockMovies" :key="movie.id" :value="movie.id">{{ movie.title }}</option>
+                <option v-for="movie in movies" :key="movie.id" :value="movie.id">{{ movie.title }}</option>
               </select>
             </div>
             
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Phòng chiếu</label>
-              <select v-model="selectScreenName" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface focus:ring-1 focus:ring-purple-500">
-                <option>IMAX Room A</option>
-                <option>Screen Room B</option>
-                <option>Screen Room C</option>
-                <option>Screen Room D</option>
+              <select v-model="selectAuditoriumId" class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-2.5 text-xs text-on-surface focus:ring-1 focus:ring-purple-500">
+                <option v-for="auditorium in auditoriums" :key="auditorium.id" :value="auditorium.id">{{ auditorium.branch_name }} - {{ auditorium.name }}</option>
               </select>
             </div>
 

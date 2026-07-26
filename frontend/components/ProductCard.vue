@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useRouter } from 'vue-router'
+import { useTicketsStore } from '~/store/tickets'
+import { useUserStore } from '~/store/user'
 
 const props = defineProps<{
-  id: number
+  id: string | number
+  backendMovieId?: string
   name: string
   price: number
   category: string
   imageUrl: string
   description: string
   rating?: number
+  trailerUrl?: string
 }>()
+
+const router = useRouter()
+const ticketsStore = useTicketsStore()
+const userStore = useUserStore()
 
 const shortDescription = computed(() =>
   props.description.length > 100
@@ -20,11 +29,36 @@ const shortDescription = computed(() =>
 const formattedPrice = computed(() =>
   new Intl.NumberFormat('vi-VN').format(props.price * 1000)
 )
+
+const trailerHref = computed(() =>
+  props.trailerUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${props.name} trailer`)}`
+)
+
+function startBooking() {
+  if (!userStore.isAuthenticated) {
+    router.push('/login')
+    return
+  }
+
+  ticketsStore.selectMovie({
+    id: props.id,
+    name: props.name,
+    backendMovieId: props.backendMovieId || null,
+    imageUrl: props.imageUrl,
+    category: props.category,
+    price: props.price,
+    rating: props.rating || null,
+    description: props.description,
+    trailerUrl: props.trailerUrl || null,
+  })
+
+  router.push('/checkout/cinema')
+}
 </script>
 
 <template>
   <div
-    class="group relative bg-surface-container-low border border-glass-stroke rounded-2xl overflow-hidden shadow-lg hover:border-primary-container/30 transition-all duration-300 flex flex-col h-full"
+    class="group relative movie-card bg-surface-container-low border border-glass-stroke rounded-2xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col h-full"
   >
     <!-- Image -->
     <div class="relative overflow-hidden aspect-[2/3] w-full bg-surface-container-high">
@@ -35,18 +69,43 @@ const formattedPrice = computed(() =>
       />
 
       <!-- Hover overlay -->
-      <div
-        class="absolute inset-0 bg-black/80 p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-between"
-      >
-        <p class="text-xs text-on-surface-variant line-clamp-6 leading-relaxed">
-          {{ shortDescription }}
-        </p>
-        <NuxtLink
-          :to="`/products/${id}`"
-          class="w-full bg-primary-container text-on-primary-container py-2.5 rounded-xl font-bold text-center block text-sm transition-all hover:scale-105 active:scale-95 red-glow"
-        >
-          Đặt ngay
-        </NuxtLink>
+      <div class="absolute inset-0 movie-overlay p-4 flex flex-col justify-between">
+        <div class="movie-overlay-top">
+          <p class="text-xs text-white/85 line-clamp-5 leading-relaxed">
+            {{ shortDescription }}
+          </p>
+        </div>
+
+        <div class="movie-overlay-bottom space-y-3">
+          <p class="text-xs text-white/70 font-semibold">{{ category }} • {{ formattedPrice }}₫</p>
+          <div class="grid grid-cols-1 gap-2">
+            <NuxtLink
+              to="/checkout/cinema"
+              class="overlay-btn overlay-btn-primary"
+              @click.prevent="startBooking"
+            >
+              Mua vé
+            </NuxtLink>
+
+            <div class="grid grid-cols-2 gap-2">
+              <NuxtLink
+                :to="`/products/${id}`"
+                class="overlay-btn overlay-btn-secondary"
+              >
+                Xem chi tiết
+              </NuxtLink>
+
+              <a
+                :href="trailerHref"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="overlay-btn overlay-btn-secondary"
+              >
+                Trailer
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Category badge -->
@@ -88,3 +147,55 @@ const formattedPrice = computed(() =>
     </div>
   </div>
 </template>
+
+<style scoped>
+.movie-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(229, 9, 20, 0.35);
+  box-shadow: 0 20px 40px -28px rgba(0, 0, 0, 0.8);
+}
+
+.movie-overlay {
+  background: linear-gradient(180deg, rgba(8, 10, 14, 0.05) 0%, rgba(8, 10, 14, 0.82) 52%, rgba(8, 10, 14, 0.96) 100%);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.group:hover .movie-overlay,
+.group:focus-within .movie-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.overlay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border-radius: 0.85rem;
+  font-size: 0.84rem;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.overlay-btn-primary {
+  background: #e50914;
+  color: #fff;
+}
+
+.overlay-btn-primary:hover {
+  filter: brightness(1.06);
+}
+
+.overlay-btn-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.overlay-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+</style>

@@ -1,13 +1,16 @@
 import { defineStore } from 'pinia'
+import { movieService } from '~/services/api'
 
 interface Product {
-  id: number
+  id: string | number
+  backendMovieId?: string
   name: string
   price: number
   category: string
   imageUrl: string
   description: string
   rating?: number
+  trailerUrl?: string
 }
 
 const TICKET_TYPES = ['2D', 'IMAX', '4DX', 'VIP']
@@ -20,28 +23,89 @@ export const useProductsStore = defineStore('products', {
   }),
   actions: {
     async fetchProducts(force = false) {
-      // Cache: chỉ generate price/category 1 lần, không random lại mỗi lần vào trang
-      if (this.products.length && !force) return
+      const normalize = (value: string) =>
+        value
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .trim()
+
+      const extractTmdbId = (value?: string | null) => {
+        if (!value) return null
+        const match = value.match(/themoviedb\.org\/movie\/(\d+)/i)
+        return match ? match[1] : null
+      }
+
+      // Cache: chi tao price/category 1 lan, khong random lai moi lan vao trang.
+      // Tuy nhien, van can rehydrate backendMovieId neu truoc do phim chua duoc import.
+      if (this.products.length && !force) {
+        try {
+          const backendMovies = await movieService.getAll()
+          const backendByTitle = new Map<string, string>()
+          const backendByTmdbId = new Map<string, string>()
+          backendMovies.forEach((movie) => {
+            backendByTitle.set(normalize(movie.title), movie.id)
+            const tmdbId = extractTmdbId(movie.trailer)
+            if (tmdbId) {
+              backendByTmdbId.set(tmdbId, movie.id)
+            }
+          })
+
+          this.products = this.products.map((product) => {
+            if (product.backendMovieId) return product
+            const byTmdb = backendByTmdbId.get(String(product.id))
+            if (byTmdb) {
+              return { ...product, backendMovieId: byTmdb }
+            }
+            const byTitle = backendByTitle.get(normalize(product.name))
+            return byTitle ? { ...product, backendMovieId: byTitle } : product
+          })
+        } catch {
+          // Keep existing cached data if rehydrate fails.
+        }
+        return
+      }
 
       this.loading = true
       this.error = ''
       try {
-        const data: any = await $fetch('/api/movies')
+        const [tmdbData, backendMovies] = await Promise.all([
+          $fetch<any>('/api/movies'),
+          movieService.getAll(),
+        ])
 
-        this.products = data.results.map((movie: any) => ({
-          id: movie.id,
-          name: movie.title,
-          price: (Math.floor(Math.random() * 16) + 7) * 10,
-          category: TICKET_TYPES[Math.floor(Math.random() * TICKET_TYPES.length)],
-          imageUrl: movie.poster_path
-            ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-            : 'https://placehold.co/500x750?text=No+Image',
-          description: movie.overview,
-          rating: movie.vote_average
-        }))
+        const backendByTitle = new Map<string, string>()
+        const backendByTmdbId = new Map<string, string>()
+        backendMovies.forEach((movie) => {
+          backendByTitle.set(normalize(movie.title), movie.id)
+          const tmdbId = extractTmdbId(movie.trailer)
+          if (tmdbId) {
+            backendByTmdbId.set(tmdbId, movie.id)
+          }
+        })
+
+        const results = Array.isArray(tmdbData?.results) ? tmdbData.results : []
+
+        this.products = results.map((movie: any) => {
+          const normalizedTitle = normalize(String(movie.title || ''))
+          const tmdbId = String(movie.id)
+          return {
+            id: movie.id,
+            backendMovieId: backendByTmdbId.get(tmdbId) || backendByTitle.get(normalizedTitle),
+            name: movie.title,
+            price: (Math.floor(Math.random() * 16) + 7) * 10,
+            category: TICKET_TYPES[Math.floor(Math.random() * TICKET_TYPES.length)],
+            imageUrl: movie.poster_path
+              ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+              : 'https://placehold.co/500x750?text=No+Image',
+            description: movie.overview,
+            rating: movie.vote_average,
+            trailerUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${movie.title} trailer`)}`,
+          }
+        })
       } catch (err) {
         console.error(err)
-        this.error = 'Không thể tải danh sách sản phẩm.'
+        this.error = 'Khong the tai danh sach phim.'
       } finally {
         this.loading = false
       }

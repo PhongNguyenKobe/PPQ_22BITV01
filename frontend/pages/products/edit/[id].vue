@@ -12,7 +12,7 @@ const cartStore = useCartStore()
 await productsStore.fetchProducts()
 
 const product = computed(() =>
-  productsStore.products.find((p) => p.id === Number(route.params.id))
+  productsStore.products.find((p) => String(p.id) === String(route.params.id))
 )
 
 function addToCart() {
