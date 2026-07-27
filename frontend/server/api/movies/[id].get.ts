@@ -86,7 +86,7 @@ export default defineEventHandler(async (event) => {
       (v) => v.site === 'YouTube' && v.type === 'Trailer' && v.official === true
     )
     const anyTrailer = trailers.find((v) => v.site === 'YouTube' && v.type === 'Trailer')
-    
+
     if (officialTrailer) {
       trailerKey = officialTrailer.key
     } else if (anyTrailer) {
@@ -113,15 +113,20 @@ export default defineEventHandler(async (event) => {
       id: String(movie.id),
       title: movie.title,
       description: movie.overview,
-      poster: posterUrl,
-      rating: movie.vote_average,
-      duration: movie.runtime,
-      releaseDate: movie.release_date,
-      genre: movie.genres.map((g) => g.name),
+      poster: movie.poster_path
+        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+        : movie.backdrop_path
+          ? `https://image.tmdb.org/t/p/w500${movie.backdrop_path}`
+          : 'https://placehold.co/500x750?text=No+Image',
+      rating: movie.vote_average || 0,
+      duration: movie.runtime || 0,
+      releaseDate: movie.release_date || '',
+      genre: movie.genres?.map((g) => g.name) || [],
       director,
       cast: castList,
       trailerUrl: trailerKey ? `https://www.youtube.com/embed/${trailerKey}` : '',
     }
+
   } catch (error) {
     console.error(`TMDB movie detail fetch failed for id=${id}:`, error)
     return {
