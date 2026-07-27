@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.user import UserRead
 
-
 class AdminUserRead(UserRead):
     branch_id: UUID | None = None
 
