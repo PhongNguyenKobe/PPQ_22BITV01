@@ -14,12 +14,24 @@ const selectedPayment = ref('Ví Momo')
 const processing = ref(false)
 const showQR = ref(false)
 
+// --- BỔ SUNG STATE VOUCHER ---
+const voucherCode = ref('')
+const isVoucherApplied = ref(false)
+const voucherDiscount = ref(0) // Số tiền giảm giá (VNĐ)
+const voucherError = ref('')
+const voucherSuccessMsg = ref('')
+
 const paymentMethods = [
   { name: 'Ví Momo', icon: 'payments', desc: 'Thanh toán qua ứng dụng Momo' },
   { name: 'Ví VNPAY', icon: 'account_balance_wallet', desc: 'Thanh toán qua cổng VNPAY' },
   { name: 'Thẻ ATM/Tín Dụng', icon: 'credit_card', desc: 'Visa, Mastercard, JCB hoặc thẻ nội địa' },
   { name: 'Quét Mã QR', icon: 'qr_code_scanner', desc: 'Quét mã QR để chuyển khoản nhanh' }
 ]
+
+// Tính toán tổng tiền sau khi trừ voucher
+const finalTotal = computed(() => {
+  return totalAmount.value
+})
 
 const backgroundStyle = computed(() => {
   if (!selectedMovie.value?.imageUrl) return {}
@@ -39,6 +51,43 @@ onMounted(() => {
   }
 })
 
+// --- HÀM XỬ LÝ ÁP DỤNG VOUCHER ---
+function applyVoucher() {
+  voucherError.value = ''
+  voucherSuccessMsg.value = ''
+  const code = voucherCode.value.trim().toUpperCase()
+
+  if (!code) {
+    voucherError.value = 'Vui lòng nhập mã giảm giá'
+    return
+  }
+
+  // Danh sách mã giả lập (Có thể thay bằng API call)
+  if (code === 'HAPPYWED45') {
+    voucherDiscount.value = 45000
+    isVoucherApplied.value = true
+    voucherSuccessMsg.value = 'Đã áp dụng mã HAPPYWED45 (-45.000đ)'
+  } else if (code === 'CINEAIVNPAY' || code === 'AIDUAL30') {
+    voucherDiscount.value = 50000
+    isVoucherApplied.value = true
+    voucherSuccessMsg.value = 'Đã áp dụng mã giảm 50.000đ'
+  } else if (code === 'STUDENT50') {
+    voucherDiscount.value = 30000
+    isVoucherApplied.value = true
+    voucherSuccessMsg.value = 'Ưu đãi HSSV (-30.000đ)'
+  } else {
+    voucherError.value = 'Mã giảm giá không hợp lệ hoặc đã hết hạn'
+  }
+}
+
+function removeVoucher() {
+  voucherCode.value = ''
+  voucherDiscount.value = 0
+  isVoucherApplied.value = false
+  voucherError.value = ''
+  voucherSuccessMsg.value = ''
+}
+
 async function handleConfirmPayment() {
   if (selectedPayment.value === 'Quét Mã QR' && !showQR.value) {
     showQR.value = true
@@ -49,6 +98,7 @@ async function handleConfirmPayment() {
   await new Promise(resolve => setTimeout(resolve, 2000))
 
   try {
+    // Truyền thêm mã voucher/số tiền giảm vào hàm mua vé nếu store hỗ trợ
     const ticket = await ticketsStore.purchaseTickets(selectedPayment.value)
     if (ticket) {
       navigateTo('/profile/tickets')
@@ -102,18 +152,16 @@ async function handleConfirmPayment() {
             </div>
 
             <div class="methods-grid">
-              <button
-                v-for="method in paymentMethods"
-                :key="method.name"
+              <button v-for="method in paymentMethods" :key="method.name"
                 @click="selectedPayment = method.name; showQR = false"
-                :class="['method-card', selectedPayment === method.name ? 'method-active' : '']"
-              >
+                :class="['method-card', selectedPayment === method.name ? 'method-active' : '']">
                 <div class="method-icon">
                   <span class="material-symbols-outlined">{{ method.icon }}</span>
                 </div>
                 <h3>{{ method.name }}</h3>
                 <p>{{ method.desc }}</p>
-                <span v-if="selectedPayment === method.name" class="method-check material-symbols-outlined">check_circle</span>
+                <span v-if="selectedPayment === method.name"
+                  class="method-check material-symbols-outlined">check_circle</span>
               </button>
             </div>
 
@@ -121,14 +169,12 @@ async function handleConfirmPayment() {
               Bạn sẽ được chuyển tới cổng thanh toán an toàn sau khi bấm xác nhận.
             </div>
 
-            <div
-              v-if="selectedPayment === 'Quét Mã QR' && showQR"
-              class="qr-panel"
-            >
+            <div v-if="selectedPayment === 'Quét Mã QR' && showQR" class="qr-panel">
               <h4>Quét Mã QR Để Thanh Toán</h4>
               <p>Mã QR chứa thông tin chuyển khoản cho giao dịch hiện tại.</p>
               <div class="qr-image-box">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=CineAI_Checkout_Booking" alt="Mock QR Code Checkout" class="w-full h-full" />
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=CineAI_Checkout_Booking"
+                  alt="Mock QR Code Checkout" class="w-full h-full" />
               </div>
             </div>
           </div>
@@ -160,6 +206,23 @@ async function handleConfirmPayment() {
               </div>
             </div>
 
+            <!-- --- KHU VỰC NHẬP MÃ GIẢM GIÁ (MỚI BỔ SUNG) --- -->
+            <div class="voucher-box">
+              <p class="voucher-label">Mã khuyến mãi / Voucher</p>
+              <div class="voucher-input-group">
+                <input type="text" v-model="voucherCode" :disabled="isVoucherApplied" placeholder="Nhập mã giảm giá..."
+                  class="voucher-input" />
+                <button v-if="!isVoucherApplied" @click="applyVoucher" class="voucher-btn">
+                  Áp dụng
+                </button>
+                <button v-else @click="removeVoucher" class="voucher-btn remove-btn">
+                  Bỏ chọn
+                </button>
+              </div>
+              <p v-if="voucherError" class="voucher-msg error">{{ voucherError }}</p>
+              <p v-if="voucherSuccessMsg" class="voucher-msg success">{{ voucherSuccessMsg }}</p>
+            </div>
+
             <div class="summary-pricing">
               <div>
                 <span>{{ selectedSeats.length }} vé x {{ selectedShowtime.price.toLocaleString('vi-VN') }}đ</span>
@@ -169,6 +232,10 @@ async function handleConfirmPayment() {
                 <span>Phí dịch vụ</span>
                 <strong>0đ</strong>
               </div>
+              <div v-if="voucherDiscount > 0">
+                <span>Giảm giá</span>
+                <strong class="text-green-400">-{{ voucherDiscount.toLocaleString('vi-VN') }}đ</strong>
+              </div>
               <div>
                 <span>Phương thức</span>
                 <strong>{{ selectedPayment }}</strong>
@@ -177,14 +244,10 @@ async function handleConfirmPayment() {
 
             <div class="summary-total">
               <span>Tổng thanh toán</span>
-              <strong>{{ totalAmount.toLocaleString('vi-VN') }} VNĐ</strong>
+              <strong>{{ finalTotal.toLocaleString('vi-VN') }} VNĐ</strong>
             </div>
 
-            <button
-              @click="handleConfirmPayment"
-              :disabled="processing"
-              class="summary-next"
-            >
+            <button @click="handleConfirmPayment" :disabled="processing" class="summary-next">
               <template v-if="processing">
                 <span class="loading-state">
                   <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
@@ -203,7 +266,9 @@ async function handleConfirmPayment() {
 </template>
 
 <style scoped>
-.checkout-shell { min-height: calc(100vh - 72px); }
+.checkout-shell {
+  min-height: calc(100vh - 72px);
+}
 
 .checkout-hero {
   position: relative;
@@ -225,7 +290,7 @@ async function handleConfirmPayment() {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr) 280px;
+  grid-template-columns: 250px minmax(0, 1fr) 300px;
   gap: 1.5rem;
   padding: 1.5rem;
   align-items: start;
@@ -241,7 +306,9 @@ async function handleConfirmPayment() {
   border-radius: 1.2rem;
 }
 
-.movie-column { padding: 1rem; }
+.movie-column {
+  padding: 1rem;
+}
 
 .movie-poster {
   width: 100%;
@@ -250,8 +317,16 @@ async function handleConfirmPayment() {
   border-radius: 1rem;
 }
 
-.movie-meta { margin-top: 1rem; }
-.movie-title { font-size: 1.45rem; line-height: 1.08; font-weight: 900; color: #fff; }
+.movie-meta {
+  margin-top: 1rem;
+}
+
+.movie-title {
+  font-size: 1.45rem;
+  line-height: 1.08;
+  font-weight: 900;
+  color: #fff;
+}
 
 .movie-badges {
   margin-top: 0.7rem;
@@ -262,9 +337,21 @@ async function handleConfirmPayment() {
   font-size: 0.88rem;
 }
 
-.movie-dot { color: rgba(255,255,255,0.45); }
-.movie-rating { display: inline-flex; align-items: center; gap: 0.18rem; }
-.movie-price { margin-top: 0.75rem; color: #fbbf24; font-weight: 800; }
+.movie-dot {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.movie-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+}
+
+.movie-price {
+  margin-top: 0.75rem;
+  color: #fbbf24;
+  font-weight: 800;
+}
 
 .booking-stepper {
   display: flex;
@@ -288,23 +375,49 @@ async function handleConfirmPayment() {
   width: 1.9rem;
   height: 1.9rem;
   border-radius: 9999px;
-  background: rgba(255,255,255,0.12);
+  background: rgba(255, 255, 255, 0.12);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .step.active,
-.step.done { color: #ffb4aa; }
+.step.done {
+  color: #ffb4aa;
+}
+
 .step.active span,
-.step.done span { background: #ff7a1a; color: #fff; }
+.step.done span {
+  background: #ff7a1a;
+  color: #fff;
+}
 
-.step-line { width: 72px; height: 2px; background: rgba(255,255,255,0.14); }
-.step-line.active { background: linear-gradient(90deg, #ff7a1a, #f59e0b); }
+.step-line {
+  width: 72px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.14);
+}
 
-.selection-panel { padding: 1.35rem; }
-.selection-header h1 { font-size: 2rem; line-height: 1.05; font-weight: 900; color: #fff; }
-.selection-header p { margin-top: 0.45rem; color: #c8c8c8; font-size: 0.95rem; }
+.step-line.active {
+  background: linear-gradient(90deg, #ff7a1a, #f59e0b);
+}
+
+.selection-panel {
+  padding: 1.35rem;
+}
+
+.selection-header h1 {
+  font-size: 2rem;
+  line-height: 1.05;
+  font-weight: 900;
+  color: #fff;
+}
+
+.selection-header p {
+  margin-top: 0.45rem;
+  color: #c8c8c8;
+  font-size: 0.95rem;
+}
 
 .methods-grid {
   margin-top: 1rem;
@@ -318,16 +431,34 @@ async function handleConfirmPayment() {
   text-align: left;
   border-radius: 0.95rem;
   border: 1px solid rgba(255, 122, 26, 0.24);
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   padding: 0.95rem;
   min-height: 124px;
   transition: all 0.2s ease;
 }
 
-.method-card:hover { transform: translateY(-2px); border-color: rgba(255, 122, 26, 0.5); }
-.method-icon { margin-bottom: 0.35rem; color: #ffd1a8; }
-.method-card h3 { color: #fff; font-weight: 800; font-size: 0.9rem; }
-.method-card p { color: #c7cad0; font-size: 0.8rem; margin-top: 0.28rem; line-height: 1.5; }
+.method-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 122, 26, 0.5);
+}
+
+.method-icon {
+  margin-bottom: 0.35rem;
+  color: #ffd1a8;
+}
+
+.method-card h3 {
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.method-card p {
+  color: #c7cad0;
+  font-size: 0.8rem;
+  margin-top: 0.28rem;
+  line-height: 1.5;
+}
 
 .method-check {
   position: absolute;
@@ -345,7 +476,7 @@ async function handleConfirmPayment() {
 .method-note {
   margin-top: 1rem;
   border-radius: 0.8rem;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   padding: 0.75rem 0.9rem;
   color: #c7cad0;
   font-size: 0.9rem;
@@ -355,7 +486,7 @@ async function handleConfirmPayment() {
   margin-top: 1rem;
   border-radius: 0.95rem;
   border: 1px solid rgba(255, 122, 26, 0.28);
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -364,8 +495,15 @@ async function handleConfirmPayment() {
   gap: 0.5rem;
 }
 
-.qr-panel h4 { color: #fff; font-weight: 800; }
-.qr-panel p { color: #c7cad0; font-size: 0.85rem; }
+.qr-panel h4 {
+  color: #fff;
+  font-weight: 800;
+}
+
+.qr-panel p {
+  color: #c7cad0;
+  font-size: 0.85rem;
+}
 
 .qr-image-box {
   margin-top: 0.45rem;
@@ -376,25 +514,61 @@ async function handleConfirmPayment() {
   padding: 0.5rem;
 }
 
-.summary-card { padding: 1.2rem; }
-.summary-card h3 { color: #fff; font-size: 1.5rem; font-weight: 900; text-transform: uppercase; }
+.summary-card {
+  padding: 1.2rem;
+}
+
+.summary-card h3 {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
 
 .summary-block {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px dashed rgba(255,255,255,0.14);
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
   display: grid;
   gap: 0.85rem;
 }
 
-.summary-row { display: flex; flex-direction: column; gap: 0.3rem; }
-.summary-row span { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.summary-row strong { color: #fff; font-size: 0.92rem; }
+.summary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
 
-.summary-seats { margin-top: 1rem; }
-.summary-seats p { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.summary-row span {
+  color: #aeb3bb;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 
-.seat-tags { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.summary-row strong {
+  color: #fff;
+  font-size: 0.92rem;
+}
+
+.summary-seats {
+  margin-top: 1rem;
+}
+
+.summary-seats p {
+  color: #aeb3bb;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.seat-tags {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 .seat-tags span {
   display: inline-flex;
   align-items: center;
@@ -402,35 +576,136 @@ async function handleConfirmPayment() {
   min-height: 30px;
   border-radius: 0.6rem;
   padding: 0 0.6rem;
-  background: rgba(255,122,26,0.14);
+  background: rgba(255, 122, 26, 0.14);
   color: #ffd1a8;
   font-size: 0.76rem;
   font-weight: 700;
 }
 
+/* STYLES MỚI CHO VOUCHER */
+.voucher-box {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
+}
+
+.voucher-label {
+  color: #aeb3bb;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+}
+
+.voucher-input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.voucher-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.65rem;
+  color: #fff;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.voucher-input:focus {
+  border-color: #ff7a1a;
+}
+
+.voucher-input:disabled {
+  opacity: 0.6;
+}
+
+.voucher-btn {
+  background: #ff7a1a;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0 0.75rem;
+  border-radius: 0.6rem;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.voucher-btn:hover {
+  background: #e0650d;
+}
+
+.voucher-btn.remove-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: #f87171;
+}
+
+.voucher-btn.remove-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.voucher-msg {
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.voucher-msg.error {
+  color: #f87171;
+}
+
+.voucher-msg.success {
+  color: #4ade80;
+}
+
 .summary-pricing {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px dashed rgba(255,255,255,0.14);
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
   display: grid;
   gap: 0.8rem;
 }
 
-.summary-pricing > div { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; }
-.summary-pricing span { color: #aeb3bb; font-size: 0.82rem; }
-.summary-pricing strong { color: #fff; font-size: 0.9rem; font-weight: 700; }
+.summary-pricing>div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.summary-pricing span {
+  color: #aeb3bb;
+  font-size: 0.82rem;
+}
+
+.summary-pricing strong {
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
 
 .summary-total {
   margin-top: 1rem;
-  border-top: 1px dashed rgba(255,255,255,0.14);
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
   padding-top: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
 
-.summary-total span { color: #aeb3bb; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.summary-total strong { color: #fff; font-size: 1.2rem; font-weight: 900; }
+.summary-total span {
+  color: #aeb3bb;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.summary-total strong {
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
 
 .summary-next {
   margin-top: 1rem;
@@ -446,18 +721,44 @@ async function handleConfirmPayment() {
   transition: all 0.2s ease;
 }
 
-.summary-next:disabled { opacity: 0.45; cursor: not-allowed; }
-.loading-state { display: inline-flex; align-items: center; gap: 0.45rem; }
+.summary-next:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.loading-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
 
 @media (max-width: 1200px) {
-  .checkout-grid { grid-template-columns: 240px minmax(0, 1fr); }
-  .summary-column { grid-column: 1 / -1; }
+  .checkout-grid {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .summary-column {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 992px) {
-  .checkout-grid { grid-template-columns: 1fr; }
-  .methods-grid { grid-template-columns: 1fr; }
-  .booking-stepper { overflow-x: auto; justify-content: flex-start; padding-bottom: 0.3rem; }
-  .step-line { min-width: 44px; }
+  .checkout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .methods-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-stepper {
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 0.3rem;
+  }
+
+  .step-line {
+    min-width: 44px;
+  }
 }
 </style>
