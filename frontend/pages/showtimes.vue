@@ -12,69 +12,114 @@ const error = ref("")
 
 const selectedBranch = ref("Tất cả rạp")
 const selectedMovie = ref("Tất cả phim")
-const selectedDay = ref(0)
+const selectedDay = ref(0) // Index của ngày được chọn
 
-// Computed: unique branches from all showtimes
+// =========================================================================
+// 1. TÍNH TOÁN DANH SÁCH NGÀY (CÓ THỨ TRONG TUẦN & TỰ ĐỘNG BỔ SUNG NGÀY)
+// =========================================================================
+const days = computed(() => {
+  // Lấy các ngày duy nhất có từ dữ liệu API
+  const dateSet = new Set<string>()
+  Object.values(showtimesMap.value).forEach((sts) =>
+    sts.forEach((st) => {
+      if (st.date) dateSet.add(st.date)
+    })
+  )
+
+  // Nếu API chưa có dữ liệu ngày, phát sinh tự động 14 ngày bắt đầu từ HÔM NAY
+  if (dateSet.size === 0) {
+    const today = new Date()
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() + i)
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      dateSet.add(`${yyyy}-${mm}-${dd}`)
+    }
+  }
+
+  const sortedDates = Array.from(dateSet).sort()
+  const todayStr = new Date().toISOString().split('T')[0]
+
+  return sortedDates.map((dateStr) => {
+    // Parse date an toàn không bị lệch timezone
+    const parts = dateStr.split("-").map(Number)
+    const dateObj = new Date(parts[0], parts[1] - 1, parts[2])
+
+    const dayOfWeekNames = ["Chủ Nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
+    const dayOfWeek = dayOfWeekNames[dateObj.getDay()]
+    const dayNum = String(parts[2]).padStart(2, '0')
+    const monthNum = String(parts[1]).padStart(2, '0')
+    const isToday = dateStr === todayStr
+
+    return {
+      dayOfWeek: isToday ? "Hôm nay" : dayOfWeek,
+      dateNum: dayNum,
+      monthLabel: `Thg ${monthNum}`,
+      fullDate: dateStr,
+      isToday
+    }
+  })
+})
+
+// =========================================================================
+// 2. COMPUTED FILTERS & DROPDOWNS
+// =========================================================================
 const branches = computed(() => {
   const branchSet = new Set<string>()
   Object.values(showtimesMap.value).forEach((sts) =>
-    sts.forEach((st) => branchSet.add(st.branchName))
+    sts.forEach((st) => {
+      if (st.branchName) branchSet.add(st.branchName)
+    })
   )
   const list = Array.from(branchSet).sort()
   return ["Tất cả rạp", ...list]
 })
 
-// Computed: unique movie titles
 const movieTitles = computed(() => {
   return ["Tất cả phim", ...movies.value.map((m) => m.title)]
 })
 
-// Computed: available days (next 7 days from showtimes dates)
-const availableDays = computed(() => {
-  const dateSet = new Set<string>()
-  Object.values(showtimesMap.value).forEach((sts) =>
-    sts.forEach((st) => dateSet.add(st.date))
-  )
-  return Array.from(dateSet).sort()
-})
+// Helper format ngày hiển thị đẹp: ví dụ "Thứ 6, 27/07"
+function formatVietnameseDate(dateStr: string) {
+  if (!dateStr) return ""
+  const [y, m, d] = dateStr.split("-").map(Number)
+  const date = new Date(y, m - 1, d)
+  const days = ["Chủ Nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
+  const dayName = days[date.getDay()]
+  return `${dayName}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`
+}
 
-const days = computed(() => {
-  return availableDays.value.map((dateStr) => {
-    const [y, m, d] = dateStr.split("-").map(Number)
-    const date = new Date(y, m - 1, d)
-    const dayOfWeek = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][date.getDay()]
-    return { label: dayOfWeek, date: d, fullDate: dateStr }
-  })
-})
-
-// AI recommendation cards
+// =========================================================================
+// 3. AI RECOMMENDATIONS (GỢI Ý THÔNG MINH)
+// =========================================================================
 const aiCards = computed(() => {
-  // Pick featured movies with their first showtime
   const featured = movies.value.filter((m) => m.isFeatured).slice(0, 3)
   return featured.map((movie) => {
     const sts = showtimesMap.value[movie.id] || []
     const first = sts[0]
     return {
-      badge: "Phim nổi bật",
-      badgeColor: "bg-primary-container/10 text-primary-container",
-      match: "AI",
+      badge: "Gợi Ý ĐỈNH CAO",
       movie: movie.title,
-      desc: movie.description?.slice(0, 80) + "..." || "Phim hot nhất hệ thống CineAI.",
-      time: first ? `${first.date}, ${first.time}` : "Sắp chiếu",
-      theater: first?.branchName || "CineAI",
+      poster: movie.poster || 'https://via.placeholder.com/300x450',
+      desc: movie.description?.slice(0, 70) + "..." || "Bộ phim cực HOT không thể bỏ qua.",
+      time: first ? `${formatVietnameseDate(first.date)} • ${first.time}` : "Đang cập nhật lịch",
+      theater: first?.branchName || "CineAI Cinema",
       movieId: movie.id,
     }
   })
 })
 
-// Fetch data
+// =========================================================================
+// 4. FETCH DATA
+// =========================================================================
 onMounted(async () => {
   try {
     loading.value = true
     const allMovies = await movieService.getAll()
     movies.value = allMovies
 
-    // Fetch showtimes for all movies in parallel
     const showtimePromises = allMovies.map(async (m) => {
       try {
         const sts = await movieService.getShowtimes(m.id)
@@ -83,33 +128,34 @@ onMounted(async () => {
         return { movieId: m.id, showtimes: [] }
       }
     })
+
     const results = await Promise.all(showtimePromises)
     results.forEach((r) => {
       showtimesMap.value[r.movieId] = r.showtimes
     })
   } catch (e) {
     console.error("Failed to load showtimes page data:", e)
-    error.value = "Không thể tải dữ liệu lịch chiếu."
+    error.value = "Không thể tải dữ liệu lịch chiếu. Vui lòng thử lại sau."
   } finally {
     loading.value = false
   }
 })
 
-// Filtered showtimes based on user selection
+// =========================================================================
+// 5. LỌC PHIM VÀ SUẤT CHIẾU THEO NGÀY ĐƯỢC CHỌN
+// =========================================================================
 const filteredShowtimes = computed(() => {
-  // Determine selected movie IDs
   let movieIds = movies.value.map((m) => m.id)
+
+  // Lọc theo phim được chọn ở Dropdown
   if (selectedMovie.value !== "Tất cả phim") {
     const found = movies.value.find((m) => m.title === selectedMovie.value)
     if (found) movieIds = [found.id]
     else return []
   }
 
-  // Determine selected date
-  let selectedDate = ""
-  if (days.value.length > 0) {
-    selectedDate = days.value[selectedDay.value]?.fullDate || ""
-  }
+  // Lấy ngày đang được chọn trên Thanh chọn ngày
+  const selectedDateStr = days.value[selectedDay.value]?.fullDate || ""
 
   const result: { movie: Movie; showtimes: Showtime[] }[] = []
 
@@ -119,16 +165,17 @@ const filteredShowtimes = computed(() => {
 
     let sts = showtimesMap.value[movieId] || []
 
-    // Filter by branch
+    // Lọc theo Rạp
     if (selectedBranch.value !== "Tất cả rạp") {
       sts = sts.filter((st) => st.branchName === selectedBranch.value)
     }
 
-    // Filter by date
-    if (selectedDate) {
-      sts = sts.filter((st) => st.date === selectedDate)
+    // Lọc theo Ngày chọn
+    if (selectedDateStr) {
+      sts = sts.filter((st) => st.date === selectedDateStr)
     }
 
+    // Chỉ đưa phim vào danh sách hiển thị nếu có suất chiếu thỏa mãn
     if (sts.length > 0) {
       result.push({ movie, showtimes: sts })
     }
@@ -137,132 +184,188 @@ const filteredShowtimes = computed(() => {
   return result
 })
 
-// Select showtime button handler
 function handleSelectShowtime(showtime: Showtime) {
-  navigateTo(`/checkout/seat`)
+  navigateTo(`/checkout/seat?showtimeId=${showtime.id}`)
 }
 </script>
 
 <template>
-  <div class="min-h-screen pt-20">
-    <!-- Loading -->
-    <div v-if="loading" class="py-24 text-center animate-pulse text-on-surface-variant">
-      Đang tải lịch chiếu...
+  <div class="min-h-screen bg-[#0b0c10] text-gray-100 pt-20 pb-24 selection:bg-red-600 selection:text-white">
+
+    <!-- Loading State -->
+    <div v-if="loading" class="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+      <div class="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-gray-400 font-medium animate-pulse">Đang tối ưu lịch chiếu cho bạn...</p>
     </div>
 
-    <!-- Error -->
-    <div v-else-if="error" class="py-24 text-center text-red-500">
-      {{ error }}
+    <!-- Error State -->
+    <div v-else-if="error" class="min-h-[50vh] flex flex-col items-center justify-center text-center px-4">
+      <span class="material-symbols-outlined text-6xl text-red-500 mb-2">error</span>
+      <p class="text-lg font-bold text-red-400">{{ error }}</p>
     </div>
 
     <template v-else>
-      <!-- Hero Filter -->
-      <section class="relative pt-12 pb-8 px-6 md:px-margin-desktop bg-gradient-to-b from-surface-container-lowest to-surface">
-        <div class="max-w-container-max mx-auto">
-          <h1 class="font-headline-xl text-headline-xl mb-10 text-on-surface">Lịch Chiếu</h1>
 
-          <!-- Filters Panel -->
-          <div class="flex flex-col md:flex-row items-start md:items-center gap-6 p-6 rounded-2xl mb-8" style="background:rgba(31,31,31,0.6);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1)">
-            <!-- Theater Filter -->
-            <div class="w-full md:w-1/4">
-              <label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 px-1">Chọn Rạp</label>
-              <div class="relative">
-                <select v-model="selectedBranch" class="w-full bg-surface-container-high border-white/10 text-on-surface rounded-lg py-3 px-4 appearance-none focus:ring-primary-container focus:border-primary-container font-label-md text-label-md cursor-pointer outline-none border border-white/10">
-                  <option v-for="b in branches" :key="b">{{ b }}</option>
-                </select>
-                <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
-              </div>
+      <!-- 1. HEADER & THANH CHỌN NGÀY / BỘ LỌC -->
+      <section
+        class="relative border-b border-white/10 bg-gradient-to-b from-black/80 via-black/40 to-[#0b0c10] backdrop-blur-xl">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div>
+              <span class="text-xs font-bold text-red-500 tracking-widest uppercase">CineAI Showtimes</span>
+              <h1 class="text-3xl md:text-4xl font-black text-white tracking-tight">Lịch Chiếu Phim</h1>
             </div>
 
-            <!-- Movie Filter -->
-            <div class="w-full md:w-1/4">
-              <label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 px-1">Chọn Phim</label>
-              <div class="relative">
-                <select v-model="selectedMovie" class="w-full bg-surface-container-high border-white/10 text-on-surface rounded-lg py-3 px-4 appearance-none focus:ring-primary-container focus:border-primary-container font-label-md text-label-md cursor-pointer outline-none border border-white/10">
-                  <option v-for="title in movieTitles" :key="title">{{ title }}</option>
+            <!-- Fast Filters Dropdowns -->
+            <div class="flex flex-wrap items-center gap-3">
+              <!-- Branch Select -->
+              <div class="relative min-w-[180px]">
+                <select v-model="selectedBranch"
+                  class="w-full bg-white/5 border border-white/10 text-xs font-semibold text-white rounded-xl py-3 pl-4 pr-10 appearance-none focus:outline-none focus:border-red-500 hover:bg-white/10 transition-all cursor-pointer">
+                  <option v-for="b in branches" :key="b" class="bg-gray-900 text-white">{{ b }}</option>
                 </select>
-                <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+                <span
+                  class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
+              </div>
+
+              <!-- Movie Select -->
+              <div class="relative min-w-[200px]">
+                <select v-model="selectedMovie"
+                  class="w-full bg-white/5 border border-white/10 text-xs font-semibold text-white rounded-xl py-3 pl-4 pr-10 appearance-none focus:outline-none focus:border-red-500 hover:bg-white/10 transition-all cursor-pointer">
+                  <option v-for="title in movieTitles" :key="title" class="bg-gray-900 text-white">{{ title }}</option>
+                </select>
+                <span
+                  class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
               </div>
             </div>
+          </div>
 
-            <!-- Date Timeline -->
-            <div class="w-full md:w-2/4">
-              <label class="block text-label-sm font-label-sm text-on-surface-variant mb-2 px-1">Chọn Ngày</label>
-              <div class="flex gap-3 overflow-x-auto pb-2" style="scrollbar-width:none">
-                <button
-                  v-for="(d, i) in days" :key="i"
-                  @click="selectedDay = i"
-                  class="flex-shrink-0 flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-xl transition-all"
-                  :class="selectedDay === i ? 'bg-primary-container text-white shadow-[0_0_20px_-5px_rgba(229,9,20,0.3)]' : 'bg-surface-container-high border border-white/5 hover:border-primary-container text-on-surface'"
-                >
-                  <span class="text-label-sm font-label-sm opacity-80">{{ d.label }}</span>
-                  <span class="text-headline-md font-bold">{{ d.date }}</span>
-                </button>
+          <!-- Horizontal Date Picker Bar (Thanh Chọn Thứ / Ngày) -->
+          <div class="relative">
+            <div class="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-none snap-x">
+              <button v-for="(d, i) in days" :key="d.fullDate" @click="selectedDay = i"
+                class="flex-none snap-start min-w-[100px] py-3.5 px-4 rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center group relative overflow-hidden"
+                :class="selectedDay === i
+                  ? 'bg-red-600 border-red-500 text-white shadow-[0_0_20px_rgba(229,9,20,0.5)] scale-105'
+                  : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/30 hover:text-white hover:bg-white/10'">
+                <!-- Label Thứ / Hôm Nay -->
+                <span class="text-[11px] uppercase font-bold tracking-wider mb-1 transition-colors"
+                  :class="selectedDay === i ? 'text-white' : d.isToday ? 'text-red-400 font-extrabold' : 'text-gray-400'">
+                  {{ d.dayOfWeek }}
+                </span>
+
+                <!-- Ngày -->
+                <span class="text-2xl font-black leading-none">{{ d.dateNum }}</span>
+
+                <!-- Tháng -->
+                <span class="text-[10px] opacity-70 mt-1 font-medium">{{ d.monthLabel }}</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 2. AI RECOMMENDATION CARDS -->
+      <section v-if="aiCards.length > 0" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex items-center gap-2 mb-6">
+          <span class="material-symbols-outlined text-red-500 animate-pulse">auto_awesome</span>
+          <h2 class="text-lg font-bold text-white tracking-wide uppercase">AI Gợi Ý Suất Chiếu Nổi Bật</h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div v-for="c in aiCards" :key="c.movie"
+            class="group relative bg-gradient-to-br from-white/10 via-white/5 to-transparent border border-white/10 hover:border-red-500/50 rounded-2xl p-4 transition-all duration-300 hover:-translate-y-1 flex gap-4 backdrop-blur-md overflow-hidden">
+            <img :src="c.poster" :alt="c.movie"
+              class="w-20 h-28 object-cover rounded-xl shadow-lg border border-white/10 group-hover:scale-105 transition-transform duration-300" />
+
+            <div class="flex-1 flex flex-col justify-between">
+              <div>
+                <span
+                  class="text-[9px] font-extrabold bg-red-600/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mb-1.5">
+                  {{ c.badge }}
+                </span>
+                <h3 class="font-bold text-sm text-white line-clamp-1 group-hover:text-red-400 transition-colors">
+                  {{ c.movie }}
+                </h3>
+                <p class="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed font-light">{{ c.desc }}</p>
+              </div>
+
+              <div class="flex items-center justify-between mt-3 pt-2 border-t border-white/5">
+                <div class="text-[11px] text-gray-300 font-medium truncate">
+                  <p class="text-red-400 font-bold truncate">{{ c.theater }}</p>
+                  <p class="text-[10px] text-gray-400">{{ c.time }}</p>
+                </div>
+                <NuxtLink :to="`/movies/${c.movieId}`"
+                  class="w-8 h-8 rounded-full bg-white/10 hover:bg-red-600 text-white flex items-center justify-center transition-colors">
+                  <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                </NuxtLink>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- AI Recommendations -->
-      <section v-if="aiCards.length > 0" class="px-6 md:px-margin-desktop py-12">
-        <div class="max-w-container-max mx-auto">
-          <div class="flex items-center gap-3 mb-8">
-            <span class="material-symbols-outlined text-primary-container text-[32px]" style="font-variation-settings:'FILL' 1">psychology</span>
-            <h2 class="font-headline-lg text-headline-lg text-on-surface">Gợi ý suất chiếu</h2>
+      <!-- 3. MAIN SHOWTIMES LIST (DANH SÁCH CHI TIẾT THEO NGÀY CHỌN) -->
+      <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Banner thông báo ngày đang chọn -->
+        <div class="flex items-center justify-between mb-6 pb-2 border-b border-white/10">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-red-500">calendar_month</span>
+            <span class="text-sm font-bold text-gray-300">
+              Lịch chiếu ngày: <strong class="text-white text-base ml-1">{{
+                formatVietnameseDate(days[selectedDay]?.fullDate) }}</strong>
+            </span>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div v-for="c in aiCards" :key="c.movie" class="overflow-hidden rounded-xl" style="position:relative;background:rgba(31,31,31,0.8);border-radius:12px;padding:1px">
-              <div class="absolute inset-0 rounded-xl" style="padding:1.5px;background:linear-gradient(45deg,#e50914,#8a2be2,#e50914);background-size:200% 200%;animation:gradient-move 4s linear infinite;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude"></div>
-              <div class="p-6 rounded-[11px] flex flex-col justify-between h-full" style="background:#1e2020">
+          <span class="text-xs text-gray-400">Tìm thấy {{ filteredShowtimes.length }} phim có suất chiếu</span>
+        </div>
+
+        <!-- Empty Filter Result -->
+        <div v-if="filteredShowtimes.length === 0"
+          class="py-20 text-center bg-white/5 rounded-3xl border border-white/10">
+          <span class="material-symbols-outlined text-5xl text-gray-500 mb-3">movie_off</span>
+          <p class="text-gray-300 text-base font-semibold">Rất tiếc, không có phim nào chiếu vào {{
+            formatVietnameseDate(days[selectedDay]?.fullDate) }}.</p>
+          <p class="text-gray-500 text-xs mt-1">Vui lòng chọn ngày khác hoặc đổi rạp chiếu!</p>
+        </div>
+
+        <!-- Movie List with Showtimes -->
+        <div v-else class="space-y-8">
+          <div v-for="{ movie, showtimes } in filteredShowtimes" :key="movie.id"
+            class="bg-gradient-to-r from-[#14161d] to-[#0d0e12] border border-white/10 rounded-3xl p-6 md:p-8 hover:border-white/20 transition-all shadow-2xl">
+            <div class="flex flex-col lg:flex-row gap-8">
+
+              <!-- Left: Movie Poster & Detail -->
+              <div class="lg:w-1/4 flex flex-row lg:flex-col gap-5 items-start">
+                <img :src="movie.poster || 'https://via.placeholder.com/300x450'" :alt="movie.title"
+                  class="w-28 sm:w-36 lg:w-full aspect-[2/3] object-cover rounded-2xl shadow-2xl border border-white/10 flex-shrink-0" />
                 <div>
-                  <div class="flex justify-between items-start mb-4">
-                    <div :class="c.badgeColor" class="px-3 py-1 rounded-full text-label-sm font-bold uppercase tracking-wider">{{ c.badge }}</div>
-                    <span class="text-on-surface-variant text-label-sm">Đề xuất</span>
-                  </div>
-                  <h3 class="font-headline-md text-headline-md text-on-surface mb-2">{{ c.movie }}</h3>
-                  <p class="text-on-surface-variant font-body-md mb-6">{{ c.desc }}</p>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="flex flex-col">
-                    <span class="text-label-sm text-on-surface-variant">{{ c.time }}</span>
-                    <span class="text-label-md font-bold text-on-surface">{{ c.theater }}</span>
-                  </div>
-                  <NuxtLink :to="`/movies/${c.movieId}`" class="bg-primary-container text-on-primary-container p-3 rounded-full hover:scale-110 transition-transform">
-                    <span class="material-symbols-outlined">confirmation_number</span>
-                  </NuxtLink>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+                  <h2
+                    class="text-xl md:text-2xl font-black text-white leading-tight mb-2 hover:text-red-500 transition-colors cursor-pointer">
+                    {{ movie.title }}
+                  </h2>
 
-      <!-- Showtimes List -->
-      <section class="px-6 md:px-margin-desktop py-12 pb-24">
-        <div class="max-w-container-max mx-auto">
-          <div class="flex justify-between items-end mb-10 border-b border-white/10 pb-4">
-            <h2 class="font-headline-lg text-headline-lg text-on-surface">Danh Sách Rạp & Suất Chiếu</h2>
-          </div>
-
-          <div v-if="filteredShowtimes.length === 0" class="py-12 text-center text-on-surface-variant">
-            Không có suất chiếu nào phù hợp.
-          </div>
-
-          <div v-else class="space-y-12">
-            <!-- Each movie block -->
-            <div v-for="{ movie, showtimes } in filteredShowtimes" :key="movie.id" class="flex flex-col lg:flex-row gap-8">
-              <div class="lg:w-1/3">
-                <div class="sticky top-24">
-                  <h3 class="font-headline-md text-headline-md text-on-surface mb-2">{{ movie.title }}</h3>
-                  <div class="flex gap-3">
-                    <span v-for="g in movie.genre.slice(0, 3)" :key="g" class="px-3 py-1 bg-surface-container-high rounded-full text-label-sm font-label-sm border border-white/5">{{ g }}</span>
+                  <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <span v-for="g in (Array.isArray(movie.genre) ? movie.genre.slice(0, 2) : [movie.genre])" :key="g"
+                      class="px-2.5 py-0.5 bg-white/10 rounded-md text-[11px] font-semibold text-gray-300">
+                      {{ g }}
+                    </span>
+                    <span class="text-xs text-gray-400 font-medium flex items-center gap-1">
+                      <span class="material-symbols-outlined text-sm text-gray-400">schedule</span>
+                      {{ movie.duration }} phút
+                    </span>
                   </div>
-                  <p class="text-on-surface-variant text-body-md mt-3">{{ movie.duration }} phút</p>
+
+                  <p class="text-xs text-gray-400 line-clamp-3 leading-relaxed hidden lg:block font-light">
+                    {{ movie.description }}
+                  </p>
                 </div>
               </div>
-              <div class="lg:w-2/3 space-y-8">
-                <!-- Group showtimes by branch -->
+
+              <!-- Right: Grouped Showtimes by Branch -->
+              <div class="lg:w-3/4 flex-1 space-y-6">
                 <template v-for="branchShowtimes in (() => {
                   const grouped: Record<string, Showtime[]> = {}
                   showtimes.forEach(st => {
@@ -271,51 +374,70 @@ function handleSelectShowtime(showtime: Showtime) {
                   })
                   return Object.entries(grouped)
                 })()" :key="branchShowtimes[0]">
-                  <div class="p-6 rounded-2xl flex flex-col sm:flex-row gap-6" style="background:rgba(31,31,31,0.6);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1)">
-                    <div class="flex-grow">
-                      <h4 class="font-headline-md text-headline-md text-on-surface mb-4">{{ branchShowtimes[0] }}</h4>
-                      <!-- Group by screen type -->
+                  <div class="bg-black/40 border border-white/5 rounded-2xl p-5 md:p-6 backdrop-blur-sm">
+                    <!-- Branch Title -->
+                    <div class="flex items-center gap-2 mb-4">
+                      <span class="material-symbols-outlined text-red-500">location_on</span>
+                      <h3 class="text-base font-bold text-white tracking-wide">{{ branchShowtimes[0] }}</h3>
+                    </div>
+
+                    <!-- Group by screen type (IMAX, 4DX, 2D...) -->
+                    <div class="space-y-4">
                       <template v-for="(groupedByScreen, screenType) in (() => {
                         const byScreen: Record<string, Showtime[]> = {}
                         branchShowtimes[1].forEach(st => {
-                          const type = st.screenName.includes('IMAX') ? 'IMAX' : st.screenName.includes('4DX') ? '4DX' : '2D'
+                          const type = st.screenName.includes('IMAX') ? 'IMAX 3D' : st.screenName.includes('4DX') ? '4DX' : '2D Phụ Đề'
                           if (!byScreen[type]) byScreen[type] = []
                           byScreen[type].push(st)
                         })
                         return byScreen
                       })()" :key="screenType">
-                        <div class="mb-4">
-                          <p class="text-label-sm font-label-sm text-primary-container mb-3 uppercase tracking-tighter font-bold">{{ screenType }} - {{ branchShowtimes[1][0].screenName }}</p>
+                        <div class="border-t border-white/5 pt-3 first:border-0 first:pt-0">
+                          <div class="flex items-center gap-2 mb-3">
+                            <span
+                              class="px-2 py-0.5 rounded text-[10px] font-black tracking-widest bg-red-600/20 text-red-400 border border-red-500/30 uppercase">
+                              {{ screenType }}
+                            </span>
+                            <span class="text-xs text-gray-400 font-medium">({{ groupedByScreen[0].screenName }})</span>
+                          </div>
+
+                          <!-- Time Buttons -->
                           <div class="flex flex-wrap gap-3">
-                            <button
-                              v-for="st in groupedByScreen"
-                              :key="st.id"
-                              @click="handleSelectShowtime(st)"
-                              class="px-6 py-2 bg-surface-container-highest rounded-lg border border-white/10 hover:border-primary-container hover:bg-primary-container/10 transition-all font-label-md text-label-md text-on-surface"
-                            >
-                              {{ st.time }}
-                              <span class="block text-[10px] text-on-surface-variant">{{ st.price.toLocaleString('vi-VN') }}đ</span>
+                            <button v-for="st in groupedByScreen" :key="st.id" @click="handleSelectShowtime(st)"
+                              class="group relative bg-white/5 hover:bg-red-600 border border-white/10 hover:border-red-500 rounded-xl px-4 py-2.5 transition-all duration-200 text-left hover:scale-105 shadow-md">
+                              <span class="block text-sm font-black text-white group-hover:text-white">
+                                {{ st.time }}
+                              </span>
+                              <span class="block text-[10px] text-gray-400 group-hover:text-red-100 mt-0.5 font-medium">
+                                {{ st.price.toLocaleString('vi-VN') }}đ
+                              </span>
                             </button>
                           </div>
                         </div>
                       </template>
                     </div>
+
                   </div>
                 </template>
               </div>
+
             </div>
           </div>
         </div>
+
       </section>
+
     </template>
   </div>
 </template>
 
 <style scoped>
-@keyframes gradient-move {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>
-

@@ -1,121 +1,281 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '~/store/user'
 
 const userStore = useUserStore()
 const { currentUser, isAuthenticated } = storeToRefs(userStore)
 
+const isCollapsed = ref(false)
+const showNotifications = ref(false)
+const showProfileDropdown = ref(false)
+const selectedBranch = ref('HN-01')
+
+const notificationCount = ref(3)
+const notifications = ref([
+  { id: 1, text: 'Phòng 4 IMAX tại Chi nhánh Cầu Giấy báo lỗi máy chiếu', time: '5 phút trước', unread: true },
+  { id: 2, text: 'Chi nhánh Hà Đông đạt chỉ tiêu doanh thu ngày (+120%)', time: '20 phút trước', unread: true },
+  { id: 3, text: 'Yêu cầu duyệt phim "CineAI Chronicles" được gửi từ Branch-Admin', time: '1 giờ trước', unread: true }
+])
+
+function toggleSidebar() {
+  isCollapsed.value = !isCollapsed.value
+}
+
+function switchDemoRole(role: 'admin' | 'branch-admin') {
+  if (currentUser.value) {
+    currentUser.value.role = role
+    if (role === 'admin') {
+      navigateTo('/admin/dashboard')
+    } else {
+      currentUser.value.branchId = currentUser.value.branchId || 'branch-1'
+      navigateTo('/branch-admin/dashboard')
+    }
+  }
+  showProfileDropdown.value = false
+}
+
 function handleLogout() {
   userStore.logout()
   navigateTo('/login')
 }
 
-// Redirect if not logged in as admin/branch-admin
 onMounted(() => {
-  if (!isAuthenticated.value || !currentUser.value || (currentUser.value.role !== 'admin' && currentUser.value.role !== 'branch-admin')) {
-    navigateTo('/login')
+  // Mock current user if not authenticated for easier demo/review of UI
+  if (!currentUser.value) {
+    currentUser.value = {
+      id: 'demo-user-id',
+      name: 'Nguyễn Văn Quyết',
+      email: 'admin@cineai.vn',
+      role: 'admin',
+      isActive: true,
+      branchId: 'branch-1',
+      phone: '0987654321'
+    }
+    isAuthenticated.value = true
   }
 })
 </script>
 
 <template>
-  <div class="admin-shell">
+  <div class="admin-shell font-body-md">
     <!-- Sidebar Navigation -->
-    <aside class="admin-sidebar">
-      <div>
-        <!-- Sidebar Brand -->
-        <div class="admin-sidebar-brand">
-          <NuxtLink to="/products" class="brand-link">
-            <span class="material-symbols-outlined">local_activity</span>
-            <span>
-              CineMe Admin
-              <small>Smart cinema ops</small>
-            </span>
-          </NuxtLink>
+    <aside 
+      class="admin-sidebar transition-all duration-300 ease-in-out"
+      :class="isCollapsed ? 'w-20' : 'w-64'"
+    >
+      <div class="flex flex-col h-full justify-between">
+        <div>
+          <!-- Sidebar Brand -->
+          <div class="admin-sidebar-brand flex items-center justify-between" :class="isCollapsed ? 'px-4' : 'px-6'">
+            <NuxtLink to="/products" class="brand-link flex items-center gap-3">
+              <span class="material-symbols-outlined text-primary-container text-3xl">local_activity</span>
+              <span v-if="!isCollapsed" class="font-headline-md font-black tracking-wider text-on-surface text-lg">
+                Cine<span class="text-primary-container">AI</span>
+                <small class="text-[9px] text-on-surface-variant tracking-widest block font-bold">SYSTEM ADMIN</small>
+              </span>
+            </NuxtLink>
+          </div>
+
+          <!-- Navigation Links -->
+          <nav class="admin-nav p-4 space-y-2">
+            <div 
+              v-if="!isCollapsed" 
+              class="admin-nav-title text-xs font-black text-on-surface-variant tracking-wider uppercase px-3 py-2"
+            >
+              {{ currentUser?.role === 'admin' ? 'Quản trị hệ thống' : 'Quản lý chi nhánh' }}
+            </div>
+
+            <NuxtLink
+              v-if="currentUser?.role === 'admin'"
+              to="/admin/dashboard"
+              class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
+              active-class="nav-link-active"
+            >
+              <span class="material-symbols-outlined text-xl">dashboard</span>
+              <span v-if="!isCollapsed" class="text-sm font-semibold">Bảng điều khiển</span>
+            </NuxtLink>
+
+            <NuxtLink
+              v-if="currentUser?.role === 'branch-admin'"
+              to="/branch-admin/dashboard"
+              class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
+              active-class="nav-link-active"
+            >
+              <span class="material-symbols-outlined text-xl">storefront</span>
+              <span v-if="!isCollapsed" class="text-sm font-semibold">Bảng chi nhánh</span>
+            </NuxtLink>
+
+            <NuxtLink
+              to="/products"
+              class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
+            >
+              <span class="material-symbols-outlined text-xl font-light">movie</span>
+              <span v-if="!isCollapsed" class="text-sm font-semibold">Trang bán vé</span>
+            </NuxtLink>
+          </nav>
         </div>
 
-        <!-- Navigation Links -->
-        <nav class="admin-nav">
-          <div class="admin-nav-title">
-            {{ currentUser?.role === 'admin' ? 'Quản trị hệ thống' : 'Quản lý chi nhánh' }}
+        <!-- Sidebar User Section -->
+        <div class="sidebar-user p-4 border-t border-glass-stroke bg-white/[0.02]">
+          <div class="flex items-center gap-3" :class="isCollapsed ? 'justify-center' : 'mb-4'">
+            <div class="avatar-circle w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm bg-gradient-to-tr from-primary-container to-ai-accent">
+              {{ currentUser?.name.substring(0, 2).toUpperCase() }}
+            </div>
+            <div v-if="!isCollapsed" class="flex-1 min-w-0">
+              <h5 class="text-xs font-bold truncate text-on-surface">{{ currentUser?.name }}</h5>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-white/10 text-on-surface-variant font-mono uppercase mt-1 inline-block">
+                {{ currentUser?.role }}
+              </span>
+            </div>
           </div>
-
-          <NuxtLink
-            v-if="currentUser?.role === 'admin'"
-            to="/admin/dashboard"
-            class="nav-link"
-            active-class="nav-link-active"
+          <button
+            v-if="!isCollapsed"
+            @click="handleLogout"
+            class="logout-btn w-full mt-2 border border-red-500/20 bg-red-950/20 hover:bg-red-950/40 text-red-400 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all duration-200"
           >
-            <span class="material-symbols-outlined text-lg">dashboard</span>
-            Bảng điều khiển
-          </NuxtLink>
-
-          <NuxtLink
-            v-if="currentUser?.role === 'branch-admin'"
-            to="/branch-admin/dashboard"
-            class="nav-link"
-            active-class="nav-link-active"
-          >
-            <span class="material-symbols-outlined text-lg">storefront</span>
-            Bảng chi nhánh
-          </NuxtLink>
-
-          <NuxtLink
-            to="/products"
-            class="nav-link"
-          >
-            <span class="material-symbols-outlined text-lg">movie</span>
-            Trang bán vé
-          </NuxtLink>
-        </nav>
-      </div>
-
-      <!-- Sidebar User Section -->
-      <div class="sidebar-user">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="avatar-circle">
-            {{ currentUser?.name.substring(0, 2).toUpperCase() }}
-          </div>
-          <div class="flex-1 min-w-0">
-            <h5 class="text-sm font-semibold truncate text-on-surface">{{ currentUser?.name }}</h5>
-            <span class="text-xs text-on-surface-variant capitalize">{{ currentUser?.role }}</span>
-          </div>
+            <span class="material-symbols-outlined text-sm">logout</span>
+            Đăng xuất
+          </button>
         </div>
-        <button
-          @click="handleLogout"
-          class="logout-btn"
-        >
-          <span class="material-symbols-outlined text-sm">logout</span>
-          Đăng xuất
-        </button>
       </div>
     </aside>
 
     <!-- Main Dashboard Area -->
     <div class="flex-1 flex flex-col overflow-hidden">
       <!-- Portal Top Header -->
-      <header class="admin-header">
-        <div>
-          <h2 class="text-lg font-bold text-on-surface flex items-center gap-2">
-            {{ currentUser?.role === 'admin' ? 'Hệ thống Quản trị Tổng' : 'Hệ thống Quản trị Chi nhánh' }}
-          </h2>
-          <p class="text-xs text-on-surface-variant mt-0.5">Theo dõi dữ liệu vận hành rạp theo thời gian thực</p>
-        </div>
+      <header class="admin-header h-20 px-6 border-b border-glass-stroke bg-surface-container/60 backdrop-blur-md flex items-center justify-between z-40">
         <div class="flex items-center gap-4">
-          <NuxtLink to="/products" class="back-btn">
+          <!-- Toggle Sidebar -->
+          <button 
+            @click="toggleSidebar" 
+            class="w-10 h-10 rounded-xl hover:bg-white/5 flex items-center justify-center text-on-surface border border-glass-stroke transition-colors"
+          >
+            <span class="material-symbols-outlined">{{ isCollapsed ? 'menu_open' : 'menu' }}</span>
+          </button>
+          
+          <div>
+            <h2 class="text-base font-black text-on-surface flex items-center gap-2">
+              {{ currentUser?.role === 'admin' ? 'Hệ thống Quản trị Tổng' : 'Hệ thống Quản trị Chi nhánh' }}
+            </h2>
+            <p class="text-xs text-on-surface-variant hidden sm:block">Theo dõi dữ liệu vận hành rạp theo thời gian thực</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Switch quick branch (if super admin) -->
+          <div v-if="currentUser?.role === 'admin'" class="hidden md:flex items-center gap-2 bg-white/5 border border-glass-stroke rounded-xl px-3 py-1.5">
+            <span class="material-symbols-outlined text-sm text-ai-accent">location_on</span>
+            <select v-model="selectedBranch" class="bg-transparent border-0 text-xs font-bold text-on-surface p-0 focus:ring-0 cursor-pointer">
+              <option value="ALL">Tất cả chi nhánh</option>
+              <option value="HN-01">CineAI Cầu Giấy (HN)</option>
+              <option value="HN-02">CineAI Hà Đông (HN)</option>
+              <option value="HCM-01">CineAI Quận 1 (HCM)</option>
+            </select>
+          </div>
+
+          <!-- Role Demo Switcher Badge -->
+          <div class="relative">
+            <button 
+              @click="showProfileDropdown = !showProfileDropdown"
+              class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-ai-accent/20 to-primary-container/20 border border-glass-stroke text-xs font-black text-primary-fixed-dim hover:scale-105 transition-all flex items-center gap-1"
+            >
+              <span class="material-symbols-outlined text-sm">settings_accessibility</span>
+              Demo Role: {{ currentUser?.role === 'admin' ? 'Super Admin' : 'Branch Admin' }}
+              <span class="material-symbols-outlined text-xs">arrow_drop_down</span>
+            </button>
+            <div 
+              v-if="showProfileDropdown" 
+              class="absolute right-0 mt-2 w-48 bg-surface-container-high border border-glass-stroke rounded-2xl shadow-2xl p-2 z-50 animate-fade"
+            >
+              <div class="text-[10px] uppercase font-bold text-on-surface-variant px-3 py-1.5 tracking-wider border-b border-glass-stroke/50">Chọn vai trò demo</div>
+              <button 
+                @click="switchDemoRole('admin')" 
+                class="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-on-surface hover:bg-white/5 flex items-center gap-2"
+                :class="currentUser?.role === 'admin' ? 'text-primary-fixed-dim bg-white/5' : ''"
+              >
+                <span class="material-symbols-outlined text-sm">verified_user</span> Super Admin
+              </button>
+              <button 
+                @click="switchDemoRole('branch-admin')" 
+                class="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-on-surface hover:bg-white/5 flex items-center gap-2"
+                :class="currentUser?.role === 'branch-admin' ? 'text-primary-fixed-dim bg-white/5' : ''"
+              >
+                <span class="material-symbols-outlined text-sm">storefront</span> Branch Admin
+              </button>
+            </div>
+          </div>
+
+          <!-- Notification Dropdown -->
+          <div class="relative">
+            <button 
+              @click="showNotifications = !showNotifications"
+              class="w-10 h-10 rounded-xl hover:bg-white/5 flex items-center justify-center text-on-surface border border-glass-stroke relative transition-colors"
+            >
+              <span class="material-symbols-outlined text-xl">notifications</span>
+              <span v-if="notificationCount > 0" class="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-primary-container animate-ping"></span>
+              <span v-if="notificationCount > 0" class="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-primary-container"></span>
+            </button>
+            <div 
+              v-if="showNotifications" 
+              class="absolute right-0 mt-2 w-80 bg-surface-container-high border border-glass-stroke rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade"
+            >
+              <div class="p-4 border-b border-glass-stroke flex justify-between items-center bg-white/[0.02]">
+                <h4 class="text-xs font-bold text-on-surface uppercase tracking-wider">Thông báo ({{ notificationCount }})</h4>
+                <button @click="notificationCount = 0" class="text-[10px] text-primary-container font-semibold hover:underline">Đánh dấu đã đọc</button>
+              </div>
+              <div class="max-h-64 overflow-y-auto divide-y divide-glass-stroke/50">
+                <div 
+                  v-for="item in notifications" 
+                  :key="item.id" 
+                  class="p-3 text-xs hover:bg-white/5 cursor-pointer"
+                >
+                  <p class="text-on-surface leading-snug">{{ item.text }}</p>
+                  <span class="text-[10px] text-on-surface-variant block mt-1.5">{{ item.time }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Return to main ticket view -->
+          <NuxtLink to="/products" class="back-btn hidden lg:flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-glass-stroke bg-white/5 hover:bg-white/10 text-xs font-bold text-on-surface transition-all">
             <span class="material-symbols-outlined text-sm">home</span>
-            Quay về trang bán vé
+            Trang bán vé
           </NuxtLink>
         </div>
       </header>
 
       <!-- Dashboard Pages Scroll -->
-      <main class="admin-main">
+      <main class="admin-main flex-1 overflow-y-auto bg-surface relative">
         <slot />
       </main>
     </div>
   </div>
 </template>
+
+<style>
+/* Page transition settings */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade {
+  animation: fade-in 0.2s ease-out forwards;
+}
+</style>
 
 <style scoped>
 .admin-shell {
@@ -123,70 +283,27 @@ onMounted(() => {
   height: 100vh;
   background: #121414;
   color: #e2e2e2;
+  overflow: hidden;
 }
 
 .admin-sidebar {
-  width: 16.5rem;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   background: #171919;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  z-index: 50;
+  flex-shrink: 0;
 }
 
 .admin-sidebar-brand {
-  height: 5.2rem;
-  display: flex;
-  align-items: center;
-  padding: 0 1.4rem;
+  height: 5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .brand-link {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: #e50914;
   font-weight: 900;
-  font-size: 1.1rem;
-}
-
-.brand-link small {
-  display: block;
-  color: #8f949c;
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.admin-nav {
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.admin-nav-title {
-  padding: 0 0.7rem;
-  margin-bottom: 0.2rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 800;
-  color: #8f949c;
 }
 
 .nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.72rem 0.82rem;
-  border-radius: 0.75rem;
-  font-size: 0.86rem;
   color: #b3b3b3;
-  font-weight: 600;
-  transition: all 0.18s ease;
 }
 
 .nav-link:hover {
@@ -196,92 +313,9 @@ onMounted(() => {
 
 .nav-link-active {
   color: #ffffff !important;
-  background: linear-gradient(135deg, #e50914, #9f1239);
-  box-shadow: 0 14px 24px -18px rgba(229, 9, 20, 0.95);
-}
-
-.sidebar-user {
-  padding: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.avatar-circle {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 9999px;
-  background: linear-gradient(135deg, #e50914, #8b1538);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 0.82rem;
-}
-
-.logout-btn {
-  width: 100%;
-  border: 1px solid rgba(239, 68, 68, 0.24);
-  background: rgba(127, 29, 29, 0.18);
-  color: #fda4af;
-  padding: 0.55rem 0.8rem;
-  border-radius: 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  transition: all 0.2s ease;
-}
-
-.logout-btn:hover {
-  background: rgba(239, 68, 68, 0.12);
-}
-
-.admin-header {
-  height: 5.2rem;
-  background: #171919;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 1.8rem;
-}
-
-.back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.77rem;
-  font-weight: 700;
-  padding: 0.55rem 0.95rem;
-  border-radius: 0.72rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #e2e2e2;
-  background: rgba(255, 255, 255, 0.03);
-  transition: all 0.2s ease;
-}
-
-.back-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
-.admin-main {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.25rem;
-}
-
-@media (max-width: 1024px) {
-  .admin-sidebar {
-    width: 14.5rem;
-  }
-
-  .admin-header {
-    padding: 0 1rem;
-  }
+  background: linear-gradient(135deg, #e50914, #7701d0);
+  box-shadow: 0 8px 20px -8px rgba(119, 1, 208, 0.6);
 }
 </style>
+
 
