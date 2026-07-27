@@ -17,7 +17,10 @@ interface TMDBResponse {
 export default defineEventHandler(async () => {
   const config = useRuntimeConfig()
 
-  const fallback: TMDBResponse & { source: string; reason: string } = {
+  const fallback: TMDBResponse & {
+    source: string
+    reason: string
+  } = {
     source: 'fallback',
     reason: 'unknown',
     page: 1,
@@ -54,14 +57,14 @@ export default defineEventHandler(async () => {
 
   try {
     const data = await $fetch<TMDBResponse>(
-      "https://api.tmdb.org/3/movie/popular",
+      'https://api.themoviedb.org/3/movie/popular',
       {
         headers: {
           Authorization: `Bearer ${config.tmdbToken}`,
-          Accept: "application/json",
+          Accept: 'application/json',
         },
         query: {
-          language: "vi-VN",
+          language: 'vi-VN',
           page: 1,
         },
       }
@@ -73,7 +76,12 @@ export default defineEventHandler(async () => {
     }
   } catch (error) {
     console.error(error)
-    const reason = error instanceof Error ? error.message : 'tmdb_request_failed'
+
+    const reason =
+      error instanceof Error
+        ? error.message
+        : 'tmdb_request_failed'
+
     return {
       ...fallback,
       reason,

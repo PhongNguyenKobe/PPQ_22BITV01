@@ -1,0 +1,164 @@
+[33mcommit 683ec7763e7f9905edbc506dfff9280cf094d079[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mchore/session-alignment-nuxt3[m[33m)[m
+Author: Timin29-07 <votoanphu3769@gmail.com>
+Date:   Sun Jul 26 20:16:20 2026 +0700
+
+    Fix Docker
+
+M	backend/app/api/routes/auth.py
+
+[33mcommit 0521760bc46ac03e471410ba5c7df02a5ba1b638[m[33m ([m[1;32mmain[m[33m)[m
+Author: Timin29-07 <votoanphu3769@gmail.com>
+Date:   Sun Jul 26 18:00:32 2026 +0700
+
+    fix: resolve leftover merge conflict markers from SS12 merge
+
+M	backend/app/api/routes/admin.py
+
+[33mcommit 09ca0f98c613795f605eee69c24611d9aa79a112[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Timin29-07 <votoanphu3769@gmail.com>
+Date:   Sun Jul 26 17:25:16 2026 +0700
+
+    SS12
+
+M	backend/app/api/routes/admin.py
+M	backend/app/api/routes/auth.py
+
+[33mcommit ef7255c8a96f51652d9a85f205abdf8e597d2ead[m
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Sat Jul 25 23:30:37 2026 +0700
+
+    fix bug
+
+M	backend/app/api/routes/admin.py
+
+[33mcommit 9d2b60bd176dca177bd3d432b458bcccec6ea151[m[33m ([m[1;31morigin/feat/complete-api-structure[m[33m, [m[1;32mfeat/complete-api-structure[m[33m)[m
+Author: Timin2907 <tyemvo4861@gmail.com>
+Date:   Thu Jul 23 23:28:33 2026 +0700
+
+    feat: Add complete admin CRUD operations and role-based access control
+
+M	backend/app/api/routes/admin.py
+
+[33mcommit ff2420a8c0414eb3bf843b68ca7ad2b9e8e0d424[m
+Author: Timin2907 <tyemvo4861@gmail.com>
+Date:   Thu Jul 23 23:12:13 2026 +0700
+
+    feat: Complete API structure with Seats, Bookings, Payments endpoints
+
+A	backend/app/api/routes/bookings.py
+A	backend/app/api/routes/payments.py
+
+[33mcommit 72fe268472617ab429fcde650109bef1670388f6[m
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Thu Jul 23 22:32:54 2026 +0700
+
+    Tạo endpoint /admin/stats cho Admin Dashboard
+
+M	backend/app/api/routes/admin.py
+
+[33mcommit 94df2ada7ec8016df64248b1270ac13db47e5df5[m
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Thu Jul 23 22:10:38 2026 +0700
+
+    giữ 2 role (customer, admin) - bỏ hoàn toàn branch-admin và staff
+
+M	backend/app/api/routes/movie_requests.py
+
+[33mcommit d36d290743b3f0b7f16a3f857b5c85399ad23170[m
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Thu Jul 23 19:55:30 2026 +0700
+
+     endpoint GET /branches public
+
+A	backend/app/api/routes/branches.py
+
+[33mcommit e42aa198ecce69cdd83804ec4bf35edbd456db96[m
+Merge: 3560293 f8a4e25
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Wed Jul 22 22:12:14 2026 +0700
+
+    Merge branch 'feature/product-update-P'
+    
+    # Conflicts:
+    #       .gitignore
+    #       frontend/.nuxt/dev/index.mjs
+    #       frontend/.nuxt/dev/index.mjs.map
+    #       frontend/.nuxt/manifest/latest.json
+    #       frontend/.nuxt/manifest/meta/dev.json
+    #       frontend/.nuxt/nitro.json
+    #       frontend/.nuxt/nuxt.d.ts
+    #       frontend/.nuxt/tailwind/postcss.mjs
+    #       frontend/.nuxt/tsconfig.json
+    #       frontend/.nuxt/types/schema.d.ts
+    #       frontend/.output/nitro.json
+    #       frontend/.output/public/_nuxt/builds/latest.json
+    #       frontend/.output/server/chunks/_/nitro.mjs
+    #       frontend/.output/server/chunks/build/client.precomputed.mjs
+    #       frontend/.output/server/chunks/build/client.precomputed.mjs.map
+    #       frontend/.output/server/chunks/build/server.mjs
+    #       frontend/.output/server/chunks/build/server.mjs.map
+    #       frontend/.output/server/chunks/build/styles.mjs
+    #       frontend/.output/server/chunks/build/styles.mjs.map
+    #       frontend/components/Header.vue
+    #       frontend/components/ai/Chatbot.vue
+    #       frontend/components/ai/VoiceBooking.vue
+    #       frontend/layouts/admin.vue
+    #       frontend/nuxt.config.ts
+    #       frontend/pages/admin/dashboard.vue
+    #       frontend/pages/ai-discovery.vue
+    #       frontend/pages/index.vue
+    #       frontend/pages/login.vue
+    #       frontend/pages/movies/[id].vue
+    #       frontend/pages/register.vue
+
+[33mcommit f8a4e25114a6a546280fd492f4047d1a28bb9fe7[m
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Tue Jul 21 22:45:40 2026 +0700
+
+    Save local changes before switching
+
+M	backend/app/api/routes/__pycache__/admin.cpython-312.pyc
+M	backend/app/api/routes/__pycache__/auth.cpython-312.pyc
+M	backend/app/api/routes/__pycache__/movie_requests.cpython-312.pyc
+M	backend/app/api/routes/__pycache__/movies.cpython-312.pyc
+M	backend/app/api/routes/__pycache__/showtimes.cpython-312.pyc
+M	backend/app/api/routes/__pycache__/users.cpython-312.pyc
+
+[33mcommit 51e5892c79324e90a7d49be31d6bdff8a010a404[m
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Tue Jul 14 15:01:30 2026 +0700
+
+    ss8
+
+M	backend/app/api/routes/__pycache__/movies.cpython-312.pyc
+M	backend/app/api/routes/__pycache__/users.cpython-312.pyc
+M	backend/app/api/routes/movies.py
+M	backend/app/api/routes/users.py
+
+[33mcommit 07b2c87a5525530f2aaced3ac83e9d2ee326bbf1[m
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Tue Jul 14 14:01:57 2026 +0700
+
+    ss7
+
+M	backend/app/api/routes/__pycache__/admin.cpython-312.pyc
+M	backend/app/api/routes/__pycache__/movie_requests.cpython-312.pyc
+
+[33mcommit eb01f543511b72d25b5b117154d688f173155db5[m
+Author: PhongNguyenKobe <nguyendangthanhphong.lop8a7.23@gmail.com>
+Date:   Fri Jul 10 15:50:49 2026 +0700
+
+    Update code from product branch
+
+A	backend/app/api/routes/__pycache__/admin.cpython-312.pyc
+A	backend/app/api/routes/__pycache__/auth.cpython-312.pyc
+A	backend/app/api/routes/__pycache__/movie_requests.cpython-312.pyc
+A	backend/app/api/routes/__pycache__/movies.cpython-312.pyc
+A	backend/app/api/routes/__pycache__/showtimes.cpython-312.pyc
+A	backend/app/api/routes/__pycache__/users.cpython-312.pyc
+A	backend/app/api/routes/admin.py
+A	backend/app/api/routes/auth.py
+A	backend/app/api/routes/movie_requests.py
+A	backend/app/api/routes/movies.py
+A	backend/app/api/routes/showtimes.py
+A	backend/app/api/routes/users.py

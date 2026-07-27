@@ -4,7 +4,7 @@ import { adminBackendService, adminService, movieService, type AdminAuditorium, 
 
 definePageMeta({
   layout: 'admin',
-  middleware: ['auth', 'branch-admin']
+  middleware: ['auth']
 })
 
 const activeTab = ref<'showtimes' | 'movies' | 'screens' | 'promos'>('showtimes')
@@ -162,6 +162,9 @@ const maxTicketSalesValue = computed(() => {
   if (salesChartData.value.length === 0) return 1
   return Math.max(...salesChartData.value.map(c => c.tickets))
 })
+function fmtDateTime(value: string) {
+  return new Date(value).toLocaleString('vi-VN')
+}
 </script>
 
 <template>

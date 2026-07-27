@@ -15,7 +15,7 @@ import {
 
 definePageMeta({
   layout: 'admin',
-  middleware: ['auth', 'super-admin'],
+  middleware: ['auth'],
 })
 
 type AdminTab = 'users' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'

@@ -551,13 +551,13 @@ export const adminBackendService = {
     await apiClient.delete(`/admin/users/${userId}`)
   },
 
-  async getBranchesManage(): Promise<AdminBranchManage[]> {
-    const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
-    return res.data
-  },
+ async getBranchesManage(): Promise<AdminBranchManage[]> {
+  const res = await apiClient.get<AdminBranchManage[]>('/admin/branches')
+  return res.data
+},
 
   async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
-    const res = await apiClient.post<AdminBranchManage>('/admin/branches/manage', payload)
+    const res = await apiClient.post<AdminBranchManage>('/admin/branches', payload)
     return res.data
   },
 
@@ -1321,31 +1321,28 @@ export const legacyAdminBackendService = {
     return mapBackendAdminUserToProfile(res.data)
   },
 
-  async getBranchesManage(): Promise<AdminBranchManage[]> {
-    const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
-    return res.data
-  },
+async getBranchesManage(): Promise<AdminBranchManage[]> {
+  const res = await apiClient.get<AdminBranchManage[]>('/admin/branches')
+  return res.data
+},
 
-  async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
-    const res = await apiClient.post<AdminBranchManage>('/admin/branches/manage', payload)
-    return res.data
-  },
+async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
+  const res = await apiClient.post<AdminBranchManage>('/admin/branches', payload)
+  return res.data
+},
 
   async updateBranch(branchId: string, payload: AdminUpdateBranchPayload): Promise<AdminBranchManage> {
-    const res = await apiClient.patch<AdminBranchManage>(`/admin/branches/manage/${branchId}`, payload)
+    const res = await apiClient.patch<AdminBranchManage>(`/admin/branches/${branchId}`, payload)
     return res.data
   },
 
   async deleteBranch(branchId: string): Promise<void> {
-    await apiClient.delete(`/admin/branches/manage/${branchId}`)
+    await apiClient.delete(`/admin/branches/${branchId}`)
   },
 
-  async getAuditoriums(branchId?: string): Promise<AdminAuditorium[]> {
-    const res = await apiClient.get<AdminAuditorium[]>('/admin/auditoriums', {
-      params: branchId ? { branch_id: branchId } : undefined,
-    })
-    return res.data
-  },
+async getAuditoriums(branchId?: string): Promise<AdminAuditorium[]> {
+  return []
+},
 
   async createAuditorium(payload: AdminCreateAuditoriumPayload): Promise<AdminAuditorium> {
     const res = await apiClient.post<AdminAuditorium>('/admin/auditoriums', payload)
@@ -1361,17 +1358,13 @@ export const legacyAdminBackendService = {
     await apiClient.delete(`/admin/auditoriums/${auditoriumId}`)
   },
 
-  async getSeatTypes(): Promise<AdminSeatType[]> {
-    const res = await apiClient.get<AdminSeatType[]>('/admin/seat-types')
-    return res.data
-  },
+ async getSeatTypes(): Promise<AdminSeatType[]> {
+  return []
+},
 
   async getSeats(auditoriumId?: string): Promise<AdminSeat[]> {
-    const res = await apiClient.get<AdminSeat[]>('/admin/seats', {
-      params: auditoriumId ? { auditorium_id: auditoriumId } : undefined,
-    })
-    return res.data
-  },
+  return []
+},
 
   async createSeat(payload: AdminCreateSeatPayload): Promise<AdminSeat> {
     const res = await apiClient.post<AdminSeat>('/admin/seats', payload)
