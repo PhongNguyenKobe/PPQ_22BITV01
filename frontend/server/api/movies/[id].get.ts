@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
       id: String(id || ''),
       title: `Movie #${id}`,
       description: 'Dữ liệu chi tiết tạm thời do TMDB chưa cấu hình token.',
-      poster: 'https://placehold.co/500x750?text=No+Image',
+      poster: '/images/movie-placeholder.svg',
       rating: 0,
       duration: 120,
       releaseDate: '',
@@ -56,27 +56,9 @@ export default defineEventHandler(async (event) => {
   try {
     // Fetch movie details, credits (cast/director), and videos (trailer) in parallel
     const [movie, credits, videos] = await Promise.all([
-      $fetch<TmdbMovie>(`https://api.tmdb.org/3/movie/${id}`, {
-        headers: {
-          Authorization: `Bearer ${config.tmdbToken}`,
-          Accept: 'application/json',
-        },
-        query: { language: 'vi-VN' },
-      }),
-      $fetch<TmdbCredits>(`https://api.tmdb.org/3/movie/${id}/credits`, {
-        headers: {
-          Authorization: `Bearer ${config.tmdbToken}`,
-          Accept: 'application/json',
-        },
-        query: { language: 'vi-VN' },
-      }),
-      $fetch<TmdbVideosResponse>(`https://api.tmdb.org/3/movie/${id}/videos`, {
-        headers: {
-          Authorization: `Bearer ${config.tmdbToken}`,
-          Accept: 'application/json',
-        },
-        query: { language: 'vi-VN' },
-      }),
+      tmdbFetch<TmdbMovie>(`/3/movie/${id}`, config.tmdbToken, { language: 'vi-VN' }),
+      tmdbFetch<TmdbCredits>(`/3/movie/${id}/credits`, config.tmdbToken, { language: 'vi-VN' }),
+      tmdbFetch<TmdbVideosResponse>(`/3/movie/${id}/videos`, config.tmdbToken, { language: 'vi-VN' }),
     ])
 
     // Extract trailer from videos (prefer YouTube, official trailer)
@@ -107,7 +89,7 @@ export default defineEventHandler(async (event) => {
     // Format poster URL
     const posterUrl = movie.poster_path
       ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-      : 'https://placehold.co/500x750?text=No+Image'
+      : '/images/movie-placeholder.svg'
 
     return {
       id: String(movie.id),
@@ -128,7 +110,7 @@ export default defineEventHandler(async (event) => {
       id: String(id || ''),
       title: `Movie #${id}`,
       description: 'Không thể lấy chi tiết TMDB, đang hiển thị dữ liệu tạm thời.',
-      poster: 'https://placehold.co/500x750?text=No+Image',
+      poster: '/images/movie-placeholder.svg',
       rating: 0,
       duration: 120,
       releaseDate: '',

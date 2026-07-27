@@ -5,6 +5,7 @@ interface TMDBMovie {
   title: string
   overview: string
   poster_path: string | null
+  poster_url?: string | null
 }
 
 interface TMDBResponse {
@@ -12,6 +13,14 @@ interface TMDBResponse {
   results: TMDBMovie[]
   total_pages: number
   total_results: number
+}
+
+interface BackendMovie {
+  id: string
+  title: string
+  description?: string | null
+  poster_url?: string | null
+  trailer_url?: string | null
 }
 
 export default defineEventHandler(async () => {
@@ -56,18 +65,10 @@ export default defineEventHandler(async () => {
   }
 
   try {
-    const data = await $fetch<TMDBResponse>(
-      'https://api.themoviedb.org/3/movie/popular',
-      {
-        headers: {
-          Authorization: `Bearer ${config.tmdbToken}`,
-          Accept: 'application/json',
-        },
-        query: {
-          language: 'vi-VN',
-          page: 1,
-        },
-      }
+    const data = await tmdbFetch<TMDBResponse>(
+      '/3/movie/popular',
+      config.tmdbToken,
+      { language: 'vi-VN', page: 1 },
     )
 
     return {
@@ -75,12 +76,36 @@ export default defineEventHandler(async () => {
       source: 'tmdb',
     }
   } catch (error) {
-    console.error(error)
-
     const reason =
       error instanceof Error
         ? error.message
         : 'tmdb_request_failed'
+
+    try {
+      const backendMovies = await $fetch<BackendMovie[]>(
+        `${config.public.apiBase}/movies`,
+      )
+      if (backendMovies.length > 0) {
+        return {
+          source: 'backend',
+          reason,
+          page: 1,
+          total_pages: 1,
+          total_results: backendMovies.length,
+          results: backendMovies.map((movie, index) => ({
+            id: 920000 + index,
+            backend_id: movie.id,
+            title: movie.title,
+            overview: movie.description || '',
+            poster_path: null,
+            poster_url: movie.poster_url || null,
+            trailer_url: movie.trailer_url || null,
+          })),
+        }
+      }
+    } catch {
+      // The frontend still remains usable when both external and backend APIs are unavailable.
+    }
 
     return {
       ...fallback,

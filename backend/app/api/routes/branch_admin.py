@@ -1,21 +1,39 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import require_roles
 from app.db.session import get_db
-from app.models.catalog import Auditorium, Branch, Movie, Seat, Showtime
+from app.models.catalog import Auditorium, Branch, Movie, MovieChangeRequest, Seat, Showtime
+from app.models.commerce import Booking, BookingSeat, Payment
 from app.models.user import User
 from app.schemas.admin import (
     AuditoriumRead,
+    BranchAdminStatsResponse,
+    BranchAdminSalesPoint,
+    MovieRequestCreate,
+    MovieRequestRead,
     SeatAdminRead,
     ShowtimeAdminRead,
 )
 
 router = APIRouter()
+
+
+def _movie_request_read(item: MovieChangeRequest) -> MovieRequestRead:
+    return MovieRequestRead(
+        id=item.id,
+        requested_by_id=item.requested_by_id,
+        target_movie_id=item.target_movie_id,
+        request_type=item.request_type,
+        status=item.status,
+        payload=item.payload,
+        review_note=item.review_note,
+        created_at=item.created_at,
+    )
 
 
 async def _get_staff_branch_id(db: AsyncSession, user_id: UUID) -> UUID:
@@ -67,6 +85,102 @@ async def read_branch_dashboard(
         "auditoriums_count": auditoriums_count,
         "showtimes_count": showtimes_count,
     }
+
+
+@router.get("/stats", response_model=BranchAdminStatsResponse)
+async def read_branch_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
+) -> BranchAdminStatsResponse:
+    branch_id = await _get_staff_branch_id(db, current_user.id)
+    branch = await db.get(Branch, branch_id)
+    if branch is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+
+    showtime_result = await db.execute(
+        select(Showtime)
+        .join(Auditorium, Showtime.auditorium_id == Auditorium.id)
+        .options(selectinload(Showtime.movie), selectinload(Showtime.auditorium).selectinload(Auditorium.branch))
+        .where(Auditorium.branch_id == branch_id)
+        .order_by(Showtime.starts_at.desc())
+    )
+
+
+    showtimes = list(showtime_result.scalars().all())
+    showtime_ids = [item.id for item in showtimes]
+    tickets_sold = 0
+    revenue = 0
+    if showtime_ids:
+        tickets_sold = await db.scalar(
+            select(func.count(BookingSeat.id))
+            .join(Booking, Booking.id == BookingSeat.booking_id)
+            .where(Booking.showtime_id.in_(showtime_ids), Booking.status == "CONFIRMED")
+        ) or 0
+        revenue = await db.scalar(
+            select(func.coalesce(func.sum(Payment.amount), 0))
+            .join(Booking, Booking.id == Payment.booking_id)
+            .where(Booking.showtime_id.in_(showtime_ids), Payment.status == "SUCCESS")
+        ) or 0
+
+    return BranchAdminStatsResponse(
+        branch_id=branch.id,
+        branch_name=branch.name,
+        ticketsSold=int(tickets_sold),
+        activeShowtimes=sum(1 for item in showtimes if item.status == "OPEN"),
+        activePromos=0,
+        branchRevenue=int(revenue),
+        salesChartData=[BranchAdminSalesPoint(label="Tổng", tickets=int(tickets_sold))],
+        showtimesList=[
+            {
+                "id": item.id,
+                "movie_id": item.movie_id,
+                "movie_title": item.movie.title if item.movie else "",
+                "auditorium_id": item.auditorium_id,
+                "auditorium_name": item.auditorium.name if item.auditorium else "",
+                "branch_name": branch.name,
+                "starts_at": item.starts_at,
+                "ends_at": item.ends_at,
+                "status": item.status,
+                "base_price": float(item.base_price),
+            }
+            for item in showtimes
+        ],
+        promotionsList=[],
+    )
+
+
+@router.get("/movie-requests", response_model=list[MovieRequestRead])
+async def read_my_movie_requests(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
+) -> list[MovieRequestRead]:
+    result = await db.execute(
+        select(MovieChangeRequest)
+        .where(MovieChangeRequest.requested_by_id == current_user.id)
+        .order_by(MovieChangeRequest.created_at.desc())
+    )
+    return [_movie_request_read(item) for item in result.scalars().all()]
+
+
+@router.post("/movie-requests", response_model=MovieRequestRead, status_code=status.HTTP_201_CREATED)
+async def create_movie_request(
+    payload: MovieRequestCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
+) -> MovieRequestRead:
+    if payload.request_type in {"UPDATE", "DELETE"}:
+        if payload.target_movie_id is None or await db.get(Movie, payload.target_movie_id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target movie not found")
+    item = MovieChangeRequest(
+        requested_by_id=current_user.id,
+        target_movie_id=payload.target_movie_id,
+        request_type=payload.request_type,
+        payload=payload.payload.model_dump(mode="json"),
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return _movie_request_read(item)
 
 
 @router.get("/auditoriums", response_model=list[AuditoriumRead])

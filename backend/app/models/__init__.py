@@ -1,3 +1,4 @@
-from app.models.catalog import Auditorium, Branch, Movie, MovieGenre, Seat, SeatType, Showtime, Vendor, movie_genre_map
+from app.models.catalog import Auditorium, Branch, Movie, MovieChangeRequest, MovieGenre, Seat, SeatType, Showtime, Vendor, movie_genre_map
+from app.models.commerce import Booking, BookingSeat, Payment
 from app.models.user import Role, User, user_roles_table
 

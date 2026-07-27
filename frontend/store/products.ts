@@ -95,9 +95,11 @@ export const useProductsStore = defineStore('products', {
             name: movie.title,
             price: (Math.floor(Math.random() * 16) + 7) * 10,
             category: TICKET_TYPES[Math.floor(Math.random() * TICKET_TYPES.length)],
-            imageUrl: movie.poster_path
+            imageUrl: movie.poster_url
+              ? movie.poster_url
+              : movie.poster_path
               ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-              : 'https://placehold.co/500x750?text=No+Image',
+              : '/images/movie-placeholder.svg',
             description: movie.overview,
             rating: movie.vote_average,
             trailerUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${movie.title} trailer`)}`,

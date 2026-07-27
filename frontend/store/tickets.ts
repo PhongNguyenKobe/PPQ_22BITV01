@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { checkoutService, mockTickets, type Showtime, type Seat, type UserTicket } from '~/services/api'
+import { checkoutService, type Showtime, type Seat, type UserTicket } from '~/services/api'
 
 export const useTicketsStore = defineStore('tickets', () => {
   const selectedMovie = ref<any>(null) // Product/Movie to book
   const selectedCinema = ref<string>('') // Cinema branch name
   const selectedShowtime = ref<Showtime | null>(null)
   const selectedSeats = ref<Seat[]>([])
-  const ticketHistory = ref<UserTicket[]>([...mockTickets])
+  const ticketHistory = ref<UserTicket[]>([])
   const loading = ref(false)
 
   // Initialize from client-side localStorage if available
@@ -69,7 +69,8 @@ export const useTicketsStore = defineStore('tickets', () => {
     try {
       const ticket = await checkoutService.processPayment({
         showtimeId: selectedShowtime.value.id,
-        seats: selectedSeats.value.map(s => `${s.row}${s.number}`),
+        seats: selectedSeats.value.map(s => s.id),
+        seatLabels: selectedSeats.value.map(s => `${s.row}${s.number}`),
         paymentMethod,
         totalAmount: totalAmount.value
       })

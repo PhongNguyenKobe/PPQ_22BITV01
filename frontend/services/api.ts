@@ -495,12 +495,11 @@ export const usersApi = {
     return mapBackendUserToProfile(res.data)
   },
 
-  // TODO: backend chưa có endpoint /users/me/tickets,
-  // bổ sung khi có API vé của tôi
-  // async getMyTickets(): Promise<UserTicket[]> {
-  //   const res = await apiClient.get<UserTicket[]>('/users/me/tickets')
-  //   return res.data
-  // },
+  async getMyTickets(): Promise<any[]> {
+    const res = await apiClient.get<any[]>('/users/me/tickets')
+    return res.data
+  },
+
 }
 
 export const branchesService = {
@@ -519,6 +518,29 @@ export const branchesService = {
 }
 
 export const adminBackendService = {
+  async createMovie(payload: {
+    title: string
+    description?: string
+    duration_min: number
+    release_date?: string | null
+    poster_url?: string
+    trailer_url?: string
+    status: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'
+    genres?: string[]
+  }): Promise<Movie> {
+    const res = await apiClient.post<BackendMovie>('/admin/movies', payload)
+    return mapBackendMovieToFrontend(res.data)
+  },
+
+  async updateMovie(movieId: string, payload: Record<string, unknown>): Promise<Movie> {
+    const res = await apiClient.put<BackendMovie>(`/admin/movies/${movieId}`, payload)
+    return mapBackendMovieToFrontend(res.data)
+  },
+
+  async deleteMovie(movieId: string): Promise<void> {
+    await apiClient.delete(`/admin/movies/${movieId}`)
+  },
+
   async getBranches(): Promise<BackendBranch[]> {
     const res = await apiClient.get<BackendBranch[]>('/admin/branches')
     return res.data
@@ -552,7 +574,7 @@ export const adminBackendService = {
   },
 
  async getBranchesManage(): Promise<AdminBranchManage[]> {
-  const res = await apiClient.get<AdminBranchManage[]>('/admin/branches')
+  const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
   return res.data
 },
 
@@ -939,7 +961,7 @@ export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
     rating: 0, // backend không có rating, để 0
     genre: bm.genres.map(g => g.name),
     format: [], // backend không có format, để trống
-    poster: bm.poster_url || 'https://placehold.co/500x750?text=No+Image',
+    poster: bm.poster_url || '/images/movie-placeholder.svg',
     trailer: bm.trailer_url || '',
     description: bm.description || '',
     duration: bm.duration_min,
@@ -1083,7 +1105,8 @@ export const movieService = {
   },
 
   async getPopularFromTmdb(): Promise<TmdbPopularMovie[]> {
-    const data = await $fetch<{ results?: any[] }>('/api/movies')
+    const data = await $fetch<{ source?: string; results?: any[] }>('/api/movies')
+    if (data?.source === 'backend') return []
     const results = Array.isArray(data?.results) ? data.results : []
     return results.map((item: any) => ({
       tmdb_id: Number(item.id),
@@ -1100,6 +1123,7 @@ export const checkoutService = {
   async processPayment(bookingDetails: {
     showtimeId: string
     seats: string[]
+    seatLabels?: string[]
     paymentMethod: string
     totalAmount: number
   }): Promise<UserTicket> {
@@ -1125,9 +1149,42 @@ export const checkoutService = {
       return newTicket
     }
     
-    const res = await apiClient.post<UserTicket>('/checkout/booking', bookingDetails)
-    return res.data
+    const bookingRes = await apiClient.post<any>('/bookings', {
+      showtime_id: bookingDetails.showtimeId,
+      seat_ids: bookingDetails.seats,
+      quantity: bookingDetails.seats.length,
+      total_price: bookingDetails.totalAmount,
+    })
+    const booking = bookingRes.data
+    const paymentRes = await apiClient.post<any>('/payments/checkout', {
+      booking_id: booking.id,
+      amount: Number(booking.total_price),
+      payment_method: bookingDetails.paymentMethod,
+    })
+    const payment = paymentRes.data
+    const showtime = await apiClient.get<any>(`/movies/${booking.movie_id}/showtimes`)
+      .then((response) => response.data.find((item: any) => item.id === bookingDetails.showtimeId))
+      .catch(() => null)
+
+    return {
+      id: booking.id,
+      movieTitle: showtime?.movie_title || selectedMovieTitle(booking.movie_id),
+      poster: showtime?.poster_url || '/images/movie-placeholder.svg',
+      branchName: showtime?.branch_name || 'CineAI',
+      screenName: showtime?.auditorium_name || 'Phòng chiếu',
+      date: String(showtime?.starts_at || booking.booking_date).slice(0, 10),
+      time: String(showtime?.starts_at || booking.booking_date).slice(11, 16),
+      seats: bookingDetails.seatLabels || booking.seats.map((seat: any) => `${seat.row}${seat.number}`),
+      totalAmount: Number(payment.total_amount),
+      paymentMethod: bookingDetails.paymentMethod,
+      qrCode: payment.qr_code || payment.confirmation_number,
+      bookingDate: String(booking.booking_date).replace('T', ' ').slice(0, 16),
+    }
   }
+}
+
+function selectedMovieTitle(movieId: string): string {
+  return `Vé xem phim ${movieId.slice(0, 8)}`
 }
 
 export const aiService = {
@@ -1286,134 +1343,19 @@ export const adminService = {
         ]
       }
     }
-    const res = await apiClient.get<BranchAdminStats>('/branch-admin/stats', {
+    const res = await apiClient.get<any>('/branch-admin/stats', {
       params: branchId ? { branchId } : undefined,
     })
-    return res.data
+    return {
+      branchId: res.data.branch_id,
+      branchName: res.data.branch_name,
+      ticketsSold: res.data.ticketsSold,
+      activeShowtimes: res.data.activeShowtimes,
+      activePromos: res.data.activePromos,
+      branchRevenue: res.data.branchRevenue,
+      salesChartData: res.data.salesChartData || [],
+      showtimesList: res.data.showtimesList || [],
+      promotionsList: res.data.promotionsList || [],
+    }
   }
 }
-
-export const legacyAdminBackendService = {
-  async getUsers(): Promise<UserProfile[]> {
-    const res = await apiClient.get<BackendAdminUser[]>('/admin/users')
-    return res.data.map(mapBackendAdminUserToProfile)
-  },
-
-  async createUser(payload: AdminCreateUserPayload): Promise<UserProfile> {
-    const res = await apiClient.post<BackendAdminUser>('/admin/users', payload)
-    return mapBackendAdminUserToProfile(res.data)
-  },
-
-  async updateUser(userId: string, payload: AdminUpdateUserPayload): Promise<UserProfile> {
-    const res = await apiClient.patch<BackendAdminUser>(`/admin/users/${userId}`, payload)
-    return mapBackendAdminUserToProfile(res.data)
-  },
-
-  async deleteUser(userId: string): Promise<void> {
-    await apiClient.delete(`/admin/users/${userId}`)
-  },
-
-  async updateUserRole(userId: string, roleCode: 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN', branchId?: string | null): Promise<UserProfile> {
-    const res = await apiClient.patch<BackendAdminUser>(`/admin/users/${userId}/role`, {
-      role_code: roleCode,
-      branch_id: branchId,
-    })
-    return mapBackendAdminUserToProfile(res.data)
-  },
-
-async getBranchesManage(): Promise<AdminBranchManage[]> {
-  const res = await apiClient.get<AdminBranchManage[]>('/admin/branches')
-  return res.data
-},
-
-async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
-  const res = await apiClient.post<AdminBranchManage>('/admin/branches', payload)
-  return res.data
-},
-
-  async updateBranch(branchId: string, payload: AdminUpdateBranchPayload): Promise<AdminBranchManage> {
-    const res = await apiClient.patch<AdminBranchManage>(`/admin/branches/${branchId}`, payload)
-    return res.data
-  },
-
-  async deleteBranch(branchId: string): Promise<void> {
-    await apiClient.delete(`/admin/branches/${branchId}`)
-  },
-
-async getAuditoriums(branchId?: string): Promise<AdminAuditorium[]> {
-  return []
-},
-
-  async createAuditorium(payload: AdminCreateAuditoriumPayload): Promise<AdminAuditorium> {
-    const res = await apiClient.post<AdminAuditorium>('/admin/auditoriums', payload)
-    return res.data
-  },
-
-  async updateAuditorium(auditoriumId: string, payload: AdminUpdateAuditoriumPayload): Promise<AdminAuditorium> {
-    const res = await apiClient.patch<AdminAuditorium>(`/admin/auditoriums/${auditoriumId}`, payload)
-    return res.data
-  },
-
-  async deleteAuditorium(auditoriumId: string): Promise<void> {
-    await apiClient.delete(`/admin/auditoriums/${auditoriumId}`)
-  },
-
- async getSeatTypes(): Promise<AdminSeatType[]> {
-  return []
-},
-
-  async getSeats(auditoriumId?: string): Promise<AdminSeat[]> {
-  return []
-},
-
-  async createSeat(payload: AdminCreateSeatPayload): Promise<AdminSeat> {
-    const res = await apiClient.post<AdminSeat>('/admin/seats', payload)
-    return res.data
-  },
-
-  async updateSeat(seatId: string, payload: AdminUpdateSeatPayload): Promise<AdminSeat> {
-    const res = await apiClient.patch<AdminSeat>(`/admin/seats/${seatId}`, payload)
-    return res.data
-  },
-
-  async deleteSeat(seatId: string): Promise<void> {
-    await apiClient.delete(`/admin/seats/${seatId}`)
-  },
-
-  async getShowtimes(branchId?: string): Promise<AdminShowtime[]> {
-    const res = await apiClient.get<AdminShowtime[]>('/admin/showtimes', {
-      params: branchId ? { branch_id: branchId } : undefined,
-    })
-    return res.data
-  },
-
-  async createShowtime(payload: AdminCreateShowtimePayload): Promise<AdminShowtime> {
-    const res = await apiClient.post<AdminShowtime>('/admin/showtimes', payload)
-    return res.data
-  },
-
-  async updateShowtime(showtimeId: string, payload: AdminUpdateShowtimePayload): Promise<AdminShowtime> {
-    const res = await apiClient.patch<AdminShowtime>(`/admin/showtimes/${showtimeId}`, payload)
-    return res.data
-  },
-
-  async deleteShowtime(showtimeId: string): Promise<void> {
-    await apiClient.delete(`/admin/showtimes/${showtimeId}`)
-  },
-
-  async importTmdbMovie(payload: AdminImportTmdbMoviePayload): Promise<AdminImportTmdbMovieResult> {
-    const res = await apiClient.post<AdminImportTmdbMovieResult>('/admin/movies/import-tmdb', payload)
-    return res.data
-  },
-
-  async getMyMovieRequests(): Promise<MovieRequest[]> {
-    const res = await apiClient.get<MovieRequest[]>('/branch-admin/movie-requests')
-    return res.data
-  },
-
-  async submitMovieRequest(payload: MovieRequestCreatePayload): Promise<MovieRequest> {
-    const res = await apiClient.post<MovieRequest>('/branch-admin/movie-requests', payload)
-    return res.data
-  },
-}
-
