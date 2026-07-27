@@ -32,7 +32,7 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-secret}
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 10080
-      BACKEND_CORS_ORIGINS: http://localhost:3000,http://frontend:3000
+      BACKEND_CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://frontend:3000
       RUN_SEED: ${RUN_SEED:-1}
     command: >
       sh -c "alembic upgrade head &&
