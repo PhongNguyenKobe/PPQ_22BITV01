@@ -66,6 +66,7 @@ function startBooking() {
         :src="imageUrl"
         :alt="name"
         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        @error="($event.target as HTMLImageElement).src = '/images/movie-placeholder.svg'"
       />
 
       <!-- Hover overlay -->

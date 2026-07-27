@@ -29,6 +29,7 @@ router = APIRouter()
 @router.post("/seats", response_model=list[SeatBookResponse])
 async def get_showtime_seats(
     payload: SeatBookRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[SeatBookResponse]:
     """
@@ -45,7 +46,7 @@ async def get_showtime_seats(
         )
     
     # Get available seats
-    seats = await list_showtime_available_seats(db, payload.showtime_id)
+    seats = await list_showtime_available_seats(db, payload.showtime_id, current_user.id)
     return [SeatBookResponse(**seat) for seat in seats]
 
 
@@ -72,7 +73,7 @@ async def create_booking(
         )
     
     # Validate seats
-    is_valid, message = await validate_seats_available(db, payload.showtime_id, payload.seat_ids)
+    is_valid, message = await validate_seats_available(db, payload.showtime_id, payload.seat_ids, current_user.id)
     if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -83,7 +84,17 @@ async def create_booking(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="quantity must match seat_ids")
     try:
         booking = await create_user_booking(db, current_user.id, payload.showtime_id, payload.seat_ids)
-    except ValueError:
+    except ValueError as exc:
+        if str(exc) == "SHOWTIME_UNAVAILABLE":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Showtime has started, ended, or is no longer open for booking",
+            ) from None
+        if str(exc) == "SEAT_HOLD_REQUIRED":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Your seat hold expired. Please select the seats again.",
+            ) from None
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="One or more seats are already booked") from None
     return BookingRead(**booking_to_dict(booking))
 

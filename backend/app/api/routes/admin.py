@@ -14,10 +14,11 @@ from app.api.deps import get_current_user, require_roles
 from app.core.permissions import require_admin, require_branch_admin
 from app.crud.admin import get_live_admin_stats, list_users_with_branch_id, set_user_role
 from app.crud.user import create_user, get_user_by_id, update_user
+from app.crud.showtime import effective_showtime_status
 from app.db.session import get_db
 from app.models.catalog import Auditorium, Branch, Movie, MovieGenre, Seat, SeatType, Showtime, Vendor
 from app.models.commerce import Booking, BookingSeat, Payment
-from app.models.user import User
+from app.models.user import Role, User
 from app.schemas.admin import (
     AdminStatsResponse,
     AdminUserCreate,
@@ -32,12 +33,16 @@ from app.schemas.admin import (
     BranchRead,
     MovieDraftPayload,
     SeatAdminCreate,
+    SeatLayoutRead,
+    SeatLayoutUpdate,
     SeatAdminRead,
     SeatAdminUpdate,
     SeatTypeRead,
     TmdbMovieImportPayload,
     TmdbMovieImportResponse,
     ShowtimeAdminCreate,
+    ShowtimeBulkCreate,
+    ShowtimeBulkPublish,
     ShowtimeAdminRead,
     ShowtimeAdminUpdate,
     UserRoleUpdate,
@@ -46,6 +51,33 @@ from app.schemas.movie import MovieRead
 from app.schemas.user import UserCreate, UserUpdate
 
 router = APIRouter()
+
+
+def _showtime_admin_read(
+    item: Showtime,
+    *,
+    booking_count: int = 0,
+    sold_seats: int = 0,
+    revenue: float = 0,
+) -> ShowtimeAdminRead:
+    return ShowtimeAdminRead(
+        id=item.id,
+        movie_id=item.movie_id,
+        movie_title=item.movie.title if item.movie else "",
+        auditorium_id=item.auditorium_id,
+        auditorium_name=item.auditorium.name if item.auditorium else "",
+        branch_name=item.auditorium.branch.name if item.auditorium and item.auditorium.branch else "",
+        starts_at=item.starts_at,
+        ends_at=item.ends_at,
+        status=effective_showtime_status(item),
+        stored_status=item.status,
+        booking_closes_at=item.booking_closes_at,
+        cancellation_reason=item.cancellation_reason,
+        base_price=float(item.base_price),
+        booking_count=booking_count,
+        sold_seats=sold_seats,
+        revenue=revenue,
+    )
 
 
 async def _branch_id_map(db: AsyncSession) -> dict[UUID, UUID]:
@@ -180,6 +212,24 @@ async def create_admin_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles("SUPER_ADMIN")),
 ) -> AdminUserRead:
+    target_role = (
+        await db.execute(select(Role).where(Role.code == payload.role_code))
+    ).scalar_one_or_none()
+    if target_role is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Role {payload.role_code} is not configured",
+        )
+    if payload.role_code == "BRANCH_ADMIN" and payload.branch_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Branch is required for branch admin")
+    if payload.branch_id is not None:
+        branch_exists = (
+            await db.execute(select(Branch.id).where(Branch.id == payload.branch_id, Branch.is_active.is_(True)))
+        ).scalar_one_or_none()
+        if branch_exists is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Branch is invalid or inactive")
+
+    created: User | None = None
     try:
         created = await create_user(
             db,
@@ -201,11 +251,16 @@ async def create_admin_user(
                 UserRoleUpdate(role_code=payload.role_code, branch_id=payload.branch_id),
             )
     except ValueError as exc:
+        if created is not None:
+            await db.delete(created)
+            await db.commit()
         message = str(exc)
         if message in {"EMAIL_EXISTS", "PHONE_EXISTS"}:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=message) from None
         if message == "BRANCH_REQUIRED":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Branch is required for branch-admin/staff") from None
+        if message == "ROLE_NOT_FOUND":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected role is not configured") from None
         raise
 
     branch_map = await _branch_id_map(db)
@@ -740,6 +795,120 @@ async def create_admin_seat(
     )
 
 
+@router.put("/auditoriums/{auditorium_id}/seat-layout", response_model=SeatLayoutRead)
+async def replace_admin_seat_layout(
+    auditorium_id: UUID,
+    payload: SeatLayoutUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+) -> SeatLayoutRead:
+    """Create/update an entire room layout atomically."""
+    await _ensure_default_seat_types(db)
+    room_row = await db.execute(
+        select(Auditorium)
+        .options(selectinload(Auditorium.branch), selectinload(Auditorium.seats))
+        .where(Auditorium.id == auditorium_id)
+    )
+    room = room_row.scalar_one_or_none()
+    if room is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Auditorium not found")
+    await _ensure_branch_access(db, current_user, room.branch_id)
+
+    positions = [(cell.seat_row.strip().upper(), cell.seat_number) for cell in payload.seats]
+    if len(positions) != len(set(positions)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Seat positions must be unique")
+
+    type_ids = {cell.seat_type_id for cell in payload.seats}
+    valid_types = set(
+        (
+            await db.execute(select(SeatType.id).where(SeatType.id.in_(type_ids)))
+        ).scalars().all()
+    )
+    if valid_types != type_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more seat types were not found")
+
+    existing = {(seat.seat_row.upper(), seat.seat_number): seat for seat in room.seats}
+    referenced_ids = set(
+        (
+            await db.execute(
+                select(BookingSeat.seat_id)
+                .join(Seat, Seat.id == BookingSeat.seat_id)
+                .join(Booking, Booking.id == BookingSeat.booking_id)
+                .join(Showtime, Showtime.id == Booking.showtime_id)
+                .where(
+                    Seat.auditorium_id == auditorium_id,
+                    Booking.status == "CONFIRMED",
+                    Showtime.ends_at > func.now(),
+                    Showtime.status != "CANCELLED",
+                )
+            )
+        ).scalars().all()
+    )
+
+    submitted = set(positions)
+    for cell in payload.seats:
+        position = (cell.seat_row.strip().upper(), cell.seat_number)
+        seat = existing.get(position)
+        if seat is None:
+            seat = Seat(
+                auditorium_id=auditorium_id,
+                seat_row=position[0],
+                seat_number=position[1],
+                seat_type_id=cell.seat_type_id,
+                is_active=cell.is_active,
+            )
+            db.add(seat)
+            continue
+        changed = seat.seat_type_id != cell.seat_type_id or seat.is_active != cell.is_active
+        if changed and seat.id in referenced_ids:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Seat {seat.seat_row}{seat.seat_number} has a ticket for an upcoming showtime and cannot be changed",
+            )
+        seat.seat_type_id = cell.seat_type_id
+        seat.is_active = cell.is_active
+
+    # Positions removed from the editor become inactive, preserving ticket history.
+    for position, seat in existing.items():
+        if position not in submitted:
+            if seat.id in referenced_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Seat {seat.seat_row}{seat.seat_number} has a ticket for an upcoming showtime and cannot be removed",
+                )
+            seat.is_active = False
+
+    room.total_seats = sum(1 for cell in payload.seats if cell.is_active)
+    db.add(room)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Seat layout update conflict") from None
+
+    result = await db.execute(
+        select(Seat)
+        .options(selectinload(Seat.auditorium).selectinload(Auditorium.branch), selectinload(Seat.seat_type))
+        .where(Seat.auditorium_id == auditorium_id)
+        .order_by(Seat.seat_row.asc(), Seat.seat_number.asc())
+    )
+    output = [
+        SeatAdminRead(
+            id=seat.id,
+            auditorium_id=seat.auditorium_id,
+            auditorium_name=room.name,
+            branch_name=room.branch.name if room.branch else "",
+            seat_row=seat.seat_row,
+            seat_number=seat.seat_number,
+            seat_type_id=seat.seat_type_id,
+            seat_type_code=seat.seat_type.code if seat.seat_type else "",
+            is_active=seat.is_active,
+        )
+        for seat in result.scalars().all()
+    ]
+    return SeatLayoutRead(auditorium_id=room.id, active_seats=room.total_seats, seats=output)
+
+
 @router.patch("/seats/{seat_id}", response_model=SeatAdminRead)
 async def update_admin_seat(
     seat_id: UUID,
@@ -832,22 +1001,29 @@ async def read_admin_showtimes(
         query = query.join(Auditorium, Showtime.auditorium_id == Auditorium.id).where(Auditorium.branch_id == branch_id)
 
     result = await db.execute(query)
-    rows: list[ShowtimeAdminRead] = []
-    for item in result.scalars().all():
-        rows.append(
-            ShowtimeAdminRead(
-                id=item.id,
-                movie_id=item.movie_id,
-                movie_title=item.movie.title if item.movie else "",
-                auditorium_id=item.auditorium_id,
-                auditorium_name=item.auditorium.name if item.auditorium else "",
-                branch_name=item.auditorium.branch.name if item.auditorium and item.auditorium.branch else "",
-                starts_at=item.starts_at,
-                ends_at=item.ends_at,
-                status=item.status,
-                base_price=float(item.base_price),
+    items = list(result.scalars().all())
+    ids = [item.id for item in items]
+    stats_by_id: dict[UUID, tuple[int, int, float]] = {}
+    if ids:
+        stats_rows = await db.execute(
+            select(
+                Booking.showtime_id,
+                func.count(func.distinct(Booking.id)),
+                func.count(BookingSeat.id),
+                func.coalesce(func.sum(Booking.total_price), 0),
             )
+            .outerjoin(BookingSeat, BookingSeat.booking_id == Booking.id)
+            .where(Booking.showtime_id.in_(ids), Booking.status == "CONFIRMED")
+            .group_by(Booking.showtime_id)
         )
+        stats_by_id = {
+            row[0]: (int(row[1] or 0), int(row[2] or 0), float(row[3] or 0))
+            for row in stats_rows.all()
+        }
+    rows: list[ShowtimeAdminRead] = []
+    for item in items:
+        booking_count, sold_seats, revenue = stats_by_id.get(item.id, (0, 0, 0))
+        rows.append(_showtime_admin_read(item, booking_count=booking_count, sold_seats=sold_seats, revenue=revenue))
     return rows
 
 
@@ -859,11 +1035,20 @@ async def create_admin_showtime(
 ) -> ShowtimeAdminRead:
     if payload.ends_at <= payload.starts_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ends_at must be after starts_at")
+    booking_closes_at = payload.booking_closes_at or payload.starts_at - timedelta(minutes=15)
+    if booking_closes_at > payload.starts_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="booking_closes_at cannot be after starts_at")
 
     movie_row = await db.execute(select(Movie).where(Movie.id == payload.movie_id))
     movie = movie_row.scalar_one_or_none()
     if movie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found")
+    maximum_end = payload.starts_at + timedelta(minutes=movie.duration_min + 60)
+    if payload.ends_at > maximum_end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Showtime duration is too long for this movie",
+        )
 
     auditorium_row = await db.execute(select(Auditorium).options(selectinload(Auditorium.branch)).where(Auditorium.id == payload.auditorium_id))
     auditorium = auditorium_row.scalar_one_or_none()
@@ -871,11 +1056,26 @@ async def create_admin_showtime(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Auditorium not found")
     await _ensure_branch_access(db, current_user, auditorium.branch_id)
 
+    conflict = await db.scalar(
+        select(func.count(Showtime.id)).where(
+            Showtime.auditorium_id == payload.auditorium_id,
+            Showtime.status != "CANCELLED",
+            Showtime.starts_at < payload.ends_at,
+            Showtime.ends_at > payload.starts_at,
+        )
+    )
+    if conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The auditorium already has a showtime in this time range",
+        )
+
     showtime = Showtime(
         movie_id=payload.movie_id,
         auditorium_id=payload.auditorium_id,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
+        booking_closes_at=booking_closes_at,
         status=payload.status,
         base_price=payload.base_price,
         created_by=current_user.id,
@@ -884,18 +1084,111 @@ async def create_admin_showtime(
     await db.commit()
     await db.refresh(showtime)
 
-    return ShowtimeAdminRead(
-        id=showtime.id,
-        movie_id=showtime.movie_id,
-        movie_title=movie.title,
-        auditorium_id=showtime.auditorium_id,
-        auditorium_name=auditorium.name,
-        branch_name=auditorium.branch.name if auditorium.branch else "",
-        starts_at=showtime.starts_at,
-        ends_at=showtime.ends_at,
-        status=showtime.status,
-        base_price=float(showtime.base_price),
+    showtime.movie = movie
+    showtime.auditorium = auditorium
+    return _showtime_admin_read(showtime)
+
+
+@router.post("/showtimes/bulk", response_model=list[ShowtimeAdminRead], status_code=status.HTTP_201_CREATED)
+async def create_admin_showtimes_bulk(
+    payload: ShowtimeBulkCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+) -> list[ShowtimeAdminRead]:
+    movie_ids = {item.movie_id for item in payload.showtimes}
+    auditorium_ids = {item.auditorium_id for item in payload.showtimes}
+    movies_result = await db.execute(select(Movie).where(Movie.id.in_(movie_ids)))
+    auditoriums_result = await db.execute(
+        select(Auditorium)
+        .options(selectinload(Auditorium.branch))
+        .where(Auditorium.id.in_(auditorium_ids))
     )
+    movies_by_id = {item.id: item for item in movies_result.scalars().all()}
+    auditoriums_by_id = {item.id: item for item in auditoriums_result.scalars().all()}
+    if len(movies_by_id) != len(movie_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more movies were not found")
+    if len(auditoriums_by_id) != len(auditorium_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more auditoriums were not found")
+    for auditorium in auditoriums_by_id.values():
+        await _ensure_branch_access(db, current_user, auditorium.branch_id)
+
+    ordered = sorted(payload.showtimes, key=lambda item: (str(item.auditorium_id), item.starts_at))
+    for index, item in enumerate(ordered):
+        if item.ends_at <= item.starts_at:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Every end time must be after its start time")
+        for other in ordered[index + 1:]:
+            if other.auditorium_id != item.auditorium_id:
+                continue
+            if other.starts_at < item.ends_at and other.ends_at > item.starts_at:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Generated schedule contains overlapping showtimes")
+
+    min_start = min(item.starts_at for item in ordered)
+    max_end = max(item.ends_at for item in ordered)
+    existing_result = await db.execute(
+        select(Showtime).where(
+            Showtime.auditorium_id.in_(auditorium_ids),
+            Showtime.status != "CANCELLED",
+            Showtime.starts_at < max_end,
+            Showtime.ends_at > min_start,
+        )
+    )
+    existing = list(existing_result.scalars().all())
+    for item in ordered:
+        if any(
+            row.auditorium_id == item.auditorium_id
+            and row.starts_at < item.ends_at
+            and row.ends_at > item.starts_at
+            for row in existing
+        ):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A generated showtime overlaps the current schedule")
+
+    created = [
+        Showtime(
+            movie_id=item.movie_id,
+            auditorium_id=item.auditorium_id,
+            starts_at=item.starts_at,
+            ends_at=item.ends_at,
+            booking_closes_at=item.booking_closes_at or item.starts_at - timedelta(minutes=15),
+            status=item.status,
+            base_price=item.base_price,
+            created_by=current_user.id,
+        )
+        for item in ordered
+    ]
+    db.add_all(created)
+    await db.commit()
+    for item in created:
+        await db.refresh(item)
+
+    for item in created:
+        item.movie = movies_by_id[item.movie_id]
+        item.auditorium = auditoriums_by_id[item.auditorium_id]
+    return [_showtime_admin_read(item) for item in created]
+
+
+@router.post("/showtimes/publish", response_model=list[ShowtimeAdminRead])
+async def publish_admin_showtimes(
+    payload: ShowtimeBulkPublish,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+) -> list[ShowtimeAdminRead]:
+    result = await db.execute(
+        select(Showtime)
+        .options(selectinload(Showtime.movie), selectinload(Showtime.auditorium).selectinload(Auditorium.branch))
+        .where(Showtime.id.in_(payload.showtime_ids))
+    )
+    items = list(result.scalars().all())
+    if len(items) != len(set(payload.showtime_ids)):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more draft showtimes were not found")
+    for item in items:
+        await _ensure_branch_access(db, current_user, item.auditorium.branch_id)
+        if item.status != "DRAFT":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft showtimes can be published")
+        if item.booking_closes_at <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot publish a showtime after sales closing time")
+        item.status = "OPEN"
+    await db.commit()
+    return [_showtime_admin_read(item) for item in items]
 
 
 @router.patch("/showtimes/{showtime_id}", response_model=ShowtimeAdminRead)
@@ -916,10 +1209,39 @@ async def update_admin_showtime(
     await _ensure_branch_access(db, current_user, showtime.auditorium.branch_id)
 
     updates = payload.model_dump(exclude_unset=True)
+    confirmed_bookings = int(
+        await db.scalar(
+            select(func.count(Booking.id)).where(
+                Booking.showtime_id == showtime.id,
+                Booking.status == "CONFIRMED",
+            )
+        ) or 0
+    )
+    sensitive_fields = {"auditorium_id", "starts_at", "ends_at", "booking_closes_at"}
+    if confirmed_bookings and sensitive_fields.intersection(updates):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot change room or time because {confirmed_bookings} confirmed booking(s) are affected. Cancel the showtime instead.",
+        )
+    if confirmed_bookings and updates.get("status") == "DRAFT":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A showtime with confirmed bookings cannot be moved back to draft",
+        )
+    if updates.get("status") == "CANCELLED" and not str(updates.get("cancellation_reason") or "").strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A cancellation reason is required")
     new_starts_at = updates.get("starts_at", showtime.starts_at)
     new_ends_at = updates.get("ends_at", showtime.ends_at)
     if new_ends_at <= new_starts_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ends_at must be after starts_at")
+    if new_ends_at > new_starts_at + timedelta(minutes=showtime.movie.duration_min + 60):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Showtime duration is too long for this movie",
+        )
+    new_booking_closes_at = updates.get("booking_closes_at", showtime.booking_closes_at)
+    if new_booking_closes_at > new_starts_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="booking_closes_at cannot be after starts_at")
 
     if "auditorium_id" in updates and updates["auditorium_id"] is not None:
         auditorium_row = await db.execute(select(Auditorium).where(Auditorium.id == updates["auditorium_id"]))
@@ -928,8 +1250,45 @@ async def update_admin_showtime(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Auditorium not found")
         await _ensure_branch_access(db, current_user, target_auditorium.branch_id)
 
+    target_auditorium_id = updates.get("auditorium_id", showtime.auditorium_id)
+    conflict = await db.scalar(
+        select(func.count(Showtime.id)).where(
+            Showtime.id != showtime.id,
+            Showtime.auditorium_id == target_auditorium_id,
+            Showtime.status != "CANCELLED",
+            Showtime.starts_at < new_ends_at,
+            Showtime.ends_at > new_starts_at,
+        )
+    )
+    if conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The auditorium already has a showtime in this time range",
+        )
+
     for key, value in updates.items():
         setattr(showtime, key, value)
+
+    if updates.get("status") == "CANCELLED" and confirmed_bookings:
+        bookings_result = await db.execute(
+            select(Booking).where(
+                Booking.showtime_id == showtime.id,
+                Booking.status == "CONFIRMED",
+            )
+        )
+        affected_bookings = list(bookings_result.scalars().all())
+        for booking in affected_bookings:
+            booking.status = "CANCELLED"
+        payment_result = await db.execute(
+            select(Payment)
+            .join(Booking, Booking.id == Payment.booking_id)
+            .where(
+                Booking.showtime_id == showtime.id,
+                Payment.status == "SUCCESS",
+            )
+        )
+        for payment in payment_result.scalars().all():
+            payment.status = "REFUND_PENDING"
 
     db.add(showtime)
     await db.commit()
@@ -943,18 +1302,7 @@ async def update_admin_showtime(
     if refreshed is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Showtime not found")
 
-    return ShowtimeAdminRead(
-        id=refreshed.id,
-        movie_id=refreshed.movie_id,
-        movie_title=refreshed.movie.title if refreshed.movie else "",
-        auditorium_id=refreshed.auditorium_id,
-        auditorium_name=refreshed.auditorium.name if refreshed.auditorium else "",
-        branch_name=refreshed.auditorium.branch.name if refreshed.auditorium and refreshed.auditorium.branch else "",
-        starts_at=refreshed.starts_at,
-        ends_at=refreshed.ends_at,
-        status=refreshed.status,
-        base_price=float(refreshed.base_price),
-    )
+    return _showtime_admin_read(refreshed, booking_count=confirmed_bookings)
 
 
 @router.delete("/showtimes/{showtime_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -972,6 +1320,15 @@ async def delete_admin_showtime(
     if showtime is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Showtime not found")
     await _ensure_branch_access(db, current_user, showtime.auditorium.branch_id)
+
+    booking_count = int(
+        await db.scalar(select(func.count(Booking.id)).where(Booking.showtime_id == showtime.id)) or 0
+    )
+    if booking_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete a showtime with bookings. Cancel it with a reason instead.",
+        )
 
     await db.delete(showtime)
     await db.commit()

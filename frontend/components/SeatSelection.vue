@@ -1,14 +1,27 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { movieService, type Seat } from '~/services/api'
 
 const ticketsStore = useTicketsStore()
-const { selectedShowtime, selectedSeats } = storeToRefs(ticketsStore)
+const { selectedShowtime, selectedSeats, holdExpiresAt, holdError } = storeToRefs(ticketsStore)
 
 const seatsList = ref<Seat[]>([])
 const loading = ref(false)
+const holdingSeatId = ref('')
+const now = ref(Date.now())
+let timer: ReturnType<typeof setInterval> | undefined
+
+const holdSecondsRemaining = computed(() => {
+  if (!holdExpiresAt.value) return 0
+  return Math.max(0, Math.ceil((new Date(holdExpiresAt.value).getTime() - now.value) / 1000))
+})
+const holdCountdown = computed(() => {
+  const minutes = Math.floor(holdSecondsRemaining.value / 60)
+  const seconds = holdSecondsRemaining.value % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+})
 
 onMounted(async () => {
   if (selectedShowtime.value) {
@@ -19,13 +32,26 @@ onMounted(async () => {
         ...seat,
         price: selectedShowtime.value?.price || 0,
       }))
+      selectedSeats.value = seatsList.value.filter((seat) => seat.status === 'selected')
     } catch (e) {
       console.error('Failed to load seats map:', e)
     } finally {
       loading.value = false
     }
   }
+  timer = setInterval(() => {
+    now.value = Date.now()
+    if (holdExpiresAt.value && holdSecondsRemaining.value === 0) {
+      selectedSeats.value = []
+      holdExpiresAt.value = null
+      holdError.value = 'Thời gian giữ ghế đã hết. Vui lòng chọn lại ghế.'
+      void movieService.getSeats(selectedShowtime.value!.id).then((seats) => {
+        seatsList.value = seats.map((seat) => ({ ...seat, price: selectedShowtime.value?.price || 0 }))
+      })
+    }
+  }, 1000)
 })
+onUnmounted(() => timer && clearInterval(timer))
 
 // Organize seats by row
 const seatsByRow = computed(() => {
@@ -47,7 +73,7 @@ function isSeatSelected(seatId: string): boolean {
   return selectedSeats.value.some(s => s.id === seatId)
 }
 
-function handleSeatClick(seat: Seat) {
+async function handleSeatClick(seat: Seat) {
   if (seat.status === 'occupied') return
   
   // Clone seat status update
@@ -55,7 +81,9 @@ function handleSeatClick(seat: Seat) {
     ...seat,
     status: (isSeatSelected(seat.id) ? 'available' : 'selected') as any
   }
-  ticketsStore.toggleSeat(seatObj)
+  holdingSeatId.value = seat.id
+  await ticketsStore.toggleSeat(seatObj)
+  holdingSeatId.value = ''
 }
 </script>
 
@@ -70,6 +98,12 @@ function handleSeatClick(seat: Seat) {
     </div>
 
     <div v-else class="w-full flex flex-col items-center">
+      <div v-if="holdExpiresAt && selectedSeats.length" class="mb-5 w-full max-w-2xl rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-center text-sm text-amber-200">
+        Ghế đang được giữ cho bạn trong <strong>{{ holdCountdown }}</strong>. Hãy hoàn tất thanh toán trước khi hết giờ.
+      </div>
+      <div v-if="holdError" class="mb-5 w-full max-w-2xl rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-center text-sm text-red-300">
+        {{ holdError }}
+      </div>
       <!-- Theater Screen projection -->
       <div class="w-full max-w-2xl mb-12 text-center screen-curve">
         <div class="w-full bg-white/20 h-1 rounded-full shadow-[0_2px_15px_rgba(255,255,255,0.3)]"></div>
@@ -94,7 +128,7 @@ function handleSeatClick(seat: Seat) {
                 v-for="seat in rowSeats"
                 :key="seat.id"
                 @click="handleSeatClick(seat)"
-                :disabled="seat.status === 'occupied'"
+                :disabled="seat.status === 'occupied' || holdingSeatId === seat.id"
                 :title="`${seat.row}${seat.number} - ${seat.type.toUpperCase()} (${seat.price.toLocaleString()}đ)`"
                 class="w-8 h-8 rounded-lg text-[10px] font-bold transition-all relative flex items-center justify-center border"
                 :class="[

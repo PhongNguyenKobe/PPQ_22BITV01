@@ -41,6 +41,7 @@ class ShowtimeRead(BaseModel):
     starts_at: datetime
     ends_at: datetime
     status: str
+    booking_closes_at: datetime
     base_price: Decimal
     branch_name: str
     screen_name: str

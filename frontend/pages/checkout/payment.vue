@@ -8,7 +8,8 @@ definePageMeta({
 })
 
 const ticketsStore = useTicketsStore()
-const { selectedMovie, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
+const { selectedMovie, selectedShowtime, selectedSeats, totalAmount, purchaseError } = storeToRefs(ticketsStore)
+const showtimeExpired = computed(() => isShowtimeExpired(selectedShowtime.value))
 
 const selectedPayment = ref('Ví Momo')
 const processing = ref(false)
@@ -89,6 +90,10 @@ function removeVoucher() {
 }
 
 async function handleConfirmPayment() {
+  if (showtimeExpired.value) {
+    purchaseError.value = 'Đã hết thời gian mua vé cho suất chiếu này. Vui lòng chọn suất khác.'
+    return
+  }
   if (selectedPayment.value === 'Quét Mã QR' && !showQR.value) {
     showQR.value = true
     return
@@ -146,6 +151,11 @@ async function handleConfirmPayment() {
           </div>
 
           <div class="selection-panel">
+            <div v-if="showtimeExpired || purchaseError" class="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-red-300">
+              <strong>Không thể tiếp tục thanh toán</strong>
+              <p class="mt-1 text-sm">{{ purchaseError || 'Đã hết thời gian mua vé cho suất chiếu này.' }}</p>
+              <NuxtLink to="/checkout/showtime" class="mt-3 inline-block font-bold underline">Chọn suất chiếu khác</NuxtLink>
+            </div>
             <div class="selection-header">
               <h1>Thanh Toán Đơn Vé</h1>
               <p>Chọn phương thức thanh toán và xác nhận giao dịch.</p>
@@ -247,7 +257,7 @@ async function handleConfirmPayment() {
               <strong>{{ finalTotal.toLocaleString('vi-VN') }} VNĐ</strong>
             </div>
 
-            <button @click="handleConfirmPayment" :disabled="processing" class="summary-next">
+            <button @click="handleConfirmPayment" :disabled="processing || showtimeExpired" class="summary-next">
               <template v-if="processing">
                 <span class="loading-state">
                   <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>

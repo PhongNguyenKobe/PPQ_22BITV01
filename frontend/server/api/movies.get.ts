@@ -6,6 +6,8 @@ interface TMDBMovie {
   overview: string
   poster_path: string | null
   poster_url?: string | null
+  vote_average?: number
+  genre_ids?: number[]
 }
 
 interface TMDBResponse {
@@ -74,6 +76,10 @@ export default defineEventHandler(async () => {
     return {
       ...data,
       source: 'tmdb',
+      results: data.results.map((movie) => ({
+        ...movie,
+        suggested_ticket_price: getSuggestedTicketPrice(movie),
+      })),
     }
   } catch (error) {
     const reason =

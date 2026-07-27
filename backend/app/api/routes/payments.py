@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.crud.payment import generate_confirmation_number, generate_qr_code_data, validate_payment_amount
+from app.crud.booking import cleanup_expired_reservations
+from app.crud.showtime import is_showtime_bookable
 from app.db.session import get_db
 from app.models.commerce import Booking, Payment
 from app.models.user import User
@@ -16,11 +18,16 @@ router = APIRouter()
 
 
 async def _owned_pending_booking(db: AsyncSession, booking_id: UUID, user_id: UUID) -> Booking:
+    await cleanup_expired_reservations(db)
     booking = await db.get(Booking, booking_id)
     if booking is None or booking.user_id != user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
     if booking.status != "PENDING":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking is not payable")
+    if booking.expires_at and booking.expires_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking payment time has expired")
+    if not is_showtime_bookable(booking.showtime):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ticket sales are closed for this showtime")
     return booking
 
 

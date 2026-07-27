@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -39,7 +39,11 @@ async def list_movie_showtimes(db: AsyncSession, movie_id: UUID) -> list[Showtim
     result = await db.execute(
         select(Showtime)
         .options(selectinload(Showtime.auditorium).selectinload(Auditorium.branch))
-        .where(Showtime.movie_id == movie_id)
+        .where(
+            Showtime.movie_id == movie_id,
+            Showtime.status == "OPEN",
+            Showtime.booking_closes_at > func.now(),
+        )
         .order_by(Showtime.starts_at.asc())
     )
     return list(result.scalars().all())

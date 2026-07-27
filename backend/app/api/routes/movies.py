@@ -25,6 +25,7 @@ def _showtime_to_read(showtime: Showtime) -> ShowtimeRead:
         starts_at=showtime.starts_at,
         ends_at=showtime.ends_at,
         status=showtime.status,
+        booking_closes_at=showtime.booking_closes_at,
         base_price=showtime.base_price,
         branch_name=branch_name,
         screen_name=screen_name,

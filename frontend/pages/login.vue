@@ -29,6 +29,8 @@ async function handleLogin() {
   if (success) {
     if (userStore.currentUser?.role === 'admin') {
       navigateTo('/admin/dashboard')
+    } else if (userStore.currentUser?.role === 'branch-admin') {
+      navigateTo('/branch-admin/dashboard')
     } else {
       navigateTo('/products')
     }

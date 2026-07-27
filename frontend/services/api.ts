@@ -75,6 +75,7 @@ export interface TmdbPopularMovie {
   poster_path: string | null
   release_date: string | null
   original_title: string | null
+  suggested_ticket_price: number
 }
 
 export interface Showtime {
@@ -85,6 +86,7 @@ export interface Showtime {
   date: string
   time: string
   price: number
+  bookingClosesAt?: string
 }
 
 export interface Seat {
@@ -187,6 +189,13 @@ export interface AdminSeat {
   is_active: boolean
 }
 
+export interface AdminSeatLayoutCell {
+  seat_row: string
+  seat_number: number
+  seat_type_id: number
+  is_active: boolean
+}
+
 export interface AdminShowtime {
   id: string
   movie_id: string
@@ -197,7 +206,13 @@ export interface AdminShowtime {
   starts_at: string
   ends_at: string
   status: string
+  stored_status: 'DRAFT' | 'OPEN' | 'CANCELLED'
+  booking_closes_at: string | null
+  cancellation_reason: string | null
   base_price: number
+  booking_count: number
+  sold_seats: number
+  revenue: number
 }
 
 export interface BranchAdminSalesPoint {
@@ -332,7 +347,8 @@ export interface AdminCreateShowtimePayload {
   auditorium_id: string
   starts_at: string
   ends_at: string
-  status?: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  status?: 'DRAFT' | 'OPEN' | 'CANCELLED'
+  booking_closes_at?: string
   base_price: number
 }
 
@@ -357,7 +373,9 @@ export interface AdminUpdateShowtimePayload {
   auditorium_id?: string
   starts_at?: string
   ends_at?: string
-  status?: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  status?: 'DRAFT' | 'OPEN' | 'CANCELLED'
+  booking_closes_at?: string
+  cancellation_reason?: string
   base_price?: number
 }
 
@@ -579,7 +597,7 @@ export const adminBackendService = {
 },
 
   async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
-    const res = await apiClient.post<AdminBranchManage>('/admin/branches', payload)
+    const res = await apiClient.post<AdminBranchManage>('/admin/branches/manage', payload)
     return res.data
   },
 
@@ -639,6 +657,17 @@ export const adminBackendService = {
     await apiClient.delete(`/admin/seats/${seatId}`)
   },
 
+  async saveSeatLayout(
+    auditoriumId: string,
+    seats: AdminSeatLayoutCell[],
+  ): Promise<{ auditorium_id: string; active_seats: number; seats: AdminSeat[] }> {
+    const res = await apiClient.put<{ auditorium_id: string; active_seats: number; seats: AdminSeat[] }>(
+      `/admin/auditoriums/${auditoriumId}/seat-layout`,
+      { seats },
+    )
+    return res.data
+  },
+
   async getShowtimes(branchId?: string): Promise<AdminShowtime[]> {
     const res = await apiClient.get<AdminShowtime[]>('/admin/showtimes', {
       params: branchId ? { branch_id: branchId } : undefined,
@@ -648,6 +677,18 @@ export const adminBackendService = {
 
   async createShowtime(payload: AdminCreateShowtimePayload): Promise<AdminShowtime> {
     const res = await apiClient.post<AdminShowtime>('/admin/showtimes', payload)
+    return res.data
+  },
+
+  async createShowtimesBulk(payload: AdminCreateShowtimePayload[]): Promise<AdminShowtime[]> {
+    const res = await apiClient.post<AdminShowtime[]>('/admin/showtimes/bulk', { showtimes: payload })
+    return res.data
+  },
+
+  async publishShowtimes(showtimeIds: string[]): Promise<AdminShowtime[]> {
+    const res = await apiClient.post<AdminShowtime[]>('/admin/showtimes/publish', {
+      showtime_ids: showtimeIds,
+    })
     return res.data
   },
 
@@ -937,6 +978,7 @@ export interface BackendShowtime {
   starts_at: string
   ends_at: string
   status: string
+  booking_closes_at: string
   base_price: number
   branch_name: string
   screen_name: string
@@ -987,6 +1029,7 @@ export function mapBackendShowtimeToFrontend(bs: BackendShowtime): Showtime {
     date: dateStr,
     time: timeStr,
     price: Number(bs.base_price),
+    bookingClosesAt: bs.booking_closes_at,
   }
 }
 
@@ -1000,7 +1043,12 @@ export function mapBackendSeatToFrontend(seat: BackendSeat): Seat {
     row: seat.seat_row,
     number: seat.seat_number,
     type,
-    status: seat.status as 'available' | 'selected' | 'occupied',
+    status:
+      seat.status === 'BOOKED' || seat.status === 'HOLD'
+        ? 'occupied'
+        : seat.status === 'HELD_BY_ME'
+          ? 'selected'
+          : 'available',
     price: 0, // backend seat không có price riêng, sẽ tính sau
   }
 }
@@ -1076,6 +1124,18 @@ export const movieService = {
     return res.data.map(mapBackendSeatToFrontend)
   },
 
+  async holdSeats(showtimeId: string, seatIds: string[]): Promise<{ expires_at: string; hold_seconds: number }> {
+    const res = await apiClient.post<{ expires_at: string; hold_seconds: number }>(
+      `/showtimes/${showtimeId}/holds`,
+      { seat_ids: seatIds },
+    )
+    return res.data
+  },
+
+  async releaseSeatHolds(showtimeId: string): Promise<void> {
+    await apiClient.delete(`/showtimes/${showtimeId}/holds`)
+  },
+
   async searchSemantically(query: string): Promise<Movie[]> {
     if (USE_MOCK) {
       const q = query.toLowerCase()
@@ -1115,6 +1175,7 @@ export const movieService = {
       poster_path: item.poster_path ? String(item.poster_path) : null,
       release_date: item.release_date ? String(item.release_date) : null,
       original_title: item.original_title ? String(item.original_title) : null,
+      suggested_ticket_price: Number(item.suggested_ticket_price || 90000),
     }))
   }
 }

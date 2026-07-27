@@ -124,13 +124,16 @@ class Showtime(Base):
     auditorium_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("auditoriums.id", ondelete="RESTRICT"), nullable=False)
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    booking_closes_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'OPEN'"))
+    cancellation_reason: Mapped[str | None] = mapped_column(Text)
     base_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     movie = relationship("Movie", back_populates="showtimes", lazy="selectin")
     auditorium = relationship("Auditorium", lazy="selectin")
+    seat_holds = relationship("SeatHold", cascade="all, delete-orphan")
 
 
 class MovieChangeRequest(Base):

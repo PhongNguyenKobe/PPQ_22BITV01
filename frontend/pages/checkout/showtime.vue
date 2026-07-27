@@ -89,6 +89,7 @@ const getScreenType = (screenName: string) => {
 
 // Select showtime and navigate
 function handleSelectShowtime(showtime: Showtime) {
+  if (isShowtimeExpired(showtime)) return
   ticketsStore.selectShowtime(showtime)
   router.push('/checkout/seat')
 }
@@ -144,12 +145,17 @@ function handleSelectShowtime(showtime: Showtime) {
                     v-for="showtime in group"
                     :key="showtime.id"
                     @click="handleSelectShowtime(showtime)"
+                    :disabled="isShowtimeExpired(showtime)"
                     class="showtime-chip"
-                    :class="selectedShowtime?.id === showtime.id ? 'chip-active' : ''"
+                    :class="[
+                      selectedShowtime?.id === showtime.id ? 'chip-active' : '',
+                      isShowtimeExpired(showtime) ? 'opacity-50 cursor-not-allowed' : '',
+                    ]"
                   >
                     <strong>{{ showtime.time }}</strong>
                     <span>{{ getScreenType(showtime.screenName) }} • {{ showtime.screenName }}</span>
-                    <em>{{ showtime.price.toLocaleString('vi-VN') }}đ</em>
+                    <em v-if="isShowtimeExpired(showtime)" class="!text-red-400">Đã hết thời gian mua vé</em>
+                    <em v-else>{{ showtime.price.toLocaleString('vi-VN') }}đ</em>
                   </button>
                 </div>
               </div>

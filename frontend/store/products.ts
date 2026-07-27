@@ -93,12 +93,12 @@ export const useProductsStore = defineStore('products', {
             id: movie.id,
             backendMovieId: backendByTmdbId.get(tmdbId) || backendByTitle.get(normalizedTitle),
             name: movie.title,
-            price: (Math.floor(Math.random() * 16) + 7) * 10,
+            price: Number(movie.suggested_ticket_price || 90000) / 1000,
             category: TICKET_TYPES[Math.floor(Math.random() * TICKET_TYPES.length)],
             imageUrl: movie.poster_url
               ? movie.poster_url
               : movie.poster_path
-              ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+              ? `/api/tmdb-image/w500${movie.poster_path}`
               : '/images/movie-placeholder.svg',
             description: movie.overview,
             rating: movie.vote_average,

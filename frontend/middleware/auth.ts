@@ -27,10 +27,16 @@ export default defineNuxtRouteMiddleware((to, from) => {
   }
 
   if (isAdminRoute && userStore.currentUser?.role !== 'admin') {
+    if (userStore.currentUser?.role === 'branch-admin') {
+      return navigateTo('/branch-admin/dashboard')
+    }
     return navigateTo('/products')
   }
 
   if (isBranchAdminRoute && userStore.currentUser?.role !== 'branch-admin') {
+    if (userStore.currentUser?.role === 'admin') {
+      return navigateTo('/admin/dashboard')
+    }
     return navigateTo('/products')
   }
 })

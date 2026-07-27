@@ -23,6 +23,17 @@ class SeatBookResponse(BaseModel):
     status: str  # 'AVAILABLE', 'BOOKED', 'HOLD'
 
 
+class SeatHoldRequest(BaseModel):
+    seat_ids: list[UUID] = Field(min_length=1, max_length=10)
+
+
+class SeatHoldResponse(BaseModel):
+    showtime_id: UUID
+    seat_ids: list[UUID]
+    expires_at: datetime
+    hold_seconds: int
+
+
 class BookingCreate(BaseModel):
     """Create a new booking"""
     showtime_id: UUID

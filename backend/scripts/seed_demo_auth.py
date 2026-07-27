@@ -39,10 +39,12 @@ async def upsert_roles(session: AsyncSession) -> None:
     for code, name in [
         ("CUSTOMER", "Khách hàng"),
         ("SUPER_ADMIN", "Quản trị viên"),
+        ("BRANCH_ADMIN", "Quản trị chi nhánh"),
     ]:
         result = await session.execute(select(Role).where(Role.code == code))
         if result.scalar_one_or_none() is None:
-            session.add(Role(id=1 if code == "CUSTOMER" else 2, code=code, name=name))
+            role_ids = {"CUSTOMER": 1, "SUPER_ADMIN": 2, "BRANCH_ADMIN": 3}
+            session.add(Role(id=role_ids[code], code=code, name=name))
     await session.commit()
 
 

@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '~/store/user'
 
 const userStore = useUserStore()
-const { currentUser, isAuthenticated } = storeToRefs(userStore)
+const { currentUser } = storeToRefs(userStore)
 
 const isCollapsed = ref(false)
 const showNotifications = ref(false)
-const showProfileDropdown = ref(false)
 const selectedBranch = ref('HN-01')
 
 const notificationCount = ref(3)
@@ -22,39 +21,11 @@ function toggleSidebar() {
   isCollapsed.value = !isCollapsed.value
 }
 
-function switchDemoRole(role: 'admin' | 'branch-admin') {
-  if (currentUser.value) {
-    currentUser.value.role = role
-    if (role === 'admin') {
-      navigateTo('/admin/dashboard')
-    } else {
-      currentUser.value.branchId = currentUser.value.branchId || 'branch-1'
-      navigateTo('/branch-admin/dashboard')
-    }
-  }
-  showProfileDropdown.value = false
-}
-
 function handleLogout() {
   userStore.logout()
   navigateTo('/login')
 }
 
-onMounted(() => {
-  // Mock current user if not authenticated for easier demo/review of UI
-  if (!currentUser.value) {
-    currentUser.value = {
-      id: 'demo-user-id',
-      name: 'Nguyễn Văn Quyết',
-      email: 'admin@cineai.vn',
-      role: 'admin',
-      isActive: true,
-      branchId: 'branch-1',
-      phone: '0987654321'
-    }
-    isAuthenticated.value = true
-  }
-})
 </script>
 
 <template>
@@ -174,35 +145,10 @@ onMounted(() => {
             </select>
           </div>
 
-          <!-- Role Demo Switcher Badge -->
           <div class="relative">
-            <button 
-              @click="showProfileDropdown = !showProfileDropdown"
-              class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-ai-accent/20 to-primary-container/20 border border-glass-stroke text-xs font-black text-primary-fixed-dim hover:scale-105 transition-all flex items-center gap-1"
-            >
+            <div class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-ai-accent/20 to-primary-container/20 border border-glass-stroke text-xs font-black text-primary-fixed-dim flex items-center gap-1">
               <span class="material-symbols-outlined text-sm">settings_accessibility</span>
-              Demo Role: {{ currentUser?.role === 'admin' ? 'Super Admin' : 'Branch Admin' }}
-              <span class="material-symbols-outlined text-xs">arrow_drop_down</span>
-            </button>
-            <div 
-              v-if="showProfileDropdown" 
-              class="absolute right-0 mt-2 w-48 bg-surface-container-high border border-glass-stroke rounded-2xl shadow-2xl p-2 z-50 animate-fade"
-            >
-              <div class="text-[10px] uppercase font-bold text-on-surface-variant px-3 py-1.5 tracking-wider border-b border-glass-stroke/50">Chọn vai trò demo</div>
-              <button 
-                @click="switchDemoRole('admin')" 
-                class="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-on-surface hover:bg-white/5 flex items-center gap-2"
-                :class="currentUser?.role === 'admin' ? 'text-primary-fixed-dim bg-white/5' : ''"
-              >
-                <span class="material-symbols-outlined text-sm">verified_user</span> Super Admin
-              </button>
-              <button 
-                @click="switchDemoRole('branch-admin')" 
-                class="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-on-surface hover:bg-white/5 flex items-center gap-2"
-                :class="currentUser?.role === 'branch-admin' ? 'text-primary-fixed-dim bg-white/5' : ''"
-              >
-                <span class="material-symbols-outlined text-sm">storefront</span> Branch Admin
-              </button>
+              {{ currentUser?.role === 'admin' ? 'Super Admin' : 'Branch Admin' }}
             </div>
           </div>
 

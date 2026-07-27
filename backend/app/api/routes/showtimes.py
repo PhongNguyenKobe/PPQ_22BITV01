@@ -1,11 +1,20 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud.movie import list_showtime_seats
+from app.api.deps import get_current_user
+from app.crud.booking import (
+    HOLD_MINUTES,
+    hold_showtime_seats,
+    list_showtime_available_seats,
+    release_showtime_holds,
+    validate_showtime_exists,
+)
 from app.db.session import get_db
 from app.models.catalog import Seat
+from app.models.user import User
+from app.schemas.booking import SeatHoldRequest, SeatHoldResponse
 from app.schemas.movie import SeatRead
 
 router = APIRouter()
@@ -23,6 +32,53 @@ def _seat_to_read(seat: Seat) -> SeatRead:
 
 
 @router.get("/{showtime_id}/seats", response_model=list[SeatRead])
-async def read_showtime_seats(showtime_id: UUID, db: AsyncSession = Depends(get_db)) -> list[SeatRead]:
-    seats = await list_showtime_seats(db, showtime_id)
-    return [_seat_to_read(seat) for seat in seats]
+async def read_showtime_seats(
+    showtime_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[SeatRead]:
+    if not await validate_showtime_exists(db, showtime_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Showtime has started, ended, or is no longer open for booking",
+        )
+    seats = await list_showtime_available_seats(db, showtime_id, current_user.id)
+    return [
+        SeatRead(
+            id=seat["id"],
+            seat_row=seat["seat_row"],
+            seat_number=seat["seat_number"],
+            seat_type=seat["seat_type"],
+            is_active=seat["is_active"],
+            status=seat["status"],
+        )
+        for seat in seats
+    ]
+
+
+@router.post("/{showtime_id}/holds", response_model=SeatHoldResponse)
+async def hold_seats(
+    showtime_id: UUID,
+    payload: SeatHoldRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SeatHoldResponse:
+    try:
+        expires_at = await hold_showtime_seats(db, showtime_id, current_user.id, payload.seat_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    return SeatHoldResponse(
+        showtime_id=showtime_id,
+        seat_ids=payload.seat_ids,
+        expires_at=expires_at,
+        hold_seconds=HOLD_MINUTES * 60,
+    )
+
+
+@router.delete("/{showtime_id}/holds", status_code=status.HTTP_204_NO_CONTENT)
+async def release_holds(
+    showtime_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    await release_showtime_holds(db, showtime_id, current_user.id)

@@ -167,6 +167,23 @@ class SeatAdminUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class SeatLayoutCell(BaseModel):
+    seat_row: str = Field(min_length=1, max_length=5)
+    seat_number: int = Field(gt=0, le=100)
+    seat_type_id: int
+    is_active: bool = True
+
+
+class SeatLayoutUpdate(BaseModel):
+    seats: list[SeatLayoutCell] = Field(min_length=1, max_length=1000)
+
+
+class SeatLayoutRead(BaseModel):
+    auditorium_id: UUID
+    active_seats: int
+    seats: list[SeatAdminRead]
+
+
 class ShowtimeAdminRead(BaseModel):
     id: UUID
     movie_id: UUID
@@ -177,7 +194,13 @@ class ShowtimeAdminRead(BaseModel):
     starts_at: datetime
     ends_at: datetime
     status: str
+    stored_status: str = "OPEN"
+    booking_closes_at: datetime | None = None
+    cancellation_reason: str | None = None
     base_price: float
+    booking_count: int = 0
+    sold_seats: int = 0
+    revenue: float = 0
 
 
 class ShowtimeAdminCreate(BaseModel):
@@ -185,7 +208,8 @@ class ShowtimeAdminCreate(BaseModel):
     auditorium_id: UUID
     starts_at: datetime
     ends_at: datetime
-    status: str = Field(default="OPEN", pattern="^(OPEN|CLOSED|CANCELLED)$")
+    status: str = Field(default="DRAFT", pattern="^(DRAFT|OPEN|CANCELLED)$")
+    booking_closes_at: datetime | None = None
     base_price: float = Field(gt=0)
 
 
@@ -193,8 +217,18 @@ class ShowtimeAdminUpdate(BaseModel):
     auditorium_id: UUID | None = None
     starts_at: datetime | None = None
     ends_at: datetime | None = None
-    status: str | None = Field(default=None, pattern="^(OPEN|CLOSED|CANCELLED)$")
+    status: str | None = Field(default=None, pattern="^(DRAFT|OPEN|CANCELLED)$")
+    booking_closes_at: datetime | None = None
+    cancellation_reason: str | None = Field(default=None, max_length=1000)
     base_price: float | None = Field(default=None, gt=0)
+
+
+class ShowtimeBulkCreate(BaseModel):
+    showtimes: list[ShowtimeAdminCreate] = Field(min_length=1, max_length=500)
+
+
+class ShowtimeBulkPublish(BaseModel):
+    showtime_ids: list[UUID] = Field(min_length=1, max_length=500)
 
 
 class TmdbMovieImportPayload(BaseModel):

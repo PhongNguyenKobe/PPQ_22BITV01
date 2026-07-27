@@ -42,7 +42,7 @@ async def _get_staff_branch_id(db: AsyncSession, user_id: UUID) -> UUID:
         text(
             "SELECT branch_id FROM branch_staff "
             "WHERE user_id = :user_id AND is_active = TRUE "
-            "ORDER BY created_at DESC LIMIT 1"
+            "ORDER BY assigned_at DESC LIMIT 1"
         ),
         {"user_id": str(user_id)},
     )

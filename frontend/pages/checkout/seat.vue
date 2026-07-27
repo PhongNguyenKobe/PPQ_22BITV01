@@ -8,6 +8,7 @@ definePageMeta({
 
 const ticketsStore = useTicketsStore()
 const { selectedMovie, selectedCinema, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
+const showtimeExpired = computed(() => isShowtimeExpired(selectedShowtime.value))
 
 const backgroundStyle = computed(() => {
   if (!selectedMovie.value?.imageUrl) return {}
@@ -29,7 +30,7 @@ onMounted(() => {
 })
 
 function handleProceedToPayment() {
-  if (selectedSeats.value.length === 0) return
+  if (selectedSeats.value.length === 0 || showtimeExpired.value) return
   navigateTo('/checkout/payment')
 }
 </script>
@@ -69,11 +70,16 @@ function handleProceedToPayment() {
           </div>
 
           <div class="selection-panel">
+            <div v-if="showtimeExpired" class="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-red-300">
+              <strong>Đã hết thời gian mua vé</strong>
+              <p class="mt-1 text-sm">Suất chiếu này đã bắt đầu hoặc ngừng bán. Vui lòng quay lại chọn suất khác.</p>
+              <NuxtLink to="/checkout/showtime" class="mt-3 inline-block font-bold underline">Chọn suất khác</NuxtLink>
+            </div>
             <div class="selection-header">
               <h1>Chọn Ghế Ngồi</h1>
               <p>Chọn vị trí phù hợp trong phòng chiếu để tiếp tục thanh toán.</p>
             </div>
-            <SeatSelection />
+            <SeatSelection v-if="!showtimeExpired" />
           </div>
         </main>
 
@@ -111,7 +117,7 @@ function handleProceedToPayment() {
 
             <button
               @click="handleProceedToPayment"
-              :disabled="selectedSeats.length === 0"
+              :disabled="selectedSeats.length === 0 || showtimeExpired"
               class="summary-next"
             >
               Tiếp tục thanh toán
