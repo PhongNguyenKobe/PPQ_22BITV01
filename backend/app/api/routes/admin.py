@@ -1006,15 +1006,24 @@ async def read_admin_showtimes(
     stats_by_id: dict[UUID, tuple[int, int, float]] = {}
     if ids:
         stats_rows = await db.execute(
-            select(
-                Booking.showtime_id,
-                func.count(func.distinct(Booking.id)),
-                func.count(BookingSeat.id),
-                func.coalesce(func.sum(Booking.total_price), 0),
-            )
-            .outerjoin(BookingSeat, BookingSeat.booking_id == Booking.id)
-            .where(Booking.showtime_id.in_(ids), Booking.status == "CONFIRMED")
-            .group_by(Booking.showtime_id)
+            text(
+                """
+                SELECT b.showtime_id,
+                       COUNT(b.id) AS bookings,
+                       COALESCE(SUM((
+                           SELECT COUNT(*) FROM booking_seats bs WHERE bs.booking_id = b.id
+                       )), 0) AS seats,
+                       COALESCE(SUM((
+                           SELECT SUM(p.amount) FROM payments p
+                           WHERE p.booking_id = b.id AND p.status = 'SUCCESS'
+                       )), 0) AS revenue
+                FROM bookings b
+                WHERE b.showtime_id = ANY(:showtime_ids)
+                  AND b.status = 'CONFIRMED'
+                GROUP BY b.showtime_id
+                """
+            ),
+            {"showtime_ids": ids},
         )
         stats_by_id = {
             row[0]: (int(row[1] or 0), int(row[2] or 0), float(row[3] or 0))

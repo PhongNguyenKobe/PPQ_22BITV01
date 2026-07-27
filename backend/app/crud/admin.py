@@ -92,12 +92,148 @@ async def get_live_admin_stats(db: AsyncSession) -> dict:
     total_revenue = (
         await db.execute(select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.status == "SUCCESS"))
     ).scalar() or 0
+    today_revenue = (
+        await db.execute(
+            text(
+                """
+                SELECT COALESCE(SUM(amount), 0)
+                FROM payments
+                WHERE status = 'SUCCESS'
+                  AND (COALESCE(paid_at, created_at) AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
+                      = (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
+                """
+            )
+        )
+    ).scalar() or 0
+    month_revenue = (
+        await db.execute(
+            text(
+                """
+                SELECT COALESCE(SUM(amount), 0)
+                FROM payments
+                WHERE status = 'SUCCESS'
+                  AND date_trunc('month', COALESCE(paid_at, created_at) AT TIME ZONE 'Asia/Ho_Chi_Minh')
+                      = date_trunc('month', now() AT TIME ZONE 'Asia/Ho_Chi_Minh')
+                """
+            )
+        )
+    ).scalar() or 0
+    booking_counts = {
+        row.status: int(row.count)
+        for row in (
+            await db.execute(text("SELECT status, COUNT(*) AS count FROM bookings GROUP BY status"))
+        ).all()
+    }
+    tickets_sold = (
+        await db.execute(
+            text(
+                """
+                SELECT COUNT(bs.id)
+                FROM booking_seats bs
+                JOIN bookings b ON b.id = bs.booking_id
+                WHERE b.status = 'CONFIRMED'
+                  AND EXISTS (
+                    SELECT 1 FROM payments p
+                    WHERE p.booking_id = b.id AND p.status = 'SUCCESS'
+                  )
+                """
+            )
+        )
+    ).scalar() or 0
+    revenue_rows = (
+        await db.execute(
+            text(
+                """
+                WITH days AS (
+                    SELECT generate_series(
+                        (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - 6,
+                        (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,
+                        interval '1 day'
+                    )::date AS day
+                )
+                SELECT to_char(days.day, 'DD/MM') AS label, COALESCE(SUM(p.amount), 0) AS value
+                FROM days
+                LEFT JOIN payments p
+                  ON (COALESCE(p.paid_at, p.created_at) AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = days.day
+                 AND p.status = 'SUCCESS'
+                GROUP BY days.day
+                ORDER BY days.day
+                """
+            )
+        )
+    ).all()
+    branch_rows = (
+        await db.execute(
+            text(
+                """
+                WITH booking_facts AS (
+                    SELECT bo.id, bo.showtime_id, bo.status,
+                           (SELECT COUNT(*) FROM booking_seats x WHERE x.booking_id = bo.id) AS seats,
+                           COALESCE((
+                               SELECT SUM(p.amount) FROM payments p
+                               WHERE p.booking_id = bo.id AND p.status = 'SUCCESS'
+                           ), 0) AS revenue
+                    FROM bookings bo
+                )
+                SELECT br.name AS label,
+                       COALESCE(SUM(bf.revenue), 0) AS revenue,
+                       COALESCE(SUM(bf.seats) FILTER (WHERE bf.status = 'CONFIRMED'), 0) AS tickets
+                FROM branches br
+                LEFT JOIN auditoriums a ON a.branch_id = br.id
+                LEFT JOIN showtimes s ON s.auditorium_id = a.id
+                LEFT JOIN booking_facts bf ON bf.showtime_id = s.id
+                GROUP BY br.id, br.name
+                ORDER BY revenue DESC, br.name
+                """
+            )
+        )
+    ).all()
+    movie_rows = (
+        await db.execute(
+            text(
+                """
+                WITH booking_facts AS (
+                    SELECT b.id, b.showtime_id, b.status,
+                           (SELECT COUNT(*) FROM booking_seats x WHERE x.booking_id = b.id) AS seats,
+                           COALESCE((
+                               SELECT SUM(p.amount) FROM payments p
+                               WHERE p.booking_id = b.id AND p.status = 'SUCCESS'
+                           ), 0) AS revenue
+                    FROM bookings b
+                )
+                SELECT m.title AS label,
+                       COALESCE(SUM(bf.revenue), 0) AS revenue,
+                       COALESCE(SUM(bf.seats) FILTER (WHERE bf.status = 'CONFIRMED'), 0) AS tickets
+                FROM movies m
+                JOIN showtimes s ON s.movie_id = m.id
+                JOIN booking_facts bf ON bf.showtime_id = s.id
+                GROUP BY m.id, m.title
+                ORDER BY revenue DESC, tickets DESC
+                LIMIT 5
+                """
+            )
+        )
+    ).all()
     return {
         "totalBranches": total_branches,
         "totalMovies": total_movies,
         "totalUsers": total_users,
         "totalRevenue": int(total_revenue),
-        "revenueChartData": [],
+        "todayRevenue": int(today_revenue),
+        "monthRevenue": int(month_revenue),
+        "ticketsSold": int(tickets_sold),
+        "successfulBookings": booking_counts.get("CONFIRMED", 0),
+        "cancelledBookings": booking_counts.get("CANCELLED", 0),
+        "pendingBookings": booking_counts.get("PENDING", 0),
+        "revenueChartData": [{"label": row.label, "value": int(row.value)} for row in revenue_rows],
+        "branchPerformance": [
+            {"label": row.label, "revenue": int(row.revenue), "tickets": int(row.tickets)}
+            for row in branch_rows
+        ],
+        "topMovies": [
+            {"label": row.label, "revenue": int(row.revenue), "tickets": int(row.tickets)}
+            for row in movie_rows
+        ],
     }
 
 

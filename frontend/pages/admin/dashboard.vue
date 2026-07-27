@@ -14,6 +14,7 @@ import {
   type Movie,
   type TmdbPopularMovie,
   type UserProfile,
+  type SuperAdminStats,
 } from '~/services/api'
 import { useUserStore } from '~/store/user'
 
@@ -22,7 +23,7 @@ definePageMeta({
   middleware: ['auth'],
 })
 
-type AdminTab = 'users' | 'movies' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'
+type AdminTab = 'overview' | 'users' | 'movies' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'
 type AdminTabItem = {
   key: AdminTab
   label: string
@@ -31,6 +32,7 @@ type AdminTabItem = {
 }
 
 const allTabItems: AdminTabItem[] = [
+  { key: 'overview', label: 'Tổng quan', icon: 'dashboard', description: 'Doanh thu và hiệu suất toàn hệ thống' },
   { key: 'movies', label: 'Phim', icon: 'movie', description: 'Danh mục phim và nội dung hiển thị' },
   { key: 'users', label: 'Người dùng', icon: 'group', description: 'Tài khoản và phân quyền' },
   { key: 'branches', label: 'Chi nhánh', icon: 'location_city', description: 'Khu vực và cụm rạp' },
@@ -40,16 +42,22 @@ const allTabItems: AdminTabItem[] = [
 ]
 
 const userStore = useUserStore()
+const route = useRoute()
 const { currentUser } = storeToRefs(userStore)
 const isBranchAdmin = computed(() => currentUser.value?.role === 'branch-admin')
 const tabItems = computed(() =>
   allTabItems.filter((tab) =>
     isBranchAdmin.value
       ? ['auditoriums', 'seats', 'showtimes'].includes(tab.key)
-      : ['movies', 'users', 'branches'].includes(tab.key),
+      : ['overview', 'movies', 'users', 'branches'].includes(tab.key),
   ),
 )
-const activeTab = ref<AdminTab>(currentUser.value?.role === 'branch-admin' ? 'auditoriums' : 'users')
+const requestedTab = String(route.query.tab || '')
+const activeTab = ref<AdminTab>(
+  currentUser.value?.role === 'branch-admin'
+    ? (['auditoriums', 'seats', 'showtimes'].includes(requestedTab) ? requestedTab as AdminTab : 'auditoriums')
+    : (['overview', 'movies', 'users', 'branches'].includes(requestedTab) ? requestedTab as AdminTab : 'overview'),
+)
 const loading = ref(false)
 const error = ref('')
 
@@ -61,6 +69,15 @@ const seatTypes = ref<AdminSeatType[]>([])
 const showtimes = ref<AdminShowtime[]>([])
 const movies = ref<Movie[]>([])
 const tmdbMovies = ref<TmdbPopularMovie[]>([])
+const superStats = ref<SuperAdminStats | null>(null)
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    const next = String(tab || '')
+    if (tabItems.value.some((item) => item.key === next)) activeTab.value = next as AdminTab
+  },
+)
 
 const userForm = ref({
   fullName: '',
@@ -330,12 +347,14 @@ async function loadAll() {
       users.value = []
       tmdbMovies.value = []
     } else {
-      const [usersData, branchData, movieData, tmdbMovieData] = await Promise.all([
+      const [statsData, usersData, branchData, movieData, tmdbMovieData] = await Promise.all([
+        adminService.getSuperAdminStats(),
         adminBackendService.getUsers(),
         adminBackendService.getBranchesManage(),
         movieService.getAll(),
         movieService.getPopularFromTmdb(),
       ])
+      superStats.value = statsData
       users.value = usersData
       branches.value = branchData
       movies.value = movieData
@@ -965,7 +984,7 @@ function showtimeStatusClass(status: string) {
       </div>
     </section>
 
-    <section v-if="!isBranchAdmin" class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <section v-if="false" class="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div class="metric-card">
         <div class="metric-icon metric-green">
           <span class="material-symbols-outlined">group</span>
@@ -1010,7 +1029,7 @@ function showtimeStatusClass(status: string) {
       </div>
     </section>
 
-    <section class="panel p-3 md:p-4">
+    <section v-if="false" class="panel p-3 md:p-4">
       <div class="flex flex-wrap gap-2">
         <button
           v-for="tab in tabItems"
@@ -1029,6 +1048,44 @@ function showtimeStatusClass(status: string) {
       <div class="tab-desc">
         <p class="text-sm font-semibold text-on-surface">{{ activeTabMeta.label }}</p>
         <p class="text-xs text-on-surface-variant mt-0.5">{{ activeTabMeta.description }}</p>
+      </div>
+    </section>
+
+    <section v-if="!isBranchAdmin && activeTab === 'overview' && superStats" class="space-y-4">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div class="metric-card"><div class="metric-icon metric-green"><span class="material-symbols-outlined">payments</span></div><div><p class="metric-label">Tổng doanh thu</p><p class="metric-value">{{ fmtCurrency(superStats.totalRevenue) }}</p></div></div>
+        <div class="metric-card"><div class="metric-icon metric-blue"><span class="material-symbols-outlined">today</span></div><div><p class="metric-label">Doanh thu hôm nay</p><p class="metric-value">{{ fmtCurrency(superStats.todayRevenue) }}</p></div></div>
+        <div class="metric-card"><div class="metric-icon metric-violet"><span class="material-symbols-outlined">calendar_month</span></div><div><p class="metric-label">Doanh thu tháng này</p><p class="metric-value">{{ fmtCurrency(superStats.monthRevenue) }}</p></div></div>
+        <div class="metric-card"><div class="metric-icon metric-amber"><span class="material-symbols-outlined">confirmation_number</span></div><div><p class="metric-label">Ghế đã bán</p><p class="metric-value">{{ superStats.ticketsSold }}</p></div></div>
+        <div class="metric-card"><div class="metric-icon metric-pink"><span class="material-symbols-outlined">receipt_long</span></div><div><p class="metric-label">Đơn thành công</p><p class="metric-value">{{ superStats.successfulBookings }}</p></div></div>
+        <div class="metric-card"><div class="metric-icon metric-violet"><span class="material-symbols-outlined">storefront</span></div><div><p class="metric-label">Quy mô hệ thống</p><p class="metric-value">{{ superStats.totalBranches }} chi nhánh</p></div></div>
+      </div>
+
+      <div class="grid gap-4 xl:grid-cols-2">
+        <div class="panel p-5">
+          <h3 class="text-lg font-bold text-on-surface">Doanh thu 7 ngày gần nhất</h3>
+          <div class="mt-5 flex h-52 items-end gap-3">
+            <div v-for="point in superStats.revenueChartData" :key="point.label" class="flex min-w-0 flex-1 flex-col items-center gap-2">
+              <span class="text-[10px] text-on-surface-variant">{{ fmtCurrency(point.value) }}</span>
+              <div class="w-full rounded-t-lg bg-gradient-to-t from-red-600 to-fuchsia-500" :style="{ height: `${Math.max(6, (point.value / Math.max(...superStats.revenueChartData.map(item => item.value), 1)) * 150)}px` }"></div>
+              <span class="text-xs text-on-surface-variant">{{ point.label }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel overflow-hidden">
+          <div class="border-b border-white/10 p-5"><h3 class="text-lg font-bold text-on-surface">Hiệu suất theo chi nhánh</h3></div>
+          <table class="w-full text-sm">
+            <thead><tr><th class="px-5 py-3 text-left">Chi nhánh</th><th class="px-5 py-3 text-right">Vé</th><th class="px-5 py-3 text-right">Doanh thu</th></tr></thead>
+            <tbody><tr v-for="item in superStats.branchPerformance" :key="item.label" class="border-t border-white/10"><td class="px-5 py-3 font-semibold">{{ item.label }}</td><td class="px-5 py-3 text-right">{{ item.tickets }}</td><td class="px-5 py-3 text-right">{{ fmtCurrency(item.revenue) }}</td></tr></tbody>
+          </table>
+        </div>
+        <div class="panel overflow-hidden xl:col-span-2">
+          <div class="flex items-center justify-between border-b border-white/10 p-5"><h3 class="text-lg font-bold text-on-surface">Phim kinh doanh tốt nhất</h3><span class="pill-muted">Chờ: {{ superStats.pendingBookings }} · Hủy: {{ superStats.cancelledBookings }}</span></div>
+          <table class="w-full text-sm">
+            <thead><tr><th class="px-5 py-3 text-left">Phim</th><th class="px-5 py-3 text-right">Ghế đã bán</th><th class="px-5 py-3 text-right">Doanh thu</th></tr></thead>
+            <tbody><tr v-for="item in superStats.topMovies" :key="item.label" class="border-t border-white/10"><td class="px-5 py-3 font-semibold">{{ item.label }}</td><td class="px-5 py-3 text-right">{{ item.tickets }}</td><td class="px-5 py-3 text-right">{{ fmtCurrency(item.revenue) }}</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </section>
 

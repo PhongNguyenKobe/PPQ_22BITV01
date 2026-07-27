@@ -31,12 +31,26 @@ class RevenueDataPoint(BaseModel):
     value: int
 
 
+class AdminBreakdownItem(BaseModel):
+    label: str
+    revenue: int
+    tickets: int = 0
+
+
 class AdminStatsResponse(BaseModel):
     totalBranches: int
     totalMovies: int
     totalUsers: int
     totalRevenue: int
+    todayRevenue: int = 0
+    monthRevenue: int = 0
+    ticketsSold: int = 0
+    successfulBookings: int = 0
+    cancelledBookings: int = 0
+    pendingBookings: int = 0
     revenueChartData: list[RevenueDataPoint] = []
+    branchPerformance: list[AdminBreakdownItem] = []
+    topMovies: list[AdminBreakdownItem] = []
 
 
 class MovieDraftPayload(BaseModel):

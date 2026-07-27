@@ -5,6 +5,7 @@ import { useUserStore } from '~/store/user'
 
 const userStore = useUserStore()
 const { currentUser } = storeToRefs(userStore)
+const route = useRoute()
 
 const isCollapsed = ref(false)
 const showNotifications = ref(false)
@@ -16,6 +17,23 @@ const notifications = ref([
   { id: 2, text: 'Chi nhánh Hà Đông đạt chỉ tiêu doanh thu ngày (+120%)', time: '20 phút trước', unread: true },
   { id: 3, text: 'Yêu cầu duyệt phim "CineAI Chronicles" được gửi từ Branch-Admin', time: '1 giờ trước', unread: true }
 ])
+
+const adminMenu = [
+  { tab: 'overview', label: 'Tổng quan', icon: 'dashboard' },
+  { tab: 'movies', label: 'Phim', icon: 'movie' },
+  { tab: 'users', label: 'Người dùng', icon: 'group' },
+  { tab: 'branches', label: 'Chi nhánh', icon: 'location_city' },
+]
+const branchMenu = [
+  { tab: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters' },
+  { tab: 'seats', label: 'Ghế ngồi', icon: 'event_seat' },
+  { tab: 'showtimes', label: 'Suất chiếu', icon: 'schedule' },
+]
+
+function isCurrentTab(tab: string) {
+  const fallback = currentUser.value?.role === 'branch-admin' ? 'auditoriums' : 'overview'
+  return String(route.query.tab || fallback) === tab
+}
 
 function toggleSidebar() {
   isCollapsed.value = !isCollapsed.value
@@ -58,7 +76,7 @@ function handleLogout() {
             </div>
 
             <NuxtLink
-              v-if="currentUser?.role === 'admin'"
+              v-if="false"
               to="/admin/dashboard"
               class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
               active-class="nav-link-active"
@@ -68,13 +86,27 @@ function handleLogout() {
             </NuxtLink>
 
             <NuxtLink
-              v-if="currentUser?.role === 'branch-admin'"
+              v-if="false"
               to="/branch-admin/dashboard"
               class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
               active-class="nav-link-active"
             >
               <span class="material-symbols-outlined text-xl">storefront</span>
               <span v-if="!isCollapsed" class="text-sm font-semibold">Bảng chi nhánh</span>
+            </NuxtLink>
+
+            <NuxtLink
+              v-for="item in (currentUser?.role === 'admin' ? adminMenu : branchMenu)"
+              :key="item.tab"
+              :to="{
+                path: currentUser?.role === 'admin' ? '/admin/dashboard' : '/branch-admin/dashboard',
+                query: { tab: item.tab },
+              }"
+              class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
+              :class="{ 'nav-link-active': isCurrentTab(item.tab) }"
+            >
+              <span class="material-symbols-outlined text-xl">{{ item.icon }}</span>
+              <span v-if="!isCollapsed" class="text-sm font-semibold">{{ item.label }}</span>
             </NuxtLink>
 
             <NuxtLink

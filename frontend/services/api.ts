@@ -239,6 +239,24 @@ export interface BranchAdminStats {
   promotionsList: BranchAdminPromo[]
 }
 
+export interface SuperAdminStats {
+  totalBranches: number
+  totalMovies: number
+  totalUsers: number
+  totalRevenue: number
+  todayRevenue: number
+  monthRevenue: number
+  ticketsSold: number
+  successfulBookings: number
+  cancelledBookings: number
+  pendingBookings: number
+  revenueChartData: { label: string; value: number }[]
+  branchPerformance: { label: string; revenue: number; tickets: number }[]
+  topMovies: { label: string; revenue: number; tickets: number }[]
+  moviesList?: Movie[]
+  usersList?: UserProfile[]
+}
+
 export interface MovieRequestPayload {
   title: string
   original_title?: string | null
@@ -1018,7 +1036,14 @@ export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
 export function mapBackendShowtimeToFrontend(bs: BackendShowtime): Showtime {
   // starts_at: "2026-07-11T18:00:00+07:00"
   const startDate = new Date(bs.starts_at)
-  const dateStr = startDate.toISOString().split('T')[0] // "2026-07-11"
+  // Keep the calendar date and time in the user's local cinema timezone.
+  // toISOString() converts to UTC and can leave the date one day behind
+  // while the time below is formatted locally.
+  const dateStr = [
+    startDate.getFullYear(),
+    String(startDate.getMonth() + 1).padStart(2, '0'),
+    String(startDate.getDate()).padStart(2, '0'),
+  ].join('-')
   const timeStr = startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) // "18:00"
   
   return {
@@ -1330,21 +1355,19 @@ export const aiService = {
 }
 
 export const adminService = {
-  async getSuperAdminStats(): Promise<{
-    totalBranches: number
-    totalMovies: number
-    totalUsers: number
-    totalRevenue: number
-    revenueChartData: { label: string; value: number }[]
-    moviesList: Movie[]
-    usersList: UserProfile[]
-  }> {
+  async getSuperAdminStats(): Promise<SuperAdminStats> {
     if (USE_MOCK) {
       return {
         totalBranches: 5,
         totalMovies: mockMovies.length,
         totalUsers: 1420,
         totalRevenue: 285900000,
+        todayRevenue: 12000000,
+        monthRevenue: 285900000,
+        ticketsSold: 1200,
+        successfulBookings: 900,
+        cancelledBookings: 12,
+        pendingBookings: 8,
         revenueChartData: [
           { label: 'T12', value: 45000000 },
           { label: 'T01', value: 68000000 },
@@ -1354,6 +1377,8 @@ export const adminService = {
           { label: 'T05', value: 89000000 },
           { label: 'T06 (Dự kiến)', value: 120000000 }
         ],
+        branchPerformance: [],
+        topMovies: [],
         moviesList: mockMovies,
         usersList: [
           { id: 'u1', name: 'Nguyễn Văn A', email: 'vana@gmail.com', role: 'customer', isActive: true },
