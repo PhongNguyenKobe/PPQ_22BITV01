@@ -4,14 +4,12 @@ from app.api.routes.admin import router as admin_router
 from app.api.routes.branch_admin import router as branch_admin_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.branches import router as branches_router
-from app.api.routes.chatbot import router as chatbot_router
-from app.api.routes.checkout import router as checkout_router
+from app.api.routes.bookings import router as bookings_router
+# from app.api.routes.checkout import router as checkout_router
 from app.api.routes.movies import router as movies_router
+from app.api.routes.payments import router as payments_router
 from app.api.routes.showtimes import router as showtimes_router
 from app.api.routes.users import router as users_router
-from app.api.routes.bookings import router as bookings_router
-from app.api.routes.payments import router as payments_router
-from app.api.routes.voice_booking import router as voice_booking_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -21,8 +19,6 @@ api_router.include_router(movies_router, prefix="/movies", tags=["movies"])
 api_router.include_router(showtimes_router, prefix="/showtimes", tags=["showtimes"])
 api_router.include_router(bookings_router, prefix="/bookings", tags=["bookings"])
 api_router.include_router(payments_router, prefix="/payments", tags=["payments"])
-api_router.include_router(checkout_router, prefix="/checkout", tags=["checkout"])
-api_router.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
-api_router.include_router(voice_booking_router, prefix="/voice-booking", tags=["voice-booking"])
+# api_router.include_router(checkout_router, prefix="/checkout", tags=["checkout"])
 api_router.include_router(branch_admin_router, prefix="/branch-admin", tags=["branch-admin"])
 api_router.include_router(admin_router, prefix="/admin", tags=["admin"])

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -42,7 +43,13 @@ async def login(request: Request, db: AsyncSession = Depends(get_db)) -> AuthRes
         identifier = str(form.get("username") or "").strip()
         password = str(form.get("password") or "")
     else:
-        payload = LoginRequest.model_validate(await request.json())
+        try:
+            payload = LoginRequest.model_validate(await request.json())
+        except (ValidationError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="identifier and password are required",
+            ) from exc
         identifier = payload.identifier
         password = payload.password
 

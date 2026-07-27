@@ -1,19 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
-import { useBooking } from '~/composables/useBooking'
-import { movieService } from '~/services/api'
-import { formatSeatLabel, formatPrice } from '~/utils/format'
 
 definePageMeta({
-  layout: 'checkout',
-  middleware: 'auth'
+  layout: 'default'
 })
 
 const ticketsStore = useTicketsStore()
 const { selectedMovie, selectedCinema, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
-const { toggleSeat } = useBooking()
 
 const backgroundStyle = computed(() => {
   if (!selectedMovie.value?.imageUrl) return {}
@@ -27,70 +21,16 @@ const formattedMoviePrice = computed(() => {
   return new Intl.NumberFormat('vi-VN').format(Number(selectedMovie.value.price) * 1000) + 'đ'
 })
 
-// Interface chuẩn cho Seat
-interface Seat {
-  id: string
-  row: string
-  number: number
-  type: 'standard' | 'vip' | 'couple'
-  status: 'available' | 'selected' | 'occupied'
-  price: number
-}
-
-const seats = ref<Seat[]>([])
-const loading = ref(false)
-const error = ref('')
-
-interface SeatRow {
-  row: string
-  seats: Seat[]
-}
-
-const seatRows = computed(() => {
-  const rows = new Map<string, Seat[]>()
-  seats.value.forEach(seat => {
-    if (!rows.has(seat.row)) {
-      rows.set(seat.row, [])
-    }
-    rows.get(seat.row)!.push(seat)
-  })
-  const result: SeatRow[] = []
-  rows.forEach((rowSeats, rowKey) => {
-    result.push({ row: rowKey, seats: rowSeats })
-  })
-  return result
-})
-
-onMounted(async () => {
+onMounted(() => {
+  // Redirect back to cinema selection if no showtime has been selected
   if (!selectedShowtime.value) {
-    await navigateTo('/checkout/cinema')
-    return
-  }
-
-  loading.value = true
-  error.value = ''
-  try {
-    const response = await movieService.getSeats(selectedShowtime.value.id)
-    seats.value = response
-  } catch (err) {
-    console.error('Failed to load seats:', err)
-    error.value = 'Không thể tải sơ đồ ghế. Vui lòng thử lại.'
-  } finally {
-    loading.value = false
+    navigateTo('/checkout/cinema')
   }
 })
 
-const isSeatSelected = (seat: Seat) => {
-  return selectedSeats.value.some(s => s.id === seat.id)
-}
-
-const handleSeatClick = (seat: Seat) => {
-  toggleSeat(seat)
-}
-
-const handleProceedToPayment = () => {
+function handleProceedToPayment() {
   if (selectedSeats.value.length === 0) return
-  navigateTo('/checkout/combo')
+  navigateTo('/checkout/payment')
 }
 </script>
 
@@ -133,53 +73,7 @@ const handleProceedToPayment = () => {
               <h1>Chọn Ghế Ngồi</h1>
               <p>Chọn vị trí phù hợp trong phòng chiếu để tiếp tục thanh toán.</p>
             </div>
-
-            <!-- Loading -->
-            <div v-if="loading" class="selection-empty">Đang tải sơ đồ ghế...</div>
-
-            <!-- Error -->
-            <div v-else-if="error" class="selection-empty">
-              <p>{{ error }}</p>
-            </div>
-
-            <!-- Seat Grid -->
-            <div v-else class="seat-map">
-              <div class="screen-indicator">
-                <div class="screen-label">Màn Hình</div>
-              </div>
-
-              <div class="seat-rows">
-                <div
-                  v-for="seatRow of seatRows"
-                  :key="seatRow.row"
-                  class="seat-row"
-                >
-                  <span class="row-label">{{ seatRow.row }}</span>
-                  <div class="row-seats">
-                    <button
-                      v-for="seat of seatRow.seats"
-                      :key="seat.id"
-                      @click="handleSeatClick(seat)"
-                      class="seat-btn"
-                      :class="isSeatSelected(seat) ? 'seat-selected' : 'seat-available'"
-                    >
-                      {{ seat.number }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="seat-legend">
-                <div class="legend-item">
-                  <span class="legend-swatch seat-available"></span>
-                  <span>Trống</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-swatch seat-selected"></span>
-                  <span>Đang chọn</span>
-                </div>
-              </div>
-            </div>
+            <SeatSelection />
           </div>
         </main>
 
@@ -205,16 +99,14 @@ const handleProceedToPayment = () => {
             <div class="summary-seats">
               <p>Ghế đã chọn</p>
               <div v-if="selectedSeats.length > 0" class="seat-tags">
-                <span v-for="seat in selectedSeats" :key="seat.id">
-                  {{ formatSeatLabel(seat.row, seat.number) }}
-                </span>
+                <span v-for="seat in selectedSeats" :key="seat.id">{{ seat.row }}{{ seat.number }}</span>
               </div>
               <p v-else class="seat-empty">Chưa chọn ghế</p>
             </div>
 
             <div class="summary-total">
               <span>Tổng cộng</span>
-              <strong>{{ formatPrice(totalAmount) }}</strong>
+              <strong>{{ totalAmount.toLocaleString() }} VNĐ</strong>
             </div>
 
             <button
@@ -224,10 +116,6 @@ const handleProceedToPayment = () => {
             >
               Tiếp tục thanh toán
             </button>
-
-            <NuxtLink to="/checkout/cinema" class="summary-back-link">
-              ← Đổi rạp / suất chiếu
-            </NuxtLink>
           </div>
         </aside>
       </div>
@@ -339,97 +227,6 @@ const handleProceedToPayment = () => {
 .selection-header h1 { font-size: 2rem; line-height: 1.05; font-weight: 900; color: #fff; }
 .selection-header p { margin-top: 0.45rem; color: #c8c8c8; font-size: 0.95rem; margin-bottom: 0.9rem; }
 
-.selection-empty {
-  margin-top: 1rem;
-  min-height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: #c7cad0;
-}
-
-.seat-map { margin-top: 0.5rem; }
-
-.screen-indicator { display: flex; justify-content: center; margin-bottom: 1.5rem; }
-.screen-label {
-  background: rgba(255,255,255,0.08);
-  color: #e5e7eb;
-  padding: 0.35rem 1.5rem;
-  border-radius: 9999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.seat-rows { display: flex; flex-direction: column; gap: 0.6rem; }
-
-.seat-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-}
-
-.row-label {
-  width: 1.5rem;
-  text-align: center;
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: #9ca3af;
-}
-
-.row-seats { display: flex; gap: 0.3rem; flex-wrap: wrap; justify-content: center; }
-
-.seat-btn {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.4rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  transition: all 0.15s ease;
-}
-
-.seat-available {
-  background: rgba(255,255,255,0.08);
-  color: #d6d6d6;
-}
-
-.seat-available:hover {
-  background: rgba(255,122,26,0.22);
-}
-
-.seat-selected {
-  background: #ff7a1a;
-  color: #fff;
-  box-shadow: 0 0 0 2px rgba(255,122,26,0.35);
-}
-
-.seat-legend {
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px dashed rgba(255,255,255,0.14);
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.78rem;
-  color: #c7cad0;
-}
-
-.legend-swatch {
-  width: 1.2rem;
-  height: 1.2rem;
-  border-radius: 0.3rem;
-  display: inline-block;
-}
-
 .summary-card { padding: 1.2rem; }
 .summary-card h3 { color: #fff; font-size: 1.5rem; font-weight: 900; text-transform: uppercase; }
 
@@ -493,14 +290,6 @@ const handleProceedToPayment = () => {
 .summary-next:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-.summary-back-link {
-  margin-top: 0.9rem;
-  display: block;
-  text-align: center;
-  color: #c7cad0;
-  font-size: 0.82rem;
 }
 
 @media (max-width: 1200px) {

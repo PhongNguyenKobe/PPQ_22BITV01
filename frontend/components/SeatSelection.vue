@@ -14,7 +14,11 @@ onMounted(async () => {
   if (selectedShowtime.value) {
     loading.value = true
     try {
-      seatsList.value = await movieService.getSeats(selectedShowtime.value.id)
+      const seats = await movieService.getSeats(selectedShowtime.value.id)
+      seatsList.value = seats.map((seat) => ({
+        ...seat,
+        price: selectedShowtime.value?.price || 0,
+      }))
     } catch (e) {
       console.error('Failed to load seats map:', e)
     } finally {

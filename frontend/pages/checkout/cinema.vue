@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { movieService, type Showtime } from '~/services/api'
 
 definePageMeta({
-  layout: 'checkout',
-  middleware: 'auth'
+  layout: 'default'
 })
 
 const router = useRouter()
@@ -15,57 +13,59 @@ const { selectedMovie, selectedCinema } = storeToRefs(ticketsStore)
 
 const showtimes = ref<Showtime[]>([])
 const loading = ref(false)
-const error = ref('')
 const requiresCatalogMapping = ref(false)
 
+// Redirect if no movie selected
 onMounted(async () => {
   if (!selectedMovie.value) {
-    await navigateTo('/products')
-    return
+    return router.push('/products')
   }
-
-  loading.value = true
-  error.value = ''
-  try {
-    let targetMovieId = selectedMovie.value.backendMovieId || selectedMovie.value.id
-
-    if (!selectedMovie.value.backendMovieId) {
-      const movieIdAsString = String(selectedMovie.value.id)
-      const backendMovies = await movieService.getAll()
-      const byTmdbId = backendMovies.find((movie) => {
-        const match = movie.trailer?.match(/themoviedb\.org\/movie\/(\d+)/i)
-        return match ? match[1] === movieIdAsString : false
-      })
-
-      if (byTmdbId) {
-        targetMovieId = byTmdbId.id
-        ticketsStore.selectMovie({
-          ...selectedMovie.value,
-          backendMovieId: byTmdbId.id,
+  
+  // Fetch showtimes for the selected movie from API
+  if (selectedMovie.value) {
+    loading.value = true
+    try {
+      let targetMovieId = selectedMovie.value.backendMovieId || selectedMovie.value.id
+      if (!selectedMovie.value.backendMovieId) {
+        const movieIdAsString = String(selectedMovie.value.id)
+        const backendMovies = await movieService.getAll()
+        const byTmdbId = backendMovies.find((movie) => {
+          const match = movie.trailer?.match(/themoviedb\.org\/movie\/(\d+)/i)
+          return match ? match[1] === movieIdAsString : false
         })
-      } else {
-        requiresCatalogMapping.value = true
-      }
-    }
 
-    const allShowtimes = await movieService.getShowtimes(String(targetMovieId))
-    showtimes.value = allShowtimes
-    if (allShowtimes.length > 0) {
-      requiresCatalogMapping.value = false
+        if (byTmdbId) {
+          targetMovieId = byTmdbId.id
+          ticketsStore.selectMovie({
+            ...selectedMovie.value,
+            backendMovieId: byTmdbId.id,
+          })
+        } else {
+          requiresCatalogMapping.value = true
+        }
+      }
+
+      const allShowtimes = await movieService.getShowtimes(String(targetMovieId))
+      showtimes.value = allShowtimes
+      if (allShowtimes.length > 0) {
+        requiresCatalogMapping.value = false
+      }
+    } catch (e) {
+      console.error('Failed to load showtimes for cinema selection:', e)
+      showtimes.value = []
+    } finally {
+      loading.value = false
     }
-  } catch (err) {
-    console.error('Failed to load showtimes for cinema selection:', err)
-    error.value = 'Không thể tải danh sách rạp chiếu. Vui lòng thử lại.'
-    showtimes.value = []
-  } finally {
-    loading.value = false
   }
 })
 
+// Get available cinemas for selected movie
 const availableCinemas = computed(() => {
   if (!showtimes.value.length) return []
+  
   const cinemaSet = new Set<string>()
-  showtimes.value.forEach((st) => cinemaSet.add(st.branchName))
+  showtimes.value.forEach(st => cinemaSet.add(st.branchName))
+  
   return Array.from(cinemaSet).sort()
 })
 
@@ -106,6 +106,8 @@ const formattedMoviePrice = computed(() => {
   return new Intl.NumberFormat('vi-VN').format(Number(selectedMovie.value.price) * 1000) + 'đ'
 })
 
+// Show count of showtimes per cinema
+// Select cinema and navigate to showtime
 function handleSelectCinema(cinema: string) {
   ticketsStore.selectCinema(cinema)
   router.push('/checkout/showtime')
@@ -157,10 +159,6 @@ function handleSelectCinema(cinema: string) {
             </div>
 
             <div v-if="loading" class="selection-empty">Đang tải danh sách rạp...</div>
-
-            <div v-else-if="error" class="selection-empty">
-              <p>{{ error }}</p>
-            </div>
 
             <div v-else-if="cinemaCards.length > 0" class="cinema-list">
               <button

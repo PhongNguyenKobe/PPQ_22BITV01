@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import {
   adminBackendService,
   movieService,
+  tmdbService,
   type AdminAuditorium,
   type AdminBranchManage,
   type AdminSeat,
@@ -15,10 +16,10 @@ import {
 
 definePageMeta({
   layout: 'admin',
-  middleware: ['auth', 'super-admin'],
+  middleware: ['auth'],
 })
 
-type AdminTab = 'users' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'
+type AdminTab = 'users' | 'movies' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'
 type AdminTabItem = {
   key: AdminTab
   label: string
@@ -27,6 +28,7 @@ type AdminTabItem = {
 }
 
 const tabItems: AdminTabItem[] = [
+  { key: 'movies', label: 'Phim', icon: 'movie', description: 'Danh mục phim và nội dung hiển thị' },
   { key: 'users', label: 'Người dùng', icon: 'group', description: 'Tài khoản và phân quyền' },
   { key: 'branches', label: 'Chi nhánh', icon: 'location_city', description: 'Khu vực và cụm rạp' },
   { key: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters', description: 'Màn hình và sức chứa' },
@@ -87,6 +89,17 @@ const showtimeForm = ref({
   endsAt: '',
   basePrice: 90000,
   status: 'OPEN' as 'OPEN' | 'CLOSED' | 'CANCELLED',
+})
+
+const movieForm = ref({
+  title: '',
+  description: '',
+  duration: 120,
+  releaseDate: '',
+  poster: '',
+  trailer: '',
+  status: 'UPCOMING' as 'UPCOMING' | 'NOW_SHOWING' | 'ENDED',
+  genres: '',
 })
 
 const showtimeMovieOptions = computed(() => {
@@ -181,6 +194,44 @@ function roleToCode(role: UserProfile['role']) {
 function toIso(value: string) {
   const date = new Date(value)
   return date.toISOString()
+}
+
+async function createMovie() {
+  await adminBackendService.createMovie({
+    title: movieForm.value.title,
+    description: movieForm.value.description || undefined,
+    duration_min: Number(movieForm.value.duration),
+    release_date: movieForm.value.releaseDate || null,
+    poster_url: movieForm.value.poster || undefined,
+    trailer_url: movieForm.value.trailer || undefined,
+    status: movieForm.value.status,
+    genres: movieForm.value.genres.split(',').map((item) => item.trim()).filter(Boolean),
+  })
+  movies.value = await movieService.getAll()
+  movieForm.value = { title: '', description: '', duration: 120, releaseDate: '', poster: '', trailer: '', status: 'UPCOMING', genres: '' }
+}
+
+async function editMovie(movie: Movie) {
+  const title = window.prompt('Tên phim', movie.title)
+  if (!title) return
+  const description = window.prompt('Mô tả', movie.description) ?? movie.description
+  const updated = await adminBackendService.updateMovie(movie.id, {
+    title,
+    description,
+    duration_min: movie.duration,
+    release_date: movie.releaseDate || null,
+    poster_url: movie.poster || null,
+    trailer_url: movie.trailer || null,
+    status: 'NOW_SHOWING',
+    genres: movie.genre,
+  })
+  movies.value = movies.value.map((item) => item.id === updated.id ? updated : item)
+}
+
+async function deleteMovie(movie: Movie) {
+  if (!window.confirm(`Xoá phim "${movie.title}"?`)) return
+  await adminBackendService.deleteMovie(movie.id)
+  movies.value = movies.value.filter((item) => item.id !== movie.id)
 }
 
 async function createUser() {
@@ -328,6 +379,7 @@ async function createShowtime() {
       throw new Error('Không tìm thấy phim TMDB để import')
     }
 
+    const detail = await tmdbService.getMovieDetail(tmdbMovie.tmdb_id)
     const imported = await adminBackendService.importTmdbMovie({
       tmdb_id: tmdbMovie.tmdb_id,
       title: tmdbMovie.title,
@@ -336,7 +388,7 @@ async function createShowtime() {
       release_date: tmdbMovie.release_date || null,
       original_title: tmdbMovie.original_title || null,
       language: 'vi-VN',
-      duration_min: 120,
+      duration_min: detail.duration || 120,
     })
     movieId = imported.id
   }
@@ -491,6 +543,45 @@ function showtimeStatusClass(status: AdminShowtime['status']) {
 
     <p v-if="error" class="panel border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</p>
     <p v-if="loading" class="panel border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">Đang tải dữ liệu mới nhất...</p>
+
+    <section v-if="activeTab === 'movies'" class="space-y-4">
+      <div class="panel p-5 space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-lg font-bold text-on-surface">Tạo phim mới</h3>
+          <span class="pill-muted">Phim: {{ movies.length }}</span>
+        </div>
+        <form class="grid md:grid-cols-3 gap-3" @submit.prevent="createMovie">
+          <input v-model="movieForm.title" placeholder="Tên phim" class="field-input" required />
+          <input v-model.number="movieForm.duration" type="number" min="1" placeholder="Thời lượng (phút)" class="field-input" required />
+          <input v-model="movieForm.releaseDate" type="date" class="field-input" />
+          <input v-model="movieForm.poster" placeholder="URL poster" class="field-input" />
+          <input v-model="movieForm.trailer" placeholder="URL trailer" class="field-input" />
+          <select v-model="movieForm.status" class="field-input">
+            <option value="UPCOMING">Sắp chiếu</option>
+            <option value="NOW_SHOWING">Đang chiếu</option>
+            <option value="ENDED">Đã kết thúc</option>
+          </select>
+          <input v-model="movieForm.genres" placeholder="Thể loại, cách nhau bởi dấu phẩy" class="field-input md:col-span-2" />
+          <textarea v-model="movieForm.description" placeholder="Mô tả" class="field-input md:col-span-3" rows="3"></textarea>
+          <button class="md:col-span-3 action-primary">Tạo phim</button>
+        </form>
+      </div>
+      <div class="panel overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr><th class="px-4 py-3 text-left">Phim</th><th class="px-4 py-3 text-left">Thể loại</th><th class="px-4 py-3 text-left">Thời lượng</th><th class="px-4 py-3 text-left">Thao tác</th></tr></thead>
+            <tbody>
+              <tr v-for="movie in movies" :key="movie.id" class="border-t border-white/10">
+                <td class="px-4 py-3"><div class="font-semibold">{{ movie.title }}</div><div class="text-xs text-on-surface-variant line-clamp-1">{{ movie.description }}</div></td>
+                <td class="px-4 py-3">{{ movie.genre.join(', ') || '—' }}</td>
+                <td class="px-4 py-3">{{ movie.duration }} phút</td>
+                <td class="px-4 py-3"><div class="flex gap-2"><button @click="editMovie(movie)" class="action-link action-link-blue">Sửa</button><button @click="deleteMovie(movie)" class="action-link action-link-rose">Xoá</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
     <section v-if="activeTab === 'users'" class="space-y-4">
       <div class="panel p-5 space-y-4">

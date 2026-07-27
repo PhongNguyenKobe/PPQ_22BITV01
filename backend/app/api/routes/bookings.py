@@ -6,6 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.crud.booking import (
     list_showtime_available_seats,
+    booking_to_dict,
+    create_user_booking,
+    get_user_booking,
+    list_user_booking_rows,
     validate_showtime_exists,
     validate_seats_available,
 )
@@ -60,12 +64,6 @@ async def create_booking(
     - **total_price**: Total booking price
     - Returns: Booking confirmation
     """
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required to create booking"
-        )
-    
     # Validate showtime
     if not await validate_showtime_exists(db, payload.showtime_id):
         raise HTTPException(
@@ -81,23 +79,13 @@ async def create_booking(
             detail=message
         )
     
-    # TODO: Create booking in database
-    # This is a placeholder response
-    return BookingRead(
-        id=UUID('00000000-0000-0000-0000-000000000001'),
-        user_id=current_user.id,
-        showtime_id=payload.showtime_id,
-        movie_id=UUID('00000000-0000-0000-0000-000000000002'),
-        booking_date=None,
-        seats=[
-            {"row": "A", "number": 1},
-            {"row": "A", "number": 2},
-        ],
-        quantity=payload.quantity,
-        total_price=payload.total_price,
-        status="PENDING",
-        created_at=None,
-    )
+    if payload.quantity != len(payload.seat_ids):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="quantity must match seat_ids")
+    try:
+        booking = await create_user_booking(db, current_user.id, payload.showtime_id, payload.seat_ids)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="One or more seats are already booked") from None
+    return BookingRead(**booking_to_dict(booking))
 
 
 @router.get("", response_model=BookingListResponse)
@@ -114,18 +102,12 @@ async def list_user_bookings(
     - **limit**: Maximum number of bookings to return (1-100)
     - Returns: Paginated list of user's bookings
     """
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-    
-    # TODO: Fetch bookings from database
+    total, rows = await list_user_booking_rows(db, current_user.id, skip, limit)
     return BookingListResponse(
-        total=0,
-        page=skip // limit,
+        total=total,
+        page=(skip // limit) + 1,
         limit=limit,
-        bookings=[]
+        bookings=[BookingRead(**booking_to_dict(item)) for item in rows],
     )
 
 
@@ -141,14 +123,7 @@ async def get_booking(
     - **booking_id**: UUID of the booking
     - Returns: Booking details
     """
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-    
-    # TODO: Fetch booking from database
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Booking not found"
-    )
+    booking = await get_user_booking(db, booking_id, current_user.id)
+    if booking is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+    return BookingRead(**booking_to_dict(booking))

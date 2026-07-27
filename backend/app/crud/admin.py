@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.catalog import Movie
+from app.models.commerce import Payment
 from app.models.user import Role, User, user_roles_table
 from app.schemas.admin import BranchRead, RevenueDataPoint, UserRoleUpdate
 
@@ -81,6 +82,22 @@ async def get_admin_stats(db: AsyncSession) -> dict:
         "totalUsers": total_users,
         "totalRevenue": total_revenue,
         "revenueChartData": revenue_chart_data,
+    }
+
+
+async def get_live_admin_stats(db: AsyncSession) -> dict:
+    total_branches = (await db.execute(text("SELECT COUNT(*) FROM branches"))).scalar() or 0
+    total_movies = (await db.execute(select(func.count(Movie.id)))).scalar() or 0
+    total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
+    total_revenue = (
+        await db.execute(select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.status == "SUCCESS"))
+    ).scalar() or 0
+    return {
+        "totalBranches": total_branches,
+        "totalMovies": total_movies,
+        "totalUsers": total_users,
+        "totalRevenue": int(total_revenue),
+        "revenueChartData": [],
     }
 
 

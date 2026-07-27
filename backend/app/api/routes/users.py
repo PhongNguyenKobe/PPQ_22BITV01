@@ -4,10 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.crud.booking import booking_to_dict, list_user_booking_rows
 from app.crud.user import get_user_by_id, list_users, update_user
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.user import UserRead, UserUpdate
+from app.schemas.booking import BookingRead
 
 router = APIRouter()
 
@@ -30,6 +32,16 @@ async def update_my_profile(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already exists") from None
         raise
     return UserRead.model_validate(updated_user)
+
+
+@router.get("/me/tickets", response_model=list[BookingRead])
+async def read_my_tickets(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[BookingRead]:
+    _, rows = await list_user_booking_rows(db, current_user.id, 0, 100)
+    return [BookingRead(**booking_to_dict(item)) for item in rows]
+
 
 @router.get("", response_model=list[UserRead])
 async def read_users(

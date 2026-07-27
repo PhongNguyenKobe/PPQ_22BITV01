@@ -17,6 +17,9 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.backend_cors_origins,
+    # Nuxt tự chuyển sang 3001, 3002... khi cổng 3000 đang được dùng.
+    # Chỉ nới cho loopback local; production origins vẫn lấy từ cấu hình.
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,7 +1,10 @@
 import { useUserStore } from '~/store/user'
 
-export default defineRouteMiddleware((to, from) => {
+export default defineNuxtRouteMiddleware((to, from) => {
   const userStore = useUserStore()
+
+  console.log('[auth middleware] path:', to.path)
+  console.log('[auth middleware] isAuthenticated:', userStore.isAuthenticated, '| role:', userStore.currentUser?.role, '| user:', userStore.currentUser)
 
   // Routes that require authentication
   const protectedRoutes = [
@@ -19,17 +22,14 @@ export default defineRouteMiddleware((to, from) => {
   const isAdminRoute = adminRoutes.some(route => to.path.startsWith(route))
   const isBranchAdminRoute = branchAdminRoutes.some(route => to.path.startsWith(route))
 
-  // Check if user is authenticated
   if (isProtected && !userStore.isAuthenticated) {
     return navigateTo('/login')
   }
 
-  // Check if user has admin role
   if (isAdminRoute && userStore.currentUser?.role !== 'admin') {
     return navigateTo('/products')
   }
 
-  // Check if user has branch admin role
   if (isBranchAdminRoute && userStore.currentUser?.role !== 'branch-admin') {
     return navigateTo('/products')
   }
