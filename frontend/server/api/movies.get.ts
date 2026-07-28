@@ -1,4 +1,5 @@
 // frontend/server/api/movies.get.ts
+import { tmdbFetch } from '~/server/utils/tmdb'
 
 interface TMDBMovie {
   id: number
