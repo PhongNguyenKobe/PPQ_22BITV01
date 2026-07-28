@@ -152,7 +152,7 @@ function handleProceedToPayment() {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr) 280px;
+  grid-template-columns: 220px minmax(520px, 1fr) 280px;
   gap: 1.5rem;
   padding: 1.5rem;
   align-items: start;
@@ -230,6 +230,7 @@ function handleProceedToPayment() {
 .step-line.active { background: linear-gradient(90deg, #ff7a1a, #f59e0b); }
 
 .selection-panel { padding: 1.35rem; }
+.selection-column { min-width: 0; }
 .selection-header h1 { font-size: 2rem; line-height: 1.05; font-weight: 900; color: #fff; }
 .selection-header p { margin-top: 0.45rem; color: #c8c8c8; font-size: 0.95rem; margin-bottom: 0.9rem; }
 

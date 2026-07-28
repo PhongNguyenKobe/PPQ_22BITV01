@@ -335,12 +335,13 @@ function handleSelectShowtime(showtime: Showtime) {
         <div v-else class="space-y-8">
           <div v-for="{ movie, showtimes } in filteredShowtimes" :key="movie.id"
             class="bg-gradient-to-r from-[#14161d] to-[#0d0e12] border border-white/10 rounded-3xl p-6 md:p-8 hover:border-white/20 transition-all shadow-2xl">
-            <div class="flex flex-col lg:flex-row gap-8">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8">
 
               <!-- Left: Movie Poster & Detail -->
-              <div class="lg:w-1/4 flex flex-row lg:flex-col gap-5 items-start">
+              <div class="flex flex-row lg:flex-col gap-5 items-start">
                 <img :src="movie.poster || 'https://via.placeholder.com/300x450'" :alt="movie.title"
-                  class="w-28 sm:w-36 lg:w-full aspect-[2/3] object-cover rounded-2xl shadow-2xl border border-white/10 flex-shrink-0" />
+                  class="w-28 sm:w-36 lg:w-[220px] aspect-[2/3] object-cover rounded-2xl shadow-2xl border border-white/10 flex-shrink-0"
+                  @error="($event.target as HTMLImageElement).src = '/images/movie-placeholder.svg'" />
                 <div>
                   <h2
                     class="text-xl md:text-2xl font-black text-white leading-tight mb-2 hover:text-red-500 transition-colors cursor-pointer">
@@ -365,7 +366,7 @@ function handleSelectShowtime(showtime: Showtime) {
               </div>
 
               <!-- Right: Grouped Showtimes by Branch -->
-              <div class="lg:w-3/4 flex-1 space-y-6">
+              <div class="min-w-0 space-y-6">
                 <template v-for="branchShowtimes in (() => {
                   const grouped: Record<string, Showtime[]> = {}
                   showtimes.forEach(st => {

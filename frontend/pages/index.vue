@@ -26,7 +26,13 @@ let heroTimer: ReturnType<typeof setInterval> | null = null
 
 const heroMovies = computed(() => {
   if (!products.value || !Array.isArray(products.value)) return []
-  return products.value.slice(0, 5)
+  const clean = products.value.filter((movie) =>
+    movie.status === 'NOW_SHOWING'
+    && movie.name.trim().length >= 3
+    && movie.imageUrl
+    && !movie.imageUrl.includes('movie-placeholder'),
+  )
+  return clean.slice(0, 5)
 })
 
 const currentHeroMovie = computed(() => {
@@ -79,7 +85,10 @@ function getMovieDesc(movie: any) {
 }
 
 function getMovieImage(movie: any) {
-  return movie?.image || movie?.imageUrl || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=2070'
+  const image = movie?.image || movie?.imageUrl
+  return image && !image.includes('movie-placeholder')
+    ? image
+    : '/images/movie-placeholder.svg'
 }
 
 // =========================================================================
@@ -112,7 +121,11 @@ onUnmounted(() => {
 // 1. XOAY VÒNG VÔ TẬN: PHIM ĐANG CHIẾU
 // =========================================================================
 const movieIndex = ref(0)
-const nowShowingMovies = computed(() => products.value ? products.value.slice(0, 5) : [])
+const nowShowingMovies = computed(() =>
+  products.value
+    ? products.value.filter((movie) => movie.status === 'NOW_SHOWING' && movie.name.trim().length >= 3).slice(0, 5)
+    : [],
+)
 
 function nextMovie() {
   if (!nowShowingMovies.value.length) return

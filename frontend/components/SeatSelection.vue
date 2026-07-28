@@ -119,12 +119,12 @@ async function handleSeatClick(seat: Seat) {
       </div>
 
       <!-- Seat Grid Layout -->
-      <div class="overflow-x-auto w-full max-w-3xl flex justify-center pb-6 hide-scrollbar">
-        <div class="flex flex-col gap-3 min-w-[500px]">
+      <div class="overflow-x-auto w-full max-w-3xl pb-6 hide-scrollbar">
+        <div class="mx-auto flex w-max min-w-max flex-col gap-3 px-2">
           <div
             v-for="(rowSeats, rowName) in seatsByRow"
             :key="rowName"
-            class="flex items-center gap-3"
+            class="flex items-center justify-center gap-3"
           >
             <!-- Row Letter -->
             <span class="w-6 font-bold text-sm text-on-surface-variant text-center mr-2">{{ rowName }}</span>
