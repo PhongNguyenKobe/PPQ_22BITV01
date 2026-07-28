@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -12,12 +12,23 @@ from app.crud.booking import (
     validate_showtime_exists,
 )
 from app.db.session import get_db
+from app.core.seat_events import seat_events
 from app.models.catalog import Seat
 from app.models.user import User
 from app.schemas.booking import SeatHoldRequest, SeatHoldResponse
 from app.schemas.movie import SeatRead
 
 router = APIRouter()
+
+
+@router.websocket("/{showtime_id}/ws")
+async def seat_updates(websocket: WebSocket, showtime_id: UUID) -> None:
+    await seat_events.connect(showtime_id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        seat_events.disconnect(showtime_id, websocket)
 
 
 def _seat_to_read(seat: Seat) -> SeatRead:
@@ -67,6 +78,7 @@ async def hold_seats(
         expires_at = await hold_showtime_seats(db, showtime_id, current_user.id, payload.seat_ids)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    await seat_events.broadcast(showtime_id, "SEATS_UPDATED")
     return SeatHoldResponse(
         showtime_id=showtime_id,
         seat_ids=payload.seat_ids,
@@ -82,3 +94,4 @@ async def release_holds(
     current_user: User = Depends(get_current_user),
 ) -> None:
     await release_showtime_holds(db, showtime_id, current_user.id)
+    await seat_events.broadcast(showtime_id, "SEATS_UPDATED")

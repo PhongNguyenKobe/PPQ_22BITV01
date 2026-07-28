@@ -10,6 +10,7 @@ from app.crud.payment import generate_confirmation_number, generate_qr_code_data
 from app.crud.booking import cleanup_expired_reservations
 from app.crud.showtime import is_showtime_bookable
 from app.db.session import get_db
+from app.core.seat_events import seat_events
 from app.models.commerce import Booking, Payment
 from app.models.user import User
 from app.schemas.payment import CheckoutResponse, PaymentCheckoutRequest, PaymentCreate, PaymentRead
@@ -54,6 +55,7 @@ async def process_payment(
     db.add(payment)
     await db.commit()
     await db.refresh(payment)
+    await seat_events.broadcast(booking.showtime_id, "SEATS_UPDATED")
     return PaymentRead.model_validate(payment)
 
 
@@ -79,6 +81,7 @@ async def checkout(
     db.add(payment)
     await db.commit()
     await db.refresh(payment)
+    await seat_events.broadcast(booking.showtime_id, "SEATS_UPDATED")
     confirmation = await generate_confirmation_number()
     return CheckoutResponse(
         order_id=booking.id,

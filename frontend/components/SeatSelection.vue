@@ -12,6 +12,14 @@ const loading = ref(false)
 const holdingSeatId = ref('')
 const now = ref(Date.now())
 let timer: ReturnType<typeof setInterval> | undefined
+let seatSocket: WebSocket | undefined
+
+async function refreshSeats() {
+  if (!selectedShowtime.value) return
+  const seats = await movieService.getSeats(selectedShowtime.value.id)
+  seatsList.value = seats.map((seat) => ({ ...seat, price: selectedShowtime.value?.price || 0 }))
+  selectedSeats.value = seatsList.value.filter((seat) => seat.status === 'selected')
+}
 
 const holdSecondsRemaining = computed(() => {
   if (!holdExpiresAt.value) return 0
@@ -27,12 +35,8 @@ onMounted(async () => {
   if (selectedShowtime.value) {
     loading.value = true
     try {
-      const seats = await movieService.getSeats(selectedShowtime.value.id)
-      seatsList.value = seats.map((seat) => ({
-        ...seat,
-        price: selectedShowtime.value?.price || 0,
-      }))
-      selectedSeats.value = seatsList.value.filter((seat) => seat.status === 'selected')
+      await refreshSeats()
+      seatSocket = movieService.watchSeats(selectedShowtime.value.id, () => void refreshSeats())
     } catch (e) {
       console.error('Failed to load seats map:', e)
     } finally {
@@ -51,7 +55,10 @@ onMounted(async () => {
     }
   }, 1000)
 })
-onUnmounted(() => timer && clearInterval(timer))
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+  seatSocket?.close()
+})
 
 // Organize seats by row
 const seatsByRow = computed(() => {

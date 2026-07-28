@@ -15,6 +15,7 @@ const error = ref("");
 
 const searchTerm = ref("");
 const selectedCategory = ref("All");
+const selectedStatus = ref<"ALL" | "NOW_SHOWING" | "UPCOMING">("ALL");
 const sortOption = ref<"none" | "price-asc" | "price-desc">("none");
 
 // Fetch dữ liệu phim từ backend catalog
@@ -29,7 +30,7 @@ onMounted(async () => {
 // Danh mục
 const categories = computed(() => [
   "All",
-  ...new Set(products.value.map((p) => p.category)),
+  ...new Set(products.value.flatMap((p) => p.genres)),
 ]);
 
 // Search + Filter + Sort
@@ -45,10 +46,9 @@ const filteredProducts = computed(() => {
   }
 
   if (selectedCategory.value !== "All") {
-    updated = updated.filter(
-      (p) => p.category === selectedCategory.value
-    );
+    updated = updated.filter((p) => p.genres.includes(selectedCategory.value));
   }
+  if (selectedStatus.value !== "ALL") updated = updated.filter((p) => p.status === selectedStatus.value)
 
   if (sortOption.value === "price-asc") {
     updated.sort((a, b) => a.price - b.price);
@@ -63,6 +63,7 @@ const filteredProducts = computed(() => {
 function clearFilters() {
   searchTerm.value = "";
   selectedCategory.value = "All";
+  selectedStatus.value = "ALL";
   sortOption.value = "none";
 }
 </script>
@@ -106,6 +107,12 @@ function clearFilters() {
         </option>
       </select>
 
+      <select v-model="selectedStatus" class="control-input">
+        <option value="ALL">Tất cả trạng thái</option>
+        <option value="NOW_SHOWING">Đang chiếu</option>
+        <option value="UPCOMING">Sắp chiếu</option>
+      </select>
+
       <select v-model="sortOption" class="control-input">
         <option value="none">Sắp xếp: mặc định</option>
         <option value="price-asc">Giá: Thấp → Cao</option>
@@ -140,7 +147,7 @@ function clearFilters() {
 
 .filters-wrap {
   display: grid;
-  grid-template-columns: 1.2fr 0.9fr 0.9fr auto;
+  grid-template-columns: 1.2fr 0.9fr 0.9fr 0.9fr auto;
   gap: 0.7rem;
 }
 

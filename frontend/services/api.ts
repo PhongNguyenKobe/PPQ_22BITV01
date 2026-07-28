@@ -10,6 +10,10 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 })
+
+function notify(message: string, type: 'success' | 'error') {
+  if (import.meta.client) window.dispatchEvent(new CustomEvent('cineai:toast', { detail: { message, type } }))
+}
 // ----------------------------------------------------
 // Xử lý lỗi tập trung cho toàn bộ API module
 // ----------------------------------------------------
@@ -37,8 +41,18 @@ export function handleApiError(error: unknown): ApiError {
 
 // Interceptor: mọi lỗi đi qua apiClient đều được chuẩn hóa thành ApiError
 apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => Promise.reject(handleApiError(error))
+  (response) => {
+    const method = response.config.method?.toUpperCase()
+    if (method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      notify(response.data?.message || 'Thao tác thành công.', 'success')
+    }
+    return response
+  },
+  (error) => {
+    const normalized = handleApiError(error)
+    notify(normalized.message, 'error')
+    return Promise.reject(normalized)
+  }
 )
 
 export function setAuthToken(token: string | null) {
@@ -66,6 +80,7 @@ export interface Movie {
   cast: string[]
   isFeatured?: boolean
   aiMatchReason?: string
+  status?: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'
 }
 
 export interface TmdbPopularMovie {
@@ -145,6 +160,16 @@ export interface BackendBranch {
   code: string
   name: string
   city: string
+}
+
+export interface BranchDetail extends BackendBranch {
+  address_line: string
+  district: string | null
+  phone: string | null
+  latitude: number | null
+  longitude: number | null
+  movies: Movie[]
+  showtimes: BackendShowtime[]
 }
 
 export interface AdminBranchManage {
@@ -550,6 +575,14 @@ export const branchesService = {
     }
     const res = await apiClient.get<BackendBranch[]>('/branches')
     return res.data
+  },
+  async getById(id: string): Promise<BranchDetail> {
+    const res = await apiClient.get<any>(`/branches/${id}`)
+    return {
+      ...res.data,
+      movies: (res.data.movies || []).map(mapBackendMovieToFrontend),
+      showtimes: res.data.showtimes || [],
+    }
   },
 }
 
@@ -1030,6 +1063,7 @@ export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
     cast: [], // backend không có cast
     isFeatured: bm.status === 'NOW_SHOWING',
     aiMatchReason: undefined,
+    status: bm.status as NonNullable<Movie['status']>,
   }
 }
 
@@ -1111,9 +1145,9 @@ export const tmdbService = {
 // ----------------------------------------------------
 
 export const movieService = {
-  async getAll(): Promise<Movie[]> {
+  async getAll(status?: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'): Promise<Movie[]> {
     if (USE_MOCK) return mockMovies
-    const res = await apiClient.get<BackendMovie[]>('/movies')
+    const res = await apiClient.get<BackendMovie[]>('/movies', { params: status ? { status } : undefined })
     return res.data.map(mapBackendMovieToFrontend)
   },
 
@@ -1159,6 +1193,14 @@ export const movieService = {
 
   async releaseSeatHolds(showtimeId: string): Promise<void> {
     await apiClient.delete(`/showtimes/${showtimeId}/holds`)
+  },
+
+  watchSeats(showtimeId: string, onUpdate: () => void): WebSocket {
+    const apiUrl = new URL(API_BASE_URL)
+    const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+    const socket = new WebSocket(`${protocol}//${apiUrl.host}${apiUrl.pathname}/showtimes/${showtimeId}/ws`)
+    socket.onmessage = () => onUpdate()
+    return socket
   },
 
   async searchSemantically(query: string): Promise<Movie[]> {

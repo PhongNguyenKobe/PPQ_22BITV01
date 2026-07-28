@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '~/store/user'
 import { navigateTo } from 'nuxt/app'
+import { branchesService, type BackendBranch } from '~/services/api'
 
 const userStore = useUserStore()
 const { currentUser, isAuthenticated } = storeToRefs(userStore)
@@ -16,13 +17,7 @@ const showSearchModal = ref(false)
 
 const searchQuery = ref('')
 
-const branches = [
-  { id: 'hung-vuong', name: 'CineAI Hùng Vương' },
-  { id: 'sala-q2', name: 'CineAI Sala Q2' },
-  { id: 'nguyen-du', name: 'CineAI Nguyễn Du' },
-  { id: 'vincom-ba-trieu', name: 'CineAI Vincom Bà Triệu' },
-  { id: 'da-nang-plaza', name: 'CineAI Đà Nẵng Plaza' }
-]
+const branches = ref<BackendBranch[]>([])
 
 function handleLogout() {
   showProfileDropdown.value = false
@@ -52,8 +47,13 @@ function clickOutside(event: MouseEvent) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('click', clickOutside)
+  try {
+    branches.value = await branchesService.getAll()
+  } catch {
+    branches.value = []
+  }
 })
 
 onUnmounted(() => {

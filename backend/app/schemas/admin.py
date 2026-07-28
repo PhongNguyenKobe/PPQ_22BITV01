@@ -21,6 +21,16 @@ class BranchRead(BaseModel):
     city: str
 
 
+class BranchDetailRead(BranchRead):
+    address_line: str
+    district: str | None = None
+    phone: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    movies: list[dict] = Field(default_factory=list)
+    showtimes: list[dict] = Field(default_factory=list)
+
+
 class UserRoleUpdate(BaseModel):
     role_code: Literal["CUSTOMER", "BRANCH_ADMIN", "STAFF", "SUPER_ADMIN"]
     branch_id: UUID | None = None
