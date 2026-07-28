@@ -321,12 +321,13 @@ async function loadAll() {
   error.value = ''
   try {
     if (isBranchAdmin.value) {
-      const [statsData, auditoriumData, seatTypeData, showtimeData, movieData] = await Promise.all([
+      const [statsData, auditoriumData, seatTypeData, showtimeData, movieData, tmdbMovieData] = await Promise.all([
         adminService.getBranchAdminStats(),
         adminBackendService.getAuditoriums(),
         adminBackendService.getSeatTypes(),
         adminBackendService.getShowtimes(),
         movieService.getAll(),
+        movieService.getPopularFromTmdb(),
       ])
       branches.value = [{
         id: statsData.branchId,
@@ -345,7 +346,7 @@ async function loadAll() {
       showtimes.value = showtimeData
       movies.value = movieData
       users.value = []
-      tmdbMovies.value = []
+      tmdbMovies.value = tmdbMovieData
     } else {
       const [statsData, usersData, branchData, movieData, tmdbMovieData] = await Promise.all([
         adminService.getSuperAdminStats(),
