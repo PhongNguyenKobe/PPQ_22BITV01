@@ -34,6 +34,7 @@ class PaymentCheckoutRequest(BaseModel):
     booking_id: UUID
     amount: Decimal
     payment_method: str
+    promotion_code: str | None = Field(default=None, max_length=50)
     combo_ids: list[UUID] | None = None  # Optional combo items
 
 

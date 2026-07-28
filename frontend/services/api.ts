@@ -284,6 +284,11 @@ export interface BranchAdminStats {
   activeShowtimes: number
   activePromos: number
   branchRevenue: number
+  orders: number
+  seatsSold: number
+  occupancyRate: number
+  movieCount: number
+  showtimeCount: number
   salesChartData: BranchAdminSalesPoint[]
   showtimesList: AdminShowtime[]
   promotionsList: BranchAdminPromo[]
@@ -611,7 +616,41 @@ export const branchesService = {
   },
 }
 
+export interface Promotion {
+  id: string
+  code: string
+  name: string
+  discount_type: 'PERCENT' | 'FIXED'
+  discount_value: number
+  max_discount: number | null
+  min_order_amount: number
+  starts_at: string
+  ends_at: string
+  usage_limit: number | null
+  used_count: number
+  is_active: boolean
+}
+
 export const adminBackendService = {
+  async getPromotions(): Promise<Promotion[]> {
+    const res = await apiClient.get<Promotion[]>('/promotions')
+    return res.data
+  },
+
+  async createPromotion(payload: Omit<Promotion, 'id' | 'used_count'>): Promise<Promotion> {
+    const res = await apiClient.post<Promotion>('/promotions', payload)
+    return res.data
+  },
+
+  async updatePromotion(id: string, payload: Partial<Promotion>): Promise<Promotion> {
+    const res = await apiClient.patch<Promotion>(`/promotions/${id}`, payload)
+    return res.data
+  },
+
+  async disablePromotion(id: string): Promise<void> {
+    await apiClient.delete(`/promotions/${id}`)
+  },
+
   async createMovie(payload: {
     title: string
     description?: string
@@ -1067,6 +1106,7 @@ export interface BackendSeat {
   seat_type: string
   is_active: boolean
   status: string
+  price: number
 }
 
 // ----------------------------------------------------
@@ -1133,7 +1173,7 @@ export function mapBackendSeatToFrontend(seat: BackendSeat): Seat {
         : seat.status === 'HELD_BY_ME'
           ? 'selected'
           : 'available',
-    price: 0, // backend seat không có price riêng, sẽ tính sau
+    price: Number(seat.price),
   }
 }
 
@@ -1223,7 +1263,8 @@ export const movieService = {
   watchSeats(showtimeId: string, onUpdate: () => void): WebSocket {
     const apiUrl = new URL(API_BASE_URL)
     const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-    const socket = new WebSocket(`${protocol}//${apiUrl.host}${apiUrl.pathname}/showtimes/${showtimeId}/ws`)
+    const token = process.client ? localStorage.getItem('cineai_token') || '' : ''
+    const socket = new WebSocket(`${protocol}//${apiUrl.host}${apiUrl.pathname}/showtimes/${showtimeId}/ws?token=${encodeURIComponent(token)}`)
     socket.onmessage = () => onUpdate()
     return socket
   },
@@ -1273,12 +1314,25 @@ export const movieService = {
 }
 
 export const checkoutService = {
+  async validatePromotion(code: string, subtotal: number): Promise<{
+    promotion_id: string
+    code: string
+    subtotal: number
+    discount_amount: number
+    total_amount: number
+    message: string
+  }> {
+    const response = await apiClient.post('/promotions/validate', { code, subtotal })
+    return response.data
+  },
+
   async processPayment(bookingDetails: {
     showtimeId: string
     seats: string[]
     seatLabels?: string[]
     paymentMethod: string
     totalAmount: number
+    promotionCode?: string
   }): Promise<UserTicket> {
     if (USE_MOCK) {
       const showtime = mockShowtimes.find(s => s.id === bookingDetails.showtimeId)
@@ -1311,8 +1365,9 @@ export const checkoutService = {
     const booking = bookingRes.data
     const paymentRes = await apiClient.post<any>('/payments/checkout', {
       booking_id: booking.id,
-      amount: Number(booking.total_price),
+      amount: bookingDetails.totalAmount,
       payment_method: bookingDetails.paymentMethod,
+      promotion_code: bookingDetails.promotionCode || null,
     })
     const payment = paymentRes.data
     const showtime = await apiClient.get<any>(`/movies/${booking.movie_id}/showtimes`)
@@ -1468,6 +1523,11 @@ export const adminService = {
         activeShowtimes: 8,
         activePromos: 3,
         branchRevenue: 34500000,
+        orders: 210,
+        seatsSold: 345,
+        occupancyRate: 68.5,
+        movieCount: 12,
+        showtimeCount: 24,
         salesChartData: [
           { label: 'Thứ Hai', tickets: 35 },
           { label: 'Thứ Ba', tickets: 42 },
@@ -1506,6 +1566,11 @@ export const adminService = {
       activeShowtimes: res.data.activeShowtimes,
       activePromos: res.data.activePromos,
       branchRevenue: res.data.branchRevenue,
+      orders: res.data.orders || 0,
+      seatsSold: res.data.seatsSold || 0,
+      occupancyRate: res.data.occupancyRate || 0,
+      movieCount: res.data.movieCount || 0,
+      showtimeCount: res.data.showtimeCount || 0,
       salesChartData: res.data.salesChartData || [],
       showtimesList: res.data.showtimesList || [],
       promotionsList: res.data.promotionsList || [],

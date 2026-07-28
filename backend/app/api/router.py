@@ -8,6 +8,7 @@ from app.api.routes.bookings import router as bookings_router
 # from app.api.routes.checkout import router as checkout_router
 from app.api.routes.movies import router as movies_router
 from app.api.routes.payments import router as payments_router
+from app.api.routes.promotions import router as promotions_router
 from app.api.routes.showtimes import router as showtimes_router
 from app.api.routes.users import router as users_router
 
@@ -19,6 +20,7 @@ api_router.include_router(movies_router, prefix="/movies", tags=["movies"])
 api_router.include_router(showtimes_router, prefix="/showtimes", tags=["showtimes"])
 api_router.include_router(bookings_router, prefix="/bookings", tags=["bookings"])
 api_router.include_router(payments_router, prefix="/payments", tags=["payments"])
+api_router.include_router(promotions_router, prefix="/promotions", tags=["promotions"])
 # api_router.include_router(checkout_router, prefix="/checkout", tags=["checkout"])
 api_router.include_router(branch_admin_router, prefix="/branch-admin", tags=["branch-admin"])
 api_router.include_router(admin_router, prefix="/admin", tags=["admin"])

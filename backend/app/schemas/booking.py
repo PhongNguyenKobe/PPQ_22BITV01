@@ -21,6 +21,7 @@ class SeatBookResponse(BaseModel):
     is_active: bool
     is_booked: bool = False
     status: str  # 'AVAILABLE', 'BOOKED', 'HOLD'
+    price: Decimal
 
 
 class SeatHoldRequest(BaseModel):
@@ -54,6 +55,9 @@ class BookingRead(BaseModel):
     seats: list[dict] = Field(default_factory=list)  # [{'row': 'A', 'number': 1}, ...]
     quantity: int
     total_price: Decimal
+    subtotal_price: Decimal = Decimal("0")
+    discount_amount: Decimal = Decimal("0")
+    promotion_code: str | None = None
     status: str  # 'PENDING', 'CONFIRMED', 'CANCELLED'
     created_at: datetime
 

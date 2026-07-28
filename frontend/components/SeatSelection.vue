@@ -17,7 +17,10 @@ let seatSocket: WebSocket | undefined
 async function refreshSeats() {
   if (!selectedShowtime.value) return
   const seats = await movieService.getSeats(selectedShowtime.value.id)
-  seatsList.value = seats.map((seat) => ({ ...seat, price: selectedShowtime.value?.price || 0 }))
+  seatsList.value = seats.map((seat) => ({
+    ...seat,
+    price: seat.price > 0 ? seat.price : selectedShowtime.value?.price || 0,
+  }))
   selectedSeats.value = seatsList.value.filter((seat) => seat.status === 'selected')
 }
 
@@ -50,7 +53,10 @@ onMounted(async () => {
       holdExpiresAt.value = null
       holdError.value = 'Thời gian giữ ghế đã hết. Vui lòng chọn lại ghế.'
       void movieService.getSeats(selectedShowtime.value!.id).then((seats) => {
-        seatsList.value = seats.map((seat) => ({ ...seat, price: selectedShowtime.value?.price || 0 }))
+        seatsList.value = seats.map((seat) => ({
+          ...seat,
+          price: seat.price > 0 ? seat.price : selectedShowtime.value?.price || 0,
+        }))
       })
     }
   }, 1000)

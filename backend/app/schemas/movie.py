@@ -56,3 +56,4 @@ class SeatRead(BaseModel):
     seat_type: str
     is_active: bool
     status: str
+    price: Decimal

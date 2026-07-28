@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.models.catalog import Seat, Showtime
 from app.models.commerce import Booking, BookingSeat, SeatHold
 
-HOLD_MINUTES = 10
+HOLD_MINUTES = 5
 
 
 async def cleanup_expired_reservations(db: AsyncSession) -> None:
@@ -36,6 +36,8 @@ async def cleanup_expired_reservations(db: AsyncSession) -> None:
 
 async def list_showtime_available_seats(db: AsyncSession, showtime_id: UUID, user_id: UUID | None = None) -> list[dict]:
     await cleanup_expired_reservations(db)
+    showtime = await db.get(Showtime, showtime_id)
+    base_price = Decimal(str(showtime.base_price)) if showtime else Decimal("0")
     result = await db.execute(
         select(Seat)
         .options(selectinload(Seat.seat_type))
@@ -73,6 +75,10 @@ async def list_showtime_available_seats(db: AsyncSession, showtime_id: UUID, use
                 else "HOLD"
                 if seat.id in holds
                 else "AVAILABLE"
+            ),
+            "price": (
+                Decimal(str(seat.seat_type.price_multiplier if seat.seat_type else 1))
+                * base_price
             ),
         }
         for seat in seats
@@ -185,6 +191,9 @@ def booking_to_dict(booking: Booking) -> dict:
         "seats": [{"row": item.seat.seat_row, "number": item.seat.seat_number} for item in booking.seats],
         "quantity": len(booking.seats),
         "total_price": booking.total_price,
+        "subtotal_price": booking.subtotal_price,
+        "discount_amount": booking.discount_amount,
+        "promotion_code": booking.promotion.code if booking.promotion else None,
         "status": booking.status,
         "created_at": booking.created_at,
     }
@@ -193,7 +202,11 @@ def booking_to_dict(booking: Booking) -> dict:
 async def get_user_booking(db: AsyncSession, booking_id: UUID, user_id: UUID) -> Booking | None:
     result = await db.execute(
         select(Booking)
-        .options(selectinload(Booking.showtime), selectinload(Booking.seats).selectinload(BookingSeat.seat))
+        .options(
+            selectinload(Booking.showtime),
+            selectinload(Booking.seats).selectinload(BookingSeat.seat),
+            selectinload(Booking.promotion),
+        )
         .where(Booking.id == booking_id, Booking.user_id == user_id)
     )
     return result.scalar_one_or_none()
@@ -221,10 +234,23 @@ async def create_user_booking(db: AsyncSession, user_id: UUID, showtime_id: UUID
     )
     if set(holds_result.scalars().all()) != set(seat_ids):
         raise ValueError("SEAT_HOLD_REQUIRED")
+    seat_result = await db.execute(
+        select(Seat).options(selectinload(Seat.seat_type)).where(Seat.id.in_(seat_ids))
+    )
+    subtotal = sum(
+        (
+            Decimal(str(showtime.base_price))
+            * Decimal(str(seat.seat_type.price_multiplier if seat.seat_type else 1))
+            for seat in seat_result.scalars().all()
+        ),
+        Decimal("0"),
+    )
     booking = Booking(
         user_id=user_id,
         showtime_id=showtime_id,
-        total_price=Decimal(str(showtime.base_price)) * len(seat_ids),
+        subtotal_price=subtotal,
+        discount_amount=Decimal("0"),
+        total_price=subtotal,
         status="PENDING",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=HOLD_MINUTES),
         seats=[BookingSeat(showtime_id=showtime_id, seat_id=seat_id) for seat_id in seat_ids],

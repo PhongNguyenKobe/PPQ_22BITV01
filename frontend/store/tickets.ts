@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { checkoutService, movieService, type Showtime, type Seat, type UserTicket } from '~/services/api'
 import { isShowtimeExpired } from '~/utils/showtime'
 
@@ -16,6 +16,19 @@ export const useTicketsStore = defineStore('tickets', () => {
 
   // Initialize from client-side localStorage if available
   if (process.client) {
+    const savedSelection = localStorage.getItem('cineai_checkout_selection')
+    if (savedSelection) {
+      try {
+        const parsed = JSON.parse(savedSelection)
+        selectedMovie.value = parsed.selectedMovie || null
+        selectedCinema.value = parsed.selectedCinema || ''
+        selectedShowtime.value = parsed.selectedShowtime || null
+        selectedSeats.value = Array.isArray(parsed.selectedSeats) ? parsed.selectedSeats : []
+        holdExpiresAt.value = parsed.holdExpiresAt || null
+      } catch {
+        localStorage.removeItem('cineai_checkout_selection')
+      }
+    }
     const savedHistory = localStorage.getItem('cineai_ticket_history')
     if (savedHistory) {
       try {
@@ -24,6 +37,17 @@ export const useTicketsStore = defineStore('tickets', () => {
         localStorage.removeItem('cineai_ticket_history')
       }
     }
+    watch(
+      [selectedMovie, selectedCinema, selectedShowtime, selectedSeats, holdExpiresAt],
+      () => localStorage.setItem('cineai_checkout_selection', JSON.stringify({
+        selectedMovie: selectedMovie.value,
+        selectedCinema: selectedCinema.value,
+        selectedShowtime: selectedShowtime.value,
+        selectedSeats: selectedSeats.value,
+        holdExpiresAt: holdExpiresAt.value,
+      })),
+      { deep: true },
+    )
   }
 
   const totalAmount = computed(() => {
@@ -98,7 +122,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     holdError.value = ''
   }
 
-  async function purchaseTickets(paymentMethod: string): Promise<UserTicket | null> {
+  async function purchaseTickets(paymentMethod: string, promotionCode?: string, payableAmount?: number): Promise<UserTicket | null> {
     if (!selectedShowtime.value || selectedSeats.value.length === 0) {
       return null
     }
@@ -115,7 +139,8 @@ export const useTicketsStore = defineStore('tickets', () => {
         seats: selectedSeats.value.map(s => s.id),
         seatLabels: selectedSeats.value.map(s => `${s.row}${s.number}`),
         paymentMethod,
-        totalAmount: totalAmount.value
+        totalAmount: payableAmount ?? totalAmount.value,
+        promotionCode,
       })
 
       // Prepend to history

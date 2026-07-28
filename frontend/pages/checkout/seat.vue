@@ -3,7 +3,8 @@ import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'default',
+  middleware: ['auth'],
 })
 
 const ticketsStore = useTicketsStore()

@@ -49,11 +49,11 @@ export const useUserStore = defineStore('user', () => {
       authToken.value = savedToken
       setAuthToken(savedToken)
     }
-    if (saved) {
+    if (saved && savedToken) {
       try {
         currentUser.value = JSON.parse(saved)
         isAuthenticated.value = true
-        if (currentUser.value && savedToken) {
+        if (currentUser.value) {
           registeredUsers.value = [currentUser.value]
         }
       } catch (e) {

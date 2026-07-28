@@ -304,6 +304,11 @@ class BranchAdminStatsResponse(BaseModel):
     activeShowtimes: int
     activePromos: int
     branchRevenue: int
+    orders: int = 0
+    seatsSold: int = 0
+    occupancyRate: float = 0
+    movieCount: int = 0
+    showtimeCount: int = 0
     salesChartData: list[BranchAdminSalesPoint] = Field(default_factory=list)
     showtimesList: list[BranchAdminShowtimeRead] = Field(default_factory=list)
     promotionsList: list[BranchAdminPromoRead] = Field(default_factory=list)

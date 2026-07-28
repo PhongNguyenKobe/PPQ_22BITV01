@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '~/store/user'
+import { branchesService, type BackendBranch } from '~/services/api'
 
 const userStore = useUserStore()
 const { currentUser } = storeToRefs(userStore)
@@ -9,7 +10,16 @@ const route = useRoute()
 
 const isCollapsed = ref(false)
 const showNotifications = ref(false)
-const selectedBranch = ref('HN-01')
+const selectedBranch = ref('ALL')
+const branchOptions = ref<BackendBranch[]>([])
+
+onMounted(async () => {
+  try {
+    branchOptions.value = await branchesService.getAll()
+  } catch {
+    branchOptions.value = []
+  }
+})
 
 const notificationCount = ref(3)
 const notifications = ref([
@@ -23,6 +33,7 @@ const adminMenu = [
   { tab: 'movies', label: 'Phim', icon: 'movie' },
   { tab: 'users', label: 'Người dùng', icon: 'group' },
   { tab: 'branches', label: 'Chi nhánh', icon: 'location_city' },
+  { tab: 'promotions', label: 'Khuyến mãi', icon: 'sell' },
 ]
 const branchMenu = [
   { tab: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters' },
@@ -171,9 +182,9 @@ function handleLogout() {
             <span class="material-symbols-outlined text-sm text-ai-accent">location_on</span>
             <select v-model="selectedBranch" class="bg-transparent border-0 text-xs font-bold text-on-surface p-0 focus:ring-0 cursor-pointer">
               <option value="ALL">Tất cả chi nhánh</option>
-              <option value="HN-01">CineAI Cầu Giấy (HN)</option>
-              <option value="HN-02">CineAI Hà Đông (HN)</option>
-              <option value="HCM-01">CineAI Quận 1 (HCM)</option>
+              <option v-for="branch in branchOptions" :key="branch.id" :value="branch.id">
+                {{ branch.name }} ({{ branch.city }})
+              </option>
             </select>
           </div>
 

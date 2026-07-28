@@ -5,7 +5,8 @@ import { useTicketsStore } from '~/store/tickets'
 import { useMoviesStore } from '~/store/movies'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'default',
+  middleware: ['auth'],
 })
 
 const ticketsStore = useTicketsStore()

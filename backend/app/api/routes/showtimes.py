@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -13,6 +14,7 @@ from app.crud.booking import (
 )
 from app.db.session import get_db
 from app.core.seat_events import seat_events
+from app.core.config import settings
 from app.models.catalog import Seat
 from app.models.user import User
 from app.schemas.booking import SeatHoldRequest, SeatHoldResponse
@@ -23,6 +25,13 @@ router = APIRouter()
 
 @router.websocket("/{showtime_id}/ws")
 async def seat_updates(websocket: WebSocket, showtime_id: UUID) -> None:
+    token = websocket.query_params.get("token")
+    try:
+        payload = jwt.decode(token or "", settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        UUID(str(payload["sub"]))
+    except (JWTError, KeyError, ValueError):
+        await websocket.close(code=1008, reason="Authentication required")
+        return
     await seat_events.connect(showtime_id, websocket)
     try:
         while True:
@@ -39,6 +48,7 @@ def _seat_to_read(seat: Seat) -> SeatRead:
         seat_type=seat.seat_type.code if seat.seat_type else "STANDARD",
         is_active=seat.is_active,
         status="available",
+        price=0,
     )
 
 
@@ -62,6 +72,7 @@ async def read_showtime_seats(
             seat_type=seat["seat_type"],
             is_active=seat["is_active"],
             status=seat["status"],
+            price=seat["price"],
         )
         for seat in seats
     ]

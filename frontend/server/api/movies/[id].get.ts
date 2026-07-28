@@ -36,6 +36,24 @@ interface TmdbVideosResponse {
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const id = getRouterParam(event, 'id')
+  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || ''))
+
+  if (uuidLike) {
+    const movie = await $fetch<any>(`${config.public.apiBase}/movies/${id}`)
+    return {
+      id: String(movie.id),
+      title: movie.title,
+      description: movie.description || '',
+      poster: movie.poster_url || '/images/movie-placeholder.svg',
+      rating: 0,
+      duration: Number(movie.duration_min || 0),
+      releaseDate: movie.release_date || '',
+      genre: Array.isArray(movie.genres) ? movie.genres.map((genre: any) => genre.name) : [],
+      director: '',
+      cast: [],
+      trailerUrl: movie.trailer_url || '',
+    }
+  }
 
   if (!config.tmdbToken) {
     return {

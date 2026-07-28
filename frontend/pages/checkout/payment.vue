@@ -2,9 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
+import { checkoutService } from '~/services/api'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'default',
+  middleware: ['auth'],
 })
 
 const ticketsStore = useTicketsStore()
@@ -31,7 +33,7 @@ const paymentMethods = [
 
 // Tính toán tổng tiền sau khi trừ voucher
 const finalTotal = computed(() => {
-  return totalAmount.value
+  return Math.max(0, totalAmount.value - voucherDiscount.value)
 })
 
 const backgroundStyle = computed(() => {
@@ -53,7 +55,7 @@ onMounted(() => {
 })
 
 // --- HÀM XỬ LÝ ÁP DỤNG VOUCHER ---
-function applyVoucher() {
+async function applyVoucher() {
   voucherError.value = ''
   voucherSuccessMsg.value = ''
   const code = voucherCode.value.trim().toUpperCase()
@@ -63,21 +65,16 @@ function applyVoucher() {
     return
   }
 
-  // Danh sách mã giả lập (Có thể thay bằng API call)
-  if (code === 'HAPPYWED45') {
-    voucherDiscount.value = 45000
+  try {
+    const quote = await checkoutService.validatePromotion(code, totalAmount.value)
+    voucherCode.value = quote.code
+    voucherDiscount.value = Number(quote.discount_amount)
     isVoucherApplied.value = true
-    voucherSuccessMsg.value = 'Đã áp dụng mã HAPPYWED45 (-45.000đ)'
-  } else if (code === 'CINEAIVNPAY' || code === 'AIDUAL30') {
-    voucherDiscount.value = 50000
-    isVoucherApplied.value = true
-    voucherSuccessMsg.value = 'Đã áp dụng mã giảm 50.000đ'
-  } else if (code === 'STUDENT50') {
-    voucherDiscount.value = 30000
-    isVoucherApplied.value = true
-    voucherSuccessMsg.value = 'Ưu đãi HSSV (-30.000đ)'
-  } else {
-    voucherError.value = 'Mã giảm giá không hợp lệ hoặc đã hết hạn'
+    voucherSuccessMsg.value = `Đã áp dụng ${quote.code} (-${voucherDiscount.value.toLocaleString('vi-VN')}đ)`
+  } catch (error: any) {
+    voucherDiscount.value = 0
+    isVoucherApplied.value = false
+    voucherError.value = error?.message || 'Mã giảm giá không hợp lệ hoặc đã hết hạn'
   }
 }
 
@@ -100,11 +97,13 @@ async function handleConfirmPayment() {
   }
 
   processing.value = true
-  await new Promise(resolve => setTimeout(resolve, 2000))
-
   try {
     // Truyền thêm mã voucher/số tiền giảm vào hàm mua vé nếu store hỗ trợ
-    const ticket = await ticketsStore.purchaseTickets(selectedPayment.value)
+    const ticket = await ticketsStore.purchaseTickets(
+      selectedPayment.value,
+      isVoucherApplied.value ? voucherCode.value : undefined,
+      finalTotal.value,
+    )
     if (ticket) {
       navigateTo('/profile/tickets')
     }

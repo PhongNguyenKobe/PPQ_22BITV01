@@ -15,6 +15,7 @@ import {
   type TmdbPopularMovie,
   type UserProfile,
   type SuperAdminStats,
+  type Promotion,
 } from '~/services/api'
 import { useUserStore } from '~/store/user'
 
@@ -23,7 +24,7 @@ definePageMeta({
   middleware: ['auth'],
 })
 
-type AdminTab = 'overview' | 'users' | 'movies' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'
+type AdminTab = 'overview' | 'users' | 'movies' | 'promotions' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'
 type AdminTabItem = {
   key: AdminTab
   label: string
@@ -36,6 +37,7 @@ const allTabItems: AdminTabItem[] = [
   { key: 'movies', label: 'Phim', icon: 'movie', description: 'Danh mục phim và nội dung hiển thị' },
   { key: 'users', label: 'Người dùng', icon: 'group', description: 'Tài khoản và phân quyền' },
   { key: 'branches', label: 'Chi nhánh', icon: 'location_city', description: 'Khu vực và cụm rạp' },
+  { key: 'promotions', label: 'Khuyến mãi', icon: 'sell', description: 'Mã giảm giá và giới hạn sử dụng' },
   { key: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters', description: 'Màn hình và sức chứa' },
   { key: 'seats', label: 'Ghế ngồi', icon: 'event_seat', description: 'Sơ đồ ghế theo phòng' },
   { key: 'showtimes', label: 'Suất chiếu', icon: 'schedule', description: 'Lịch chiếu đang mở bán' },
@@ -49,14 +51,14 @@ const tabItems = computed(() =>
   allTabItems.filter((tab) =>
     isBranchAdmin.value
       ? ['auditoriums', 'seats', 'showtimes'].includes(tab.key)
-      : ['overview', 'movies', 'users', 'branches'].includes(tab.key),
+      : ['overview', 'movies', 'users', 'branches', 'promotions'].includes(tab.key),
   ),
 )
 const requestedTab = String(route.query.tab || '')
 const activeTab = ref<AdminTab>(
   currentUser.value?.role === 'branch-admin'
     ? (['auditoriums', 'seats', 'showtimes'].includes(requestedTab) ? requestedTab as AdminTab : 'auditoriums')
-    : (['overview', 'movies', 'users', 'branches'].includes(requestedTab) ? requestedTab as AdminTab : 'overview'),
+    : (['overview', 'movies', 'users', 'branches', 'promotions'].includes(requestedTab) ? requestedTab as AdminTab : 'overview'),
 )
 const loading = ref(false)
 const error = ref('')
@@ -70,6 +72,19 @@ const showtimes = ref<AdminShowtime[]>([])
 const movies = ref<Movie[]>([])
 const tmdbMovies = ref<TmdbPopularMovie[]>([])
 const superStats = ref<SuperAdminStats | null>(null)
+const promotions = ref<Promotion[]>([])
+const promotionForm = ref({
+  code: '',
+  name: '',
+  discount_type: 'PERCENT' as 'PERCENT' | 'FIXED',
+  discount_value: 10,
+  max_discount: null as number | null,
+  min_order_amount: 0,
+  starts_at: toDateTimeLocal(new Date()),
+  ends_at: toDateTimeLocal(new Date(Date.now() + 30 * 86_400_000)),
+  usage_limit: null as number | null,
+  is_active: true,
+})
 
 watch(
   () => route.query.tab,
@@ -348,18 +363,20 @@ async function loadAll() {
       users.value = []
       tmdbMovies.value = tmdbMovieData
     } else {
-      const [statsData, usersData, branchData, movieData, tmdbMovieData] = await Promise.all([
+      const [statsData, usersData, branchData, movieData, tmdbMovieData, promotionData] = await Promise.all([
         adminService.getSuperAdminStats(),
         adminBackendService.getUsers(),
         adminBackendService.getBranchesManage(),
         movieService.getAll(),
         movieService.getPopularFromTmdb(),
+        adminBackendService.getPromotions(),
       ])
       superStats.value = statsData
       users.value = usersData
       branches.value = branchData
       movies.value = movieData
       tmdbMovies.value = tmdbMovieData
+      promotions.value = promotionData
       auditoriums.value = []
       seatTypes.value = []
       showtimes.value = []
@@ -422,6 +439,32 @@ const minimumShowtimeDate = computed(() => {
   const release = `${selectedMovieReleaseDate.value}T00:00`
   return release > today ? release : today
 })
+
+async function createPromotion() {
+  error.value = ''
+  try {
+    const created = await adminBackendService.createPromotion({
+      ...promotionForm.value,
+      code: promotionForm.value.code.trim().toUpperCase(),
+      starts_at: toIso(promotionForm.value.starts_at),
+      ends_at: toIso(promotionForm.value.ends_at),
+    })
+    promotions.value.unshift(created)
+    promotionForm.value.code = ''
+    promotionForm.value.name = ''
+  } catch (e: any) {
+    error.value = e?.message || 'Không thể tạo khuyến mãi.'
+  }
+}
+
+async function togglePromotion(item: Promotion) {
+  try {
+    const updated = await adminBackendService.updatePromotion(item.id, { is_active: !item.is_active })
+    promotions.value = promotions.value.map((current) => current.id === updated.id ? updated : current)
+  } catch (e: any) {
+    error.value = e?.message || 'Không thể cập nhật khuyến mãi.'
+  }
+}
 
 async function createMovie() {
   await adminBackendService.createMovie({
@@ -1098,6 +1141,50 @@ function showtimeStatusClass(status: string) {
 
     <p v-if="error" class="panel border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</p>
     <p v-if="loading" class="panel border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">Đang tải dữ liệu mới nhất...</p>
+
+    <section v-if="activeTab === 'promotions'" class="space-y-4">
+      <div class="grid gap-4 xl:grid-cols-[420px_1fr]">
+        <form class="panel-card space-y-3 p-5" @submit.prevent="createPromotion">
+          <h3 class="text-lg font-black">Tạo mã khuyến mãi</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <input v-model="promotionForm.code" required placeholder="Mã voucher" class="field-control uppercase" />
+            <input v-model="promotionForm.name" required placeholder="Tên chương trình" class="field-control" />
+            <select v-model="promotionForm.discount_type" class="field-control">
+              <option value="PERCENT">Theo phần trăm</option>
+              <option value="FIXED">Số tiền cố định</option>
+            </select>
+            <input v-model.number="promotionForm.discount_value" required min="1" type="number" placeholder="Mức giảm" class="field-control" />
+            <input v-model.number="promotionForm.min_order_amount" min="0" type="number" placeholder="Đơn tối thiểu" class="field-control" />
+            <input v-model.number="promotionForm.max_discount" min="1" type="number" placeholder="Giảm tối đa" class="field-control" />
+            <input v-model="promotionForm.starts_at" required type="datetime-local" class="field-control" />
+            <input v-model="promotionForm.ends_at" required type="datetime-local" class="field-control" />
+            <input v-model.number="promotionForm.usage_limit" min="0" type="number" placeholder="Giới hạn lượt dùng" class="field-control col-span-2" />
+          </div>
+          <button class="primary-action w-full" type="submit">Tạo khuyến mãi</button>
+        </form>
+
+        <div class="panel-card overflow-hidden">
+          <div class="border-b border-white/10 p-5">
+            <h3 class="text-lg font-black">Danh sách mã</h3>
+          </div>
+          <div class="divide-y divide-white/10">
+            <div v-for="item in promotions" :key="item.id" class="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div>
+                <p class="font-black">{{ item.code }} · {{ item.name }}</p>
+                <p class="text-xs text-on-surface-variant">
+                  {{ item.discount_type === 'PERCENT' ? `${item.discount_value}%` : `${Number(item.discount_value).toLocaleString('vi-VN')}đ` }}
+                  · Đã dùng {{ item.used_count }}/{{ item.usage_limit ?? '∞' }}
+                </p>
+              </div>
+              <button class="secondary-action" type="button" @click="togglePromotion(item)">
+                {{ item.is_active ? 'Tạm dừng' : 'Kích hoạt' }}
+              </button>
+            </div>
+            <p v-if="promotions.length === 0" class="p-6 text-center text-on-surface-variant">Chưa có mã khuyến mãi.</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <section v-if="activeTab === 'movies'" class="space-y-4">
       <div class="panel p-5 space-y-4">

@@ -11,7 +11,8 @@ from app.crud.booking import cleanup_expired_reservations
 from app.crud.showtime import is_showtime_bookable
 from app.db.session import get_db
 from app.core.seat_events import seat_events
-from app.models.commerce import Booking, Payment
+from app.models.commerce import Booking, Payment, Promotion
+from app.api.routes.promotions import ensure_usable, promotion_discount
 from app.models.user import User
 from app.schemas.payment import CheckoutResponse, PaymentCheckoutRequest, PaymentCreate, PaymentRead
 
@@ -66,13 +67,36 @@ async def checkout(
     db: AsyncSession = Depends(get_db),
 ) -> CheckoutResponse:
     booking = await _owned_pending_booking(db, payload.booking_id, current_user.id)
-    valid, message = await validate_payment_amount(payload.amount, booking.total_price)
+    subtotal = booking.subtotal_price or booking.total_price
+    discount = 0
+    promotion = None
+    if payload.promotion_code:
+        promotion_result = await db.execute(
+            select(Promotion)
+            .where(Promotion.code == payload.promotion_code.strip().upper())
+            .with_for_update()
+        )
+        promotion = ensure_usable(promotion_result.scalar_one_or_none(), subtotal)
+        discount = promotion_discount(promotion, subtotal)
+    final_total = subtotal - discount
+    valid, message = await validate_payment_amount(payload.amount, final_total)
     if not valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
+    previous = await db.execute(
+        select(Payment).where(Payment.booking_id == booking.id, Payment.status == "SUCCESS")
+    )
+    if previous.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking has already been paid")
+    booking.subtotal_price = subtotal
+    booking.discount_amount = discount
+    booking.total_price = final_total
+    booking.promotion_id = promotion.id if promotion else None
+    if promotion:
+        promotion.used_count += 1
     payment = Payment(
         booking_id=booking.id,
         user_id=current_user.id,
-        amount=payload.amount,
+        amount=final_total,
         payment_method=payload.payment_method,
         status="SUCCESS",
         paid_at=datetime.now(timezone.utc),

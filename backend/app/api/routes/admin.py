@@ -5,13 +5,14 @@ from uuid import UUID
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, require_roles
 from app.core.permissions import require_admin, require_branch_admin
+from app.core.seat_events import seat_events
 from app.crud.admin import get_live_admin_stats, list_users_with_branch_id, set_user_role
 from app.crud.user import create_user, get_user_by_id, update_user
 from app.crud.showtime import effective_showtime_status
@@ -1300,6 +1301,12 @@ async def update_admin_showtime(
         affected_bookings = list(bookings_result.scalars().all())
         for booking in affected_bookings:
             booking.status = "CANCELLED"
+        if affected_bookings:
+            await db.execute(
+                delete(BookingSeat).where(
+                    BookingSeat.booking_id.in_([booking.id for booking in affected_bookings])
+                )
+            )
         payment_result = await db.execute(
             select(Payment)
             .join(Booking, Booking.id == Payment.booking_id)
@@ -1313,6 +1320,7 @@ async def update_admin_showtime(
 
     db.add(showtime)
     await db.commit()
+    await seat_events.broadcast(showtime.id, "SEATS_UPDATED")
 
     refreshed_row = await db.execute(
         select(Showtime)
@@ -1462,11 +1470,13 @@ async def cancel_booking(
     if booking.status not in {"PENDING", "CONFIRMED"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking cannot be cancelled")
     booking.status = "CANCELLED"
+    await db.execute(delete(BookingSeat).where(BookingSeat.booking_id == booking.id))
     for payment in (await db.execute(select(Payment).where(Payment.booking_id == booking.id))).scalars():
         if payment.status == "SUCCESS":
             payment.status = "REFUNDED"
     await db.commit()
     await db.refresh(booking)
+    await seat_events.broadcast(booking.showtime_id, "SEATS_UPDATED")
     return {**_booking_admin_dict(booking), "cancel_reason": reason}
 
 

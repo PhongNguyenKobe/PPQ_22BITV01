@@ -4,7 +4,8 @@ import { useTicketsStore } from '~/store/tickets'
 import { movieService, type Showtime } from '~/services/api'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'default',
+  middleware: ['auth'],
 })
 
 const router = useRouter()

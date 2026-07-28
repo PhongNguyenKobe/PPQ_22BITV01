@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProductsStore } from '~/store/products'
+import { branchesService, movieService } from '~/services/api'
 
 definePageMeta({
   layout: 'default'
@@ -15,6 +16,7 @@ onMounted(() => {
   if (!products.value || products.value.length === 0) {
     productsStore.fetchProducts()
   }
+  void loadQuickBooking()
 })
 
 // =========================================================================
@@ -214,9 +216,34 @@ const visibleCombos = computed(() => {
 // =========================================================================
 // 3. DỮ LIỆU ĐẶT VÉ NHANH & TỰ ĐỘNG TÍNH NGÀY CHIẾU
 // =========================================================================
-const selectedCinema = ref('CineAI Thủ Đức')
-const cinemas = ['CineAI Thủ Đức', 'CineAI Quận 1', 'CineAI Landmark 81']
-const showtimes = ['10:15', '13:30', '16:45', '19:20', '21:50', '23:15']
+const selectedCinema = ref('')
+const cinemas = ref<string[]>([])
+const showtimes = ref<string[]>([])
+
+async function loadQuickBooking() {
+  try {
+    const branchRows = await branchesService.getAll()
+    cinemas.value = branchRows.map((branch) => branch.name)
+    selectedCinema.value = cinemas.value[0] || ''
+    const movies = await movieService.getAll('NOW_SHOWING')
+    const schedules = (await Promise.all(movies.map((movie) => movieService.getShowtimes(movie.id)))).flat()
+    showtimes.value = [...new Set(
+      schedules
+        .filter((item) => !selectedCinema.value || item.branchName === selectedCinema.value)
+        .map((item) => item.time),
+    )].sort()
+  } catch {
+    cinemas.value = []
+    showtimes.value = []
+  }
+}
+
+watch(selectedCinema, async (branchName) => {
+  if (!branchName) return
+  const movies = await movieService.getAll('NOW_SHOWING')
+  const schedules = (await Promise.all(movies.map((movie) => movieService.getShowtimes(movie.id)))).flat()
+  showtimes.value = [...new Set(schedules.filter((item) => item.branchName === branchName).map((item) => item.time))].sort()
+})
 
 // Tạo danh sách 3 ngày chiếu gần nhất tự động
 const dates = computed(() => {

@@ -17,7 +17,14 @@ async def list_movies(
 ) -> list[Movie]:
     query = select(Movie).options(selectinload(Movie.genres)).order_by(Movie.created_at.desc())
 
-    if status:
+    if status == "NOW_SHOWING":
+        query = query.where(
+            Movie.status == "NOW_SHOWING",
+            Movie.showtimes.any(
+                (Showtime.status == "OPEN") & (Showtime.booking_closes_at > func.now())
+            ),
+        )
+    elif status:
         query = query.where(Movie.status == status)
 
     if genre_code:
@@ -80,7 +87,15 @@ async def recommended_movies(db: AsyncSession, limit: int = 6) -> list[Movie]:
     result = await db.execute(
         select(Movie)
         .options(selectinload(Movie.genres))
-        .where(Movie.status.in_(["NOW_SHOWING", "UPCOMING"]))
+        .where(
+            (Movie.status == "UPCOMING")
+            | (
+                (Movie.status == "NOW_SHOWING")
+                & Movie.showtimes.any(
+                    (Showtime.status == "OPEN") & (Showtime.booking_closes_at > func.now())
+                )
+            )
+        )
         .order_by(Movie.status.asc(), Movie.created_at.desc())
         .limit(limit)
     )

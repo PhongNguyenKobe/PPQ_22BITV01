@@ -71,6 +71,7 @@ class SeatType(Base):
     id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     code: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    price_multiplier: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, server_default=text("1.00"))
 
 
 class Seat(Base):

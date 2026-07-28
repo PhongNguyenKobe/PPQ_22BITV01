@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import require_roles
 from app.db.session import get_db
 from app.models.catalog import Auditorium, Branch, Movie, MovieChangeRequest, Seat, Showtime
-from app.models.commerce import Booking, BookingSeat, Payment
+from app.models.commerce import Booking, BookingSeat, Payment, Promotion
 from app.models.user import User
 from app.schemas.admin import (
     AuditoriumRead,
@@ -110,6 +110,7 @@ async def read_branch_stats(
     showtime_ids = [item.id for item in showtimes]
     tickets_sold = 0
     revenue = 0
+    orders = 0
     if showtime_ids:
         tickets_sold = await db.scalar(
             select(func.count(BookingSeat.id))
@@ -121,14 +122,35 @@ async def read_branch_stats(
             .join(Booking, Booking.id == Payment.booking_id)
             .where(Booking.showtime_id.in_(showtime_ids), Payment.status == "SUCCESS")
         ) or 0
+        orders = await db.scalar(
+            select(func.count(Booking.id)).where(
+                Booking.showtime_id.in_(showtime_ids),
+                Booking.status == "CONFIRMED",
+            )
+        ) or 0
+
+    promotion_result = await db.execute(
+        select(Promotion).where(
+            Promotion.is_active.is_(True),
+            Promotion.starts_at <= func.now(),
+            Promotion.ends_at >= func.now(),
+        ).order_by(Promotion.ends_at.asc())
+    )
+    promotions = list(promotion_result.scalars().all())
+    total_capacity = sum(item.auditorium.total_seats for item in showtimes if item.auditorium)
 
     return BranchAdminStatsResponse(
         branch_id=branch.id,
         branch_name=branch.name,
         ticketsSold=int(tickets_sold),
         activeShowtimes=sum(1 for item in showtimes if item.status == "OPEN"),
-        activePromos=0,
+        activePromos=len(promotions),
         branchRevenue=int(revenue),
+        orders=int(orders),
+        seatsSold=int(tickets_sold),
+        occupancyRate=round(int(tickets_sold) * 100 / total_capacity, 2) if total_capacity else 0,
+        movieCount=len({item.movie_id for item in showtimes}),
+        showtimeCount=len(showtimes),
         salesChartData=[BranchAdminSalesPoint(label="Tổng", tickets=int(tickets_sold))],
         showtimesList=[
             {
@@ -145,7 +167,15 @@ async def read_branch_stats(
             }
             for item in showtimes
         ],
-        promotionsList=[],
+        promotionsList=[
+            {
+                "code": item.code,
+                "discount": int(item.discount_value),
+                "desc": item.name,
+                "active": item.is_active,
+            }
+            for item in promotions
+        ],
     )
 
 
