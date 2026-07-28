@@ -17,8 +17,17 @@ def upgrade() -> None:
     op.execute(
         """
         INSERT INTO roles (id, code, name)
-        VALUES (3, 'BRANCH_ADMIN', 'Quản trị chi nhánh')
+        VALUES (3, 'BRANCH_ADMIN', 'Branch Administrator')
         ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+        """
+    )
+    op.execute(
+        """
+        SELECT setval(
+            pg_get_serial_sequence('roles', 'id'),
+            COALESCE((SELECT MAX(id) FROM roles), 1),
+            true
+        )
         """
     )
 

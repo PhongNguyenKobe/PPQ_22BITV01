@@ -23,6 +23,7 @@ __pycache__
 *.pyc
 /.venv/
 /backend/.venv/
+/backend/venv/
 
 # VS Code
 .vscode
