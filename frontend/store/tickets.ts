@@ -32,6 +32,12 @@ export const useTicketsStore = defineStore('tickets', () => {
 
   function selectShowtime(showtime: Showtime) {
     selectedShowtime.value = showtime
+    if (selectedMovie.value) {
+      selectedMovie.value = {
+        ...selectedMovie.value,
+        price: showtime.price / 1000,
+      }
+    }
     selectedSeats.value = [] // Reset seats when showtime changes
     purchaseError.value = ''
     holdExpiresAt.value = null

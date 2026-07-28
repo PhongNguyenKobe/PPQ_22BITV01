@@ -706,6 +706,12 @@ async function createShowtime() {
     if (new Date(showtimeForm.value.startsAt) < new Date(minimumShowtimeDate.value)) {
       throw new Error('Suất chiếu không thể bắt đầu trước ngày khởi chiếu của phim.')
     }
+    if (
+      showtimeForm.value.status === 'OPEN'
+      && new Date(showtimeForm.value.startsAt).getTime() <= Date.now() + 15 * 60 * 1000
+    ) {
+      throw new Error('Suất chiếu OPEN phải bắt đầu sau hiện tại ít nhất 15 phút để còn thời gian bán vé.')
+    }
 
     if (movieId.startsWith('tmdb:')) {
       const tmdbId = Number(movieId.replace('tmdb:', ''))

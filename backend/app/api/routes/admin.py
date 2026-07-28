@@ -1047,6 +1047,11 @@ async def create_admin_showtime(
     booking_closes_at = payload.booking_closes_at or payload.starts_at - timedelta(minutes=15)
     if booking_closes_at > payload.starts_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="booking_closes_at cannot be after starts_at")
+    if payload.status == "OPEN" and booking_closes_at <= datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot open sales because the sales closing time has already passed",
+        )
 
     movie_row = await db.execute(select(Movie).where(Movie.id == payload.movie_id))
     movie = movie_row.scalar_one_or_none()
@@ -1125,6 +1130,12 @@ async def create_admin_showtimes_bulk(
     for index, item in enumerate(ordered):
         if item.ends_at <= item.starts_at:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Every end time must be after its start time")
+        booking_closes_at = item.booking_closes_at or item.starts_at - timedelta(minutes=15)
+        if item.status == "OPEN" and booking_closes_at <= datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot create an open showtime after its sales closing time",
+            )
         for other in ordered[index + 1:]:
             if other.auditorium_id != item.auditorium_id:
                 continue

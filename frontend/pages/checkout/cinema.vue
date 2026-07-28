@@ -49,6 +49,11 @@ onMounted(async () => {
       showtimes.value = allShowtimes
       if (allShowtimes.length > 0) {
         requiresCatalogMapping.value = false
+        const minimumPrice = Math.min(...allShowtimes.map((showtime) => showtime.price))
+        selectedMovie.value = {
+          ...selectedMovie.value,
+          price: minimumPrice / 1000,
+        }
       }
     } catch (e) {
       console.error('Failed to load showtimes for cinema selection:', e)
