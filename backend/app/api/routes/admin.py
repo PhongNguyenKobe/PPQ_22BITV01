@@ -156,9 +156,8 @@ async def import_tmdb_movie(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
 ) -> TmdbMovieImportResponse:
-    tmdb_ref_url = f"https://www.themoviedb.org/movie/{payload.tmdb_id}"
     result = await db.execute(
-        select(Movie).where(or_(Movie.trailer_url == tmdb_ref_url, Movie.title == payload.title))
+        select(Movie).where(Movie.title == payload.title)
     )
     existing = result.scalars().first()
     if existing is not None:
@@ -174,7 +173,9 @@ async def import_tmdb_movie(
         release_date=payload.release_date,
         age_rating="P",
         language=payload.language,
-        trailer_url=tmdb_ref_url,
+        # A TMDB detail URL is not a playable trailer. Admin can add the
+        # official YouTube URL from the movie edit form after importing.
+        trailer_url=None,
         poster_url=poster_url,
         status="NOW_SHOWING",
     )

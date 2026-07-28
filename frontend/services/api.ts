@@ -162,6 +162,31 @@ export interface BackendBranch {
   city: string
 }
 
+export function youtubeEmbedUrl(value?: string | null): string {
+  if (!value) return ''
+  try {
+    const url = new URL(value)
+    if (url.hostname === 'youtu.be') {
+      const id = url.pathname.slice(1).split('/')[0]
+      return id ? `https://www.youtube.com/embed/${id}` : ''
+    }
+    if (url.hostname.endsWith('youtube.com')) {
+      if (url.pathname.startsWith('/embed/')) return value
+      const id = url.searchParams.get('v') || (url.pathname.startsWith('/shorts/') ? url.pathname.split('/')[2] : '')
+      return id ? `https://www.youtube.com/embed/${id}` : ''
+    }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
+export function youtubeTrailerLink(value: string | null | undefined, title: string): string {
+  const embed = youtubeEmbedUrl(value)
+  if (embed) return `https://www.youtube.com/watch?v=${embed.split('/').pop()}`
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${title} official trailer`)}`
+}
+
 export interface BranchDetail extends BackendBranch {
   address_line: string
   district: string | null

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
+import { youtubeTrailerLink } from '~/services/api'
 
 const props = defineProps<{
   id: string | number
@@ -31,7 +32,7 @@ const formattedPrice = computed(() =>
 )
 
 const trailerHref = computed(() =>
-  props.trailerUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${props.name} trailer`)}`
+  youtubeTrailerLink(props.trailerUrl, props.name)
 )
 
 function startBooking() {

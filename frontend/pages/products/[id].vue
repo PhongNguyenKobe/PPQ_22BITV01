@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useProductsStore } from '~/store/products'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
+import { youtubeTrailerLink } from '~/services/api'
 
 definePageMeta({
   layout: 'default'
@@ -79,7 +80,7 @@ const currentProduct = computed(() => {
 
 const trailerHref = computed(() => {
   if (!currentProduct.value) return '#'
-  return currentProduct.value.trailerUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${currentProduct.value.name} trailer`)}`
+  return youtubeTrailerLink(currentProduct.value.trailerUrl, currentProduct.value.name)
 })
 
 const formattedPrice = computed(() => {

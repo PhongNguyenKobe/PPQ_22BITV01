@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
-import { tmdbService, movieService, type Showtime, type TmdbMovieDetail } from '~/services/api'
+import { tmdbService, movieService, youtubeEmbedUrl, type Showtime, type TmdbMovieDetail } from '~/services/api'
 
 definePageMeta({
   layout: 'default'
@@ -20,6 +20,7 @@ const error = ref('')
 
 const selectedBranch = ref('')
 const selectedDate = ref('')
+const trailerEmbedUrl = computed(() => youtubeEmbedUrl(tmdbDetail.value?.trailerUrl))
 
 onMounted(async () => {
   const id = route.params.id as string
@@ -174,14 +175,14 @@ function changeBranch(branch: string) {
         <div class="lg:col-span-7 space-y-8">
           
           <!-- Embedded YouTube Trailer from TMDB -->
-          <div v-if="tmdbDetail.trailerUrl">
+          <div v-if="trailerEmbedUrl">
             <h3 class="font-headline-md text-xl font-bold mb-4 flex items-center gap-2">
               <span class="material-symbols-outlined text-primary-container">play_circle</span>
               Official Trailer
             </h3>
             <div class="aspect-video w-full rounded-2xl overflow-hidden border border-glass-stroke bg-black shadow-lg">
               <iframe
-                :src="tmdbDetail.trailerUrl"
+                :src="trailerEmbedUrl"
                 title="Movie Trailer"
                 frameborder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
