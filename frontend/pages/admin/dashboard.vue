@@ -179,6 +179,7 @@ const bulkForm = ref({
 })
 const scheduleDate = ref(toDateTimeLocal(new Date()).slice(0, 10))
 const scheduleBranch = ref('')
+const scheduleStatus = ref<'ALL' | 'ACTIVE' | 'OPEN' | 'DRAFT' | 'FINISHED' | 'CANCELLED'>('ALL')
 
 const movieForm = ref({
   title: '',
@@ -261,11 +262,20 @@ const stats = computed(() => ({
   showtimes: showtimes.value.length,
 }))
 
-const scheduleRooms = computed(() => {
-  const items = showtimes.value.filter((item) => {
+const filteredScheduleShowtimes = computed(() =>
+  showtimes.value.filter((item) => {
     const sameDate = toDateTimeLocal(new Date(item.starts_at)).slice(0, 10) === scheduleDate.value
-    return sameDate && (!scheduleBranch.value || item.branch_name === scheduleBranch.value)
-  })
+    const sameBranch = !scheduleBranch.value || item.branch_name === scheduleBranch.value
+    const sameStatus =
+      scheduleStatus.value === 'ALL'
+      || (scheduleStatus.value === 'ACTIVE' && ['OPEN', 'DRAFT'].includes(item.status))
+      || item.status === scheduleStatus.value
+    return sameDate && sameBranch && sameStatus
+  }),
+)
+
+const scheduleRooms = computed(() => {
+  const items = filteredScheduleShowtimes.value
   const grouped = new Map<string, { name: string; branch: string; items: AdminShowtime[] }>()
   for (const item of items) {
     if (!grouped.has(item.auditorium_id)) {
@@ -284,6 +294,46 @@ const scheduleRooms = computed(() => {
     }))
     .sort((a, b) => `${a.branch}${a.name}`.localeCompare(`${b.branch}${b.name}`))
 })
+
+const availableScheduleDates = computed(() => {
+  const counts = new Map<string, number>()
+  for (const item of showtimes.value) {
+    if (scheduleBranch.value && item.branch_name !== scheduleBranch.value) continue
+    const date = toDateTimeLocal(new Date(item.starts_at)).slice(0, 10)
+    counts.set(date, (counts.get(date) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, count]) => ({ date, count }))
+})
+
+const scheduleSummary = computed(() => ({
+  total: filteredScheduleShowtimes.value.length,
+  open: filteredScheduleShowtimes.value.filter((item) => item.status === 'OPEN').length,
+  draft: filteredScheduleShowtimes.value.filter((item) => item.status === 'DRAFT').length,
+  sold: filteredScheduleShowtimes.value.reduce((sum, item) => sum + Number(item.sold_seats || 0), 0),
+  revenue: filteredScheduleShowtimes.value.reduce((sum, item) => sum + Number(item.revenue || 0), 0),
+}))
+
+function moveScheduleDate(days: number) {
+  const date = new Date(`${scheduleDate.value}T12:00:00`)
+  date.setDate(date.getDate() + days)
+  scheduleDate.value = toDateTimeLocal(date).slice(0, 10)
+}
+
+function selectToday() {
+  scheduleDate.value = toDateTimeLocal(new Date()).slice(0, 10)
+}
+
+function selectNearestUsefulScheduleDate() {
+  const today = toDateTimeLocal(new Date()).slice(0, 10)
+  const useful = showtimes.value
+    .filter((item) => ['OPEN', 'DRAFT'].includes(item.status))
+    .map((item) => toDateTimeLocal(new Date(item.starts_at)).slice(0, 10))
+    .filter((date) => date >= today)
+    .sort()[0]
+  if (useful) scheduleDate.value = useful
+}
 
 const scheduleBranchOptions = computed(() =>
   [...new Set(auditoriums.value.map((item) => item.branch_name))].sort(),
@@ -359,6 +409,7 @@ async function loadAll() {
       auditoriums.value = auditoriumData
       seatTypes.value = seatTypeData
       showtimes.value = showtimeData
+      selectNearestUsefulScheduleDate()
       movies.value = movieData
       users.value = []
       tmdbMovies.value = tmdbMovieData
@@ -1716,12 +1767,43 @@ function showtimeStatusClass(status: string) {
             >
               {{ bulkPublishing ? 'Đang mở bán...' : `Xuất bản ${draftShowtimes.length} suất nháp` }}
             </button>
+            <button type="button" class="secondary-action !px-3" title="Ngày trước" @click="moveScheduleDate(-1)">←</button>
+            <button type="button" class="secondary-action" @click="selectToday">Hôm nay</button>
             <input v-model="scheduleDate" type="date" class="field-input !w-auto" />
+            <button type="button" class="secondary-action !px-3" title="Ngày sau" @click="moveScheduleDate(1)">→</button>
             <select v-model="scheduleBranch" class="field-input !w-auto">
               <option value="">Tất cả chi nhánh</option>
               <option v-for="branch in scheduleBranchOptions" :key="branch" :value="branch">{{ branch }}</option>
             </select>
+            <select v-model="scheduleStatus" class="field-input !w-auto">
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="ACTIVE">Đang mở / Bản nháp</option>
+              <option value="OPEN">Đang mở bán</option>
+              <option value="DRAFT">Bản nháp</option>
+              <option value="FINISHED">Đã kết thúc</option>
+              <option value="CANCELLED">Đã hủy</option>
+            </select>
           </div>
+        </div>
+        <div v-if="availableScheduleDates.length" class="flex gap-2 overflow-x-auto pb-1">
+          <button
+            v-for="dateItem in availableScheduleDates"
+            :key="dateItem.date"
+            type="button"
+            class="shrink-0 rounded-xl border px-3 py-2 text-left transition"
+            :class="scheduleDate === dateItem.date ? 'border-primary bg-primary/15 text-white' : 'border-white/10 bg-black/10 text-on-surface-variant hover:border-white/25'"
+            @click="scheduleDate = dateItem.date"
+          >
+            <span class="block text-xs font-bold">{{ new Date(`${dateItem.date}T12:00:00`).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }) }}</span>
+            <span class="text-[10px]">{{ dateItem.count }} suất</span>
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <div class="rounded-xl border border-white/10 bg-black/10 p-3"><p class="text-[10px] uppercase text-on-surface-variant">Tổng suất</p><strong>{{ scheduleSummary.total }}</strong></div>
+          <div class="rounded-xl border border-white/10 bg-black/10 p-3"><p class="text-[10px] uppercase text-on-surface-variant">Mở bán</p><strong class="text-emerald-400">{{ scheduleSummary.open }}</strong></div>
+          <div class="rounded-xl border border-white/10 bg-black/10 p-3"><p class="text-[10px] uppercase text-on-surface-variant">Bản nháp</p><strong class="text-amber-400">{{ scheduleSummary.draft }}</strong></div>
+          <div class="rounded-xl border border-white/10 bg-black/10 p-3"><p class="text-[10px] uppercase text-on-surface-variant">Ghế đã bán</p><strong>{{ scheduleSummary.sold }}</strong></div>
+          <div class="rounded-xl border border-white/10 bg-black/10 p-3"><p class="text-[10px] uppercase text-on-surface-variant">Doanh thu</p><strong>{{ fmtCurrency(scheduleSummary.revenue) }}</strong></div>
         </div>
         <div v-if="scheduleRooms.length" class="grid gap-3 overflow-x-auto" :style="{ gridTemplateColumns: `repeat(${scheduleRooms.length}, minmax(260px, 1fr))` }">
           <div v-for="room in scheduleRooms" :key="`${room.branch}-${room.name}`" class="rounded-xl border border-white/10 bg-black/10 p-3">
@@ -1753,13 +1835,13 @@ function showtimeStatusClass(status: string) {
           </div>
         </div>
         <div v-else class="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-on-surface-variant">
-          Chưa có lịch chiếu cho ngày này.
+          Không có suất chiếu phù hợp ngày và bộ lọc đã chọn.
         </div>
       </div>
 
       <div class="panel overflow-hidden">
         <div class="border-b border-white/10 px-5 py-4">
-          <h3 class="font-bold text-on-surface">Danh sách chi tiết</h3>
+          <h3 class="font-bold text-on-surface">Danh sách chi tiết · {{ filteredScheduleShowtimes.length }} suất</h3>
         </div>
         <div class="overflow-auto">
           <table class="w-full text-sm min-w-[960px]">
@@ -1777,7 +1859,7 @@ function showtimeStatusClass(status: string) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="st in showtimes" :key="st.id" class="table-row">
+              <tr v-for="st in filteredScheduleShowtimes" :key="st.id" class="table-row">
                 <td class="px-4 py-3 font-semibold text-on-surface">{{ st.movie_title }}</td>
                 <td class="px-4 py-3 text-on-surface-variant">{{ st.branch_name }} - {{ st.auditorium_name }}</td>
                 <td class="px-4 py-3 text-on-surface-variant">{{ fmtDateTime(st.starts_at) }}</td>
@@ -1799,6 +1881,9 @@ function showtimeStatusClass(status: string) {
                     >Xoá</button>
                   </div>
                 </td>
+              </tr>
+              <tr v-if="filteredScheduleShowtimes.length === 0">
+                <td colspan="9" class="px-4 py-10 text-center text-on-surface-variant">Không có dữ liệu cho ngày và bộ lọc hiện tại.</td>
               </tr>
             </tbody>
           </table>
