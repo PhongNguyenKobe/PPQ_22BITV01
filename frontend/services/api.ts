@@ -14,6 +14,21 @@ const apiClient = axios.create({
 function notify(message: string, type: 'success' | 'error') {
   if (import.meta.client) window.dispatchEvent(new CustomEvent('cineai:toast', { detail: { message, type } }))
 }
+
+export interface BulkShowtimeDraft {
+  movie_id: string
+  movie_title: string
+  auditorium_id: string
+  auditorium_name: string
+  starts_at: string // Khóa cứng kiểu string để không bị lỗi 'string | Date'
+  ends_at: string // Khóa cứng kiểu string
+  base_price: number
+  status?: 'DRAFT' | 'OPEN' | 'CANCELLED'
+  date?: string
+  time?: string
+  [key: string]: any
+}
+
 // ----------------------------------------------------
 // Xử lý lỗi tập trung cho toàn bộ API module
 // ----------------------------------------------------

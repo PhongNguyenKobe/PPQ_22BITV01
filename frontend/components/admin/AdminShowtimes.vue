@@ -138,32 +138,38 @@ const scheduleBranchOptions = computed(() =>
 )
 
 const draftShowtimes = computed(() => showtimes.value.filter((item) => item.stored_status === 'DRAFT'))
-
 const bulkConflictIndexes = computed(() => {
   const conflicts = new Set<number>()
-  bulkPreview.value.forEach((draft, index) => {
-    if (showtimes.value.some((current) =>
-      current.status !== 'CANCELLED'
-      && current.auditorium_id === draft.auditorium_id
-      && new Date(current.starts_at) < new Date(draft.ends_at)
-      && new Date(current.ends_at) > new Date(draft.starts_at)
-    )) {
+
+  bulkPreview.value.forEach((draft: BulkShowtimeDraft, index: number) => {
+    // 1. Kiểm tra trùng lịch với danh sách suất chiếu hiện có trên hệ thống
+    if (
+      showtimes.value.some(
+        (current: AdminShowtime) =>
+          current.status !== 'CANCELLED' &&
+          current.auditorium_id === draft.auditorium_id &&
+          new Date(current.starts_at) < new Date(draft.ends_at) &&
+          new Date(current.ends_at) > new Date(draft.starts_at),
+      )
+    ) {
       conflicts.add(index)
     }
-    bulkPreview.value.forEach((other, otherIndex) => {
+
+    // 2. Kiểm tra trùng lịch giữa các suất chiếu trong chính danh sách tạo hàng loạt (drafts)
+    bulkPreview.value.forEach((other: BulkShowtimeDraft, otherIndex: number) => {
       if (
-        index !== otherIndex
-        && other.auditorium_id === draft.auditorium_id
-        && new Date(other.starts_at) < new Date(draft.ends_at)
-        && new Date(other.ends_at) > new Date(draft.starts_at)
+        index !== otherIndex &&
+        other.auditorium_id === draft.auditorium_id &&
+        new Date(other.starts_at) < new Date(draft.ends_at) &&
+        new Date(other.ends_at) > new Date(draft.starts_at)
       ) {
         conflicts.add(index)
       }
     })
   })
+
   return conflicts
 })
-
 const bulkConflictCount = computed(() => bulkConflictIndexes.value.size)
 
 const minimumShowtimeDate = computed(() => {
