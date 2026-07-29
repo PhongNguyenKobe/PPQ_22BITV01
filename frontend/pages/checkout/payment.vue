@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { checkoutService } from '~/services/api'
+import { isShowtimeExpired } from '../../utils/showtime'
 
 definePageMeta({
   layout: 'default',
@@ -150,10 +151,12 @@ async function handleConfirmPayment() {
           </div>
 
           <div class="selection-panel">
-            <div v-if="showtimeExpired || purchaseError" class="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-red-300">
+            <div v-if="showtimeExpired || purchaseError"
+              class="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-red-300">
               <strong>Không thể tiếp tục thanh toán</strong>
               <p class="mt-1 text-sm">{{ purchaseError || 'Đã hết thời gian mua vé cho suất chiếu này.' }}</p>
-              <NuxtLink to="/checkout/showtime" class="mt-3 inline-block font-bold underline">Chọn suất chiếu khác</NuxtLink>
+              <NuxtLink to="/checkout/showtime" class="mt-3 inline-block font-bold underline">Chọn suất chiếu khác
+              </NuxtLink>
             </div>
             <div class="selection-header">
               <h1>Thanh Toán Đơn Vé</h1>
