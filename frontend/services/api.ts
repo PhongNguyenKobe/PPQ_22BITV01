@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // Set this to false when backend (FastAPI) is running
-const USE_MOCK = false  
+const USE_MOCK = false
 const API_BASE_URL = import.meta.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
 
 const apiClient = axios.create({
@@ -752,10 +752,10 @@ export const adminBackendService = {
     await apiClient.delete(`/admin/users/${userId}`)
   },
 
- async getBranchesManage(): Promise<AdminBranchManage[]> {
-  const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
-  return res.data
-},
+  async getBranchesManage(): Promise<AdminBranchManage[]> {
+    const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
+    return res.data
+  },
 
   async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
     const res = await apiClient.post<AdminBranchManage>('/admin/branches/manage', payload)
@@ -1059,7 +1059,7 @@ export const mockShowtimes: Showtime[] = [
 export const generateSeats = (showtimeId: string): Seat[] => {
   const seats: Seat[] = []
   const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J']
-  
+
   rows.forEach((row, rowIndex) => {
     for (let i = 1; i <= 10; i++) {
       const id = `${showtimeId}_${row}${i}`
@@ -1193,7 +1193,7 @@ export function mapBackendShowtimeToFrontend(bs: BackendShowtime): Showtime {
     String(startDate.getDate()).padStart(2, '0'),
   ].join('-')
   const timeStr = startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) // "18:00"
-  
+
   return {
     id: bs.id,
     movieId: bs.movie_id,
@@ -1400,7 +1400,7 @@ export const checkoutService = {
     if (USE_MOCK) {
       const showtime = mockShowtimes.find(s => s.id === bookingDetails.showtimeId)
       const movie = mockMovies.find(m => m.id === showtime?.movieId)
-      
+
       const newTicket: UserTicket = {
         id: `t-${Math.floor(1000 + Math.random() * 9000)}`,
         movieTitle: movie?.title || 'Phim đã đặt',
@@ -1415,10 +1415,10 @@ export const checkoutService = {
         qrCode: `CineAI_E_TICKET_${Date.now()}`,
         bookingDate: new Date().toISOString().replace('T', ' ').substring(0, 16)
       }
-      
+
       return newTicket
     }
-    
+
     const bookingRes = await apiClient.post<any>('/bookings', {
       showtime_id: bookingDetails.showtimeId,
       seat_ids: bookingDetails.seats,
@@ -1463,7 +1463,7 @@ export const aiService = {
     if (USE_MOCK) {
       await new Promise(resolve => setTimeout(resolve, 800)) // simulate latency
       const m = message.toLowerCase()
-      
+
       if (m.includes('đặt vé') || m.includes('mua vé') || m.includes('chọn ghế')) {
         return {
           response: 'Để đặt vé, bạn hãy truy cập mục **Khám phá AI**, chọn phim yêu thích, chọn suất chiếu, sau đó sơ đồ phòng chiếu thông minh sẽ xuất hiện để bạn chọn ghế ngồi và tiến hành thanh toán nhé!',
@@ -1491,7 +1491,7 @@ export const aiService = {
         response: 'Xin chào! Tôi là CineAI Assistant 🤖. Tôi có thể giúp bạn gợi ý phim, tra cứu lịch chiếu, hướng dẫn chọn ghế hoặc giải đáp các thắc mắc về dịch vụ. Bạn có câu hỏi nào khác không?'
       }
     }
-    
+
     const res = await apiClient.post('/chatbot', { message, context })
     return res.data
   },
@@ -1527,7 +1527,7 @@ export const aiService = {
         data
       }
     }
-    
+
     const formData = new FormData()
     if (typeof audioBlob === 'string') {
       formData.append('transcript', audioBlob)
@@ -1600,18 +1600,38 @@ export const adminService = {
           { label: 'Thứ Bảy', tickets: 110 },
           { label: 'Chủ Nhật', tickets: 120 }
         ],
-        showtimesList: mockShowtimes.filter(s => s.branchName.includes('Sala')).map((showtime, index) => ({
-          id: showtime.id,
-          movie_id: showtime.movieId,
-          movie_title: mockMovies.find(movie => movie.id === showtime.movieId)?.title || 'Phim đã ẩn',
-          auditorium_id: `aud-${index + 1}`,
-          auditorium_name: showtime.screenName,
-          branch_name: showtime.branchName,
-          starts_at: `${showtime.date}T${showtime.time}:00+07:00`,
-          ends_at: `${showtime.date}T${showtime.time}:00+07:00`,
-          status: 'OPEN',
-          base_price: showtime.price,
-        })),
+        showtimesList: mockShowtimes
+          .filter(s => s.branchName.includes('Sala'))
+          .map((showtime, index) => {
+            const matchedMovie = mockMovies.find(movie => movie.id === showtime.movieId)
+            const startTimeStr = `${showtime.date}T${showtime.time}:00+07:00`
+
+            // Giả lập giờ kết thúc = giờ bắt đầu + 2 tiếng (120 phút)
+            const startDate = new Date(startTimeStr)
+            const endDate = new Date(startDate.getTime() + 120 * 60 * 1000)
+            const endTimeStr = endDate.toISOString()
+
+            return {
+              id: String(showtime.id),
+              movie_id: String(showtime.movieId),
+              movie_title: matchedMovie?.title || 'Phim đã ẩn',
+              auditorium_id: `aud-${index + 1}`,
+              auditorium_name: showtime.screenName,
+              branch_name: showtime.branchName,
+              starts_at: startTimeStr,
+              ends_at: endTimeStr,
+              status: 'OPEN',
+              base_price: showtime.price,
+
+              //  BỔ SUNG ĐỦ DỮ LIỆU CHUẨN KHIÊN TYPE AdminShowtime KHÔNG BỊ LỖI
+              stored_status: 'OPEN' as const,
+              booking_closes_at: startTimeStr,
+              cancellation_reason: null,
+              booking_count: 15,
+              sold_seats: 15,
+              revenue: showtime.price * 15,
+            }
+          }),
         promotionsList: [
           { code: 'AISELECTION', discount: 15, desc: 'Giảm 15% cho phim do AI gợi ý', active: true },
           { code: 'WEEKEND30', discount: 10, desc: 'Giảm 10k/vé dịp cuối tuần', active: true },
@@ -1619,24 +1639,48 @@ export const adminService = {
         ]
       }
     }
+
+    // Gọi API thật từ Server
     const res = await apiClient.get<any>('/branch-admin/stats', {
       params: branchId ? { branchId } : undefined,
     })
+
+    const rawData = res.data
+
     return {
-      branchId: res.data.branch_id,
-      branchName: res.data.branch_name,
-      ticketsSold: res.data.ticketsSold,
-      activeShowtimes: res.data.activeShowtimes,
-      activePromos: res.data.activePromos,
-      branchRevenue: res.data.branchRevenue,
-      orders: res.data.orders || 0,
-      seatsSold: res.data.seatsSold || 0,
-      occupancyRate: res.data.occupancyRate || 0,
-      movieCount: res.data.movieCount || 0,
-      showtimeCount: res.data.showtimeCount || 0,
-      salesChartData: res.data.salesChartData || [],
-      showtimesList: res.data.showtimesList || [],
-      promotionsList: res.data.promotionsList || [],
+      branchId: rawData.branch_id || rawData.branchId || '',
+      branchName: rawData.branch_name || rawData.branchName || '',
+      ticketsSold: rawData.ticketsSold || 0,
+      activeShowtimes: rawData.activeShowtimes || 0,
+      activePromos: rawData.activePromos || 0,
+      branchRevenue: rawData.branchRevenue || 0,
+      orders: rawData.orders || 0,
+      seatsSold: rawData.seatsSold || 0,
+      occupancyRate: rawData.occupancyRate || 0,
+      movieCount: rawData.movieCount || 0,
+      showtimeCount: rawData.showtimeCount || 0,
+      salesChartData: rawData.salesChartData || [],
+      showtimesList: (rawData.showtimesList || []).map((item: any): AdminShowtime => ({
+        id: String(item.id),
+        movie_id: String(item.movie_id || item.movieId),
+        movie_title: item.movie_title || item.movieTitle || 'Phim chưa xác định',
+        auditorium_id: String(item.auditorium_id || item.auditoriumId),
+        auditorium_name: item.auditorium_name || item.screenName || 'Phòng chiếu',
+        branch_name: item.branch_name || item.branchName || '',
+        starts_at: item.starts_at || item.startsAt,
+        ends_at: item.ends_at || item.endsAt,
+        status: item.status || 'OPEN',
+        base_price: item.base_price || item.price || 0,
+
+        // Chuẩn hóa dữ liệu fallback phòng trường hợp API thiếu trường
+        stored_status: item.stored_status || 'OPEN',
+        booking_closes_at: item.booking_closes_at || null,
+        cancellation_reason: item.cancellation_reason || null,
+        booking_count: item.booking_count || 0,
+        sold_seats: item.sold_seats || 0,
+        revenue: item.revenue || 0,
+      })),
+      promotionsList: rawData.promotionsList || [],
     }
   }
 }
