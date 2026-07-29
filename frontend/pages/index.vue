@@ -2,7 +2,10 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProductsStore } from '~/store/products'
-import { branchesService, movieService } from '~/services/api'
+import { movieService, youtubeTrailerLink, type Showtime } from '~/services/api'
+import { useRouter } from 'vue-router'
+import { useTicketsStore } from '~/store/tickets'
+import { useUserStore } from '~/store/user'
 
 definePageMeta({
   layout: 'default'
@@ -10,14 +13,28 @@ definePageMeta({
 
 const productsStore = useProductsStore()
 const { products } = storeToRefs(productsStore)
+const router = useRouter()
+const ticketsStore = useTicketsStore()
+const userStore = useUserStore()
+const movieShowtimes = ref<Record<string, Showtime[]>>({})
 
 // Gọi fetchProducts không cần await top-level để tránh block render SSR/Client
 onMounted(() => {
   if (!products.value || products.value.length === 0) {
     productsStore.fetchProducts()
   }
-  void loadQuickBooking()
 })
+
+watch(products, async (items) => {
+  const nowShowing = items.filter((movie) => movie.status === 'NOW_SHOWING' && movie.backendMovieId)
+  const entries = await Promise.all(
+    nowShowing.map(async (movie) => [
+      String(movie.id),
+      await movieService.getShowtimes(String(movie.backendMovieId)).catch(() => []),
+    ] as const),
+  )
+  movieShowtimes.value = Object.fromEntries(entries)
+}, { immediate: true })
 
 // =========================================================================
 // HERO SECTION LOGIC & AUTOPLAY
@@ -40,6 +57,10 @@ const heroMovies = computed(() => {
 const currentHeroMovie = computed(() => {
   if (!heroMovies.value.length) return null
   return heroMovies.value[activeHeroIndex.value] || heroMovies.value[0]
+})
+
+const upcomingMovies = computed(() => {
+  return products.value.filter((movie) => movie.status === 'UPCOMING').slice(0, 8)
 })
 
 function setHeroMovie(index: number) {
@@ -93,6 +114,51 @@ function getMovieImage(movie: any) {
     : '/images/movie-placeholder.svg'
 }
 
+function bookMovie(movie: any) {
+  if (!movie) return
+  ticketsStore.selectMovie({
+    id: movie.id,
+    name: movie.name,
+    backendMovieId: movie.backendMovieId || null,
+    imageUrl: movie.imageUrl,
+    category: movie.category,
+    price: movie.price,
+    rating: movie.rating || null,
+    description: movie.description,
+    trailerUrl: movie.trailerUrl || null,
+  })
+  router.push('/checkout/cinema')
+}
+
+function bookHeroMovie() {
+  bookMovie(currentHeroMovie.value)
+}
+
+function movieSchedule(movieId: string | number) {
+  return (movieShowtimes.value[String(movieId)] || []).slice(0, 4)
+}
+
+function moviePrice(movie: any) {
+  const prices = (movieShowtimes.value[String(movie.id)] || [])
+    .map((showtime) => showtime.price)
+    .filter((price) => Number.isFinite(price) && price > 0)
+  const price = prices.length ? Math.min(...prices) : Number(movie.price) * 1000
+  return new Intl.NumberFormat('vi-VN').format(price)
+}
+
+function showtimeLabel(showtime: Showtime) {
+  const date = new Date(`${showtime.date}T${showtime.time}:00`)
+  const today = new Date()
+  const isToday = date.toDateString() === today.toDateString()
+  return `${isToday ? 'Hôm nay' : date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} · ${showtime.time}`
+}
+
+function openHeroTrailer() {
+  const movie = currentHeroMovie.value
+  if (!movie || !import.meta.client) return
+  window.open(youtubeTrailerLink(movie.trailerUrl, movie.name), '_blank', 'noopener,noreferrer')
+}
+
 // =========================================================================
 // SCROLL REVEAL ANIMATION & LIFECYCLE
 // =========================================================================
@@ -119,40 +185,10 @@ onUnmounted(() => {
   if (observer) observer.disconnect()
 })
 
-// =========================================================================
-// 1. XOAY VÒNG VÔ TẬN: PHIM ĐANG CHIẾU
-// =========================================================================
-const movieIndex = ref(0)
-const nowShowingMovies = computed(() =>
-  products.value
-    ? products.value.filter((movie) => movie.status === 'NOW_SHOWING' && movie.name.trim().length >= 3).slice(0, 5)
-    : [],
-)
-
-function nextMovie() {
-  if (!nowShowingMovies.value.length) return
-  movieIndex.value = (movieIndex.value + 1) % nowShowingMovies.value.length
-}
-
-function prevMovie() {
-  if (!nowShowingMovies.value.length) return
-  movieIndex.value = (movieIndex.value - 1 + nowShowingMovies.value.length) % nowShowingMovies.value.length
-}
-
-const visibleMovies = computed(() => {
-  const list = nowShowingMovies.value
-  const len = list.length
-  if (!len) return []
-
-  const prevIdx = (movieIndex.value - 1 + len) % len
-  const currIdx = movieIndex.value % len
-  const nextIdx = (movieIndex.value + 1) % len
-
-  return [
-    { ...list[prevIdx], position: 'left' },
-    { ...list[currIdx], position: 'center' },
-    { ...list[nextIdx], position: 'right' }
-  ]
+const nowShowingMovies = computed(() => {
+  return products.value.filter(
+    (movie) => movie.status === 'NOW_SHOWING' && movie.name.trim().length >= 3,
+  ).slice(0, 8)
 })
 
 // =========================================================================
@@ -217,50 +253,74 @@ const visibleCombos = computed(() => {
 // 3. DỮ LIỆU ĐẶT VÉ NHANH & TỰ ĐỘNG TÍNH NGÀY CHIẾU
 // =========================================================================
 const selectedCinema = ref('')
-const cinemas = ref<string[]>([])
-const showtimes = ref<string[]>([])
-
-async function loadQuickBooking() {
-  try {
-    const branchRows = await branchesService.getAll()
-    cinemas.value = branchRows.map((branch) => branch.name)
-    selectedCinema.value = cinemas.value[0] || ''
-    const movies = await movieService.getAll('NOW_SHOWING')
-    const schedules = (await Promise.all(movies.map((movie) => movieService.getShowtimes(movie.id)))).flat()
-    showtimes.value = [...new Set(
-      schedules
-        .filter((item) => !selectedCinema.value || item.branchName === selectedCinema.value)
-        .map((item) => item.time),
-    )].sort()
-  } catch {
-    cinemas.value = []
-    showtimes.value = []
-  }
-}
-
-watch(selectedCinema, async (branchName) => {
-  if (!branchName) return
-  const movies = await movieService.getAll('NOW_SHOWING')
-  const schedules = (await Promise.all(movies.map((movie) => movieService.getShowtimes(movie.id)))).flat()
-  showtimes.value = [...new Set(schedules.filter((item) => item.branchName === branchName).map((item) => item.time))].sort()
-})
+const selectedDate = ref('')
+const allOpenShowtimes = computed(() => Object.values(movieShowtimes.value).flat())
+const cinemas = computed(() =>
+  [...new Set(allOpenShowtimes.value.map(item => item.branchName).filter(Boolean))].sort(),
+)
 
 // Tạo danh sách 3 ngày chiếu gần nhất tự động
 const dates = computed(() => {
-  const result = []
-  const today = new Date()
-
-  for (let i = 0; i < 3; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    const dayName = i === 0 ? 'Hôm Nay' : i === 1 ? 'Ngày Mai' : `Thứ ${d.getDay() + 1}`
-    const dateStr = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`
-    result.push(`${dayName} (${dateStr})`)
-  }
-  return result
+  return [...new Set(
+    allOpenShowtimes.value
+      .filter(item => !selectedCinema.value || item.branchName === selectedCinema.value)
+      .map(item => item.date),
+  )].sort().slice(0, 7).map(value => {
+    const date = new Date(`${value}T00:00:00`)
+    const today = new Date()
+    const tomorrow = new Date(today)
+    tomorrow.setDate(today.getDate() + 1)
+    const prefix = date.toDateString() === today.toDateString()
+      ? 'Hôm nay'
+      : date.toDateString() === tomorrow.toDateString()
+        ? 'Ngày mai'
+        : date.toLocaleDateString('vi-VN', { weekday: 'short' })
+    return {
+      value,
+      label: `${prefix} (${date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })})`,
+    }
+  })
 })
 
-const selectedDate = ref(dates.value[0])
+watch(cinemas, value => {
+  if (!value.includes(selectedCinema.value)) selectedCinema.value = value[0] || ''
+}, { immediate: true })
+watch([dates, selectedCinema], ([value]) => {
+  if (!value.some(item => item.value === selectedDate.value)) selectedDate.value = value[0]?.value || ''
+}, { immediate: true })
+
+const quickBookingMovies = computed(() =>
+  nowShowingMovies.value
+    .map(movie => ({
+      movie,
+      schedules: (movieShowtimes.value[String(movie.id)] || [])
+        .filter(item => item.branchName === selectedCinema.value && item.date === selectedDate.value)
+        .sort((a, b) => a.time.localeCompare(b.time)),
+    }))
+    .filter(item => item.schedules.length > 0)
+    .slice(0, 6),
+)
+
+function chooseQuickShowtime(movie: any, showtime: Showtime) {
+  ticketsStore.selectMovie({
+    id: movie.id,
+    name: movie.name,
+    backendMovieId: movie.backendMovieId || null,
+    imageUrl: movie.imageUrl,
+    category: movie.category,
+    price: showtime.price / 1000,
+    rating: movie.rating || null,
+    description: movie.description,
+    trailerUrl: movie.trailerUrl || null,
+  })
+  ticketsStore.selectCinema(showtime.branchName)
+  ticketsStore.selectShowtime(showtime)
+  if (!userStore.isAuthenticated) {
+    router.push({ path: '/login', query: { redirect: '/checkout/seat' } })
+    return
+  }
+  router.push('/checkout/seat')
+}
 </script>
 
 <template>
@@ -320,17 +380,17 @@ const selectedDate = ref(dates.value[0])
             </div>
 
             <div class="flex flex-wrap items-center gap-4 pt-2">
-              <a href="#quick-booking"
+              <button type="button" @click="bookHeroMovie"
                 class="bg-[#e50914] hover:bg-[#c0000c] text-white font-bold text-sm px-8 py-3.5 rounded-xl flex items-center gap-2 transition-all duration-300 hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(229,9,20,0.5)] border border-[#ffb4aa]/30">
                 <span class="material-symbols-outlined text-xl">confirmation_number</span>
                 <span class="uppercase tracking-wider">Đặt Vé Ngay</span>
-              </a>
+              </button>
 
-              <a href="#now-showing"
+              <button type="button" @click="openHeroTrailer"
                 class="bg-[#1e2020]/80 backdrop-blur-md text-[#ffb4aa] border border-[#5e3f3b] font-semibold text-sm px-6 py-3.5 rounded-xl flex items-center gap-2 hover:bg-[#343535] hover:text-white transition-all duration-300">
                 <span class="material-symbols-outlined text-xl">play_circle</span>
                 <span>Xem Trailer</span>
-              </a>
+              </button>
             </div>
           </div>
 
@@ -348,7 +408,7 @@ const selectedDate = ref(dates.value[0])
               <div class="absolute bottom-4 left-4 right-4 text-center">
                 <span
                   class="text-[11px] font-bold text-[#ffb4aa] tracking-widest uppercase bg-[#121414]/80 px-3 py-1 rounded-full border border-[#5e3f3b]">
-                  Phim Nổi Bật Tuần
+                  Phim Đang Chiếu
                 </span>
               </div>
             </div>
@@ -378,28 +438,46 @@ const selectedDate = ref(dates.value[0])
             Rạp</h2>
         </div>
 
-        <div class="relative flex items-center justify-center max-w-5xl mx-auto min-h-[440px]">
-          <button @click="prevMovie" aria-label="Phim trước"
-            class="absolute left-0 sm:-left-4 z-40 w-12 h-12 rounded-full bg-[#1e2020]/90 border border-[#e50914]/60 text-[#ffb4aa] flex items-center justify-center hover:bg-[#e50914] hover:text-white hover:scale-110 active:scale-95 transition-all duration-300 shadow-[0_0_15px_rgba(229,9,20,0.4)] backdrop-blur-md">
-            <span class="material-symbols-outlined text-2xl">chevron_left</span>
-          </button>
+        <div v-if="nowShowingMovies.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <article v-for="movie in nowShowingMovies" :key="'mov-' + movie.id"
+            class="group overflow-hidden rounded-2xl border border-[#343535] bg-[#181a1a] hover:border-[#e50914]/70 hover:-translate-y-1 transition-all duration-300">
+            <NuxtLink :to="`/products/${movie.id}`" class="block relative aspect-[2/3] overflow-hidden bg-[#202222]">
+              <img :src="getMovieImage(movie)" :alt="getMovieTitle(movie)"
+                class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#181a1a] to-transparent"></div>
+              <span class="absolute top-3 left-3 rounded-md bg-[#e50914] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                Đang bán vé
+              </span>
+            </NuxtLink>
 
-          <button @click="nextMovie" aria-label="Phim tiếp"
-            class="absolute right-0 sm:-right-4 z-40 w-12 h-12 rounded-full bg-[#1e2020]/90 border border-[#e50914]/60 text-[#ffb4aa] flex items-center justify-center hover:bg-[#e50914] hover:text-white hover:scale-110 active:scale-95 transition-all duration-300 shadow-[0_0_15px_rgba(229,9,20,0.4)] backdrop-blur-md">
-            <span class="material-symbols-outlined text-2xl">chevron_right</span>
-          </button>
+            <div class="p-4">
+              <h3 class="font-montserrat text-base font-bold text-white line-clamp-1">{{ movie.name }}</h3>
+              <p class="mt-1 text-xs text-[#aaa8a7]">{{ movie.category }} · Giá từ {{ moviePrice(movie) }}đ</p>
 
-          <div class="flex items-center justify-center gap-4 sm:gap-8 w-full">
-            <div v-for="item in visibleMovies" :key="'mov-' + item.id"
-              @click="item.position === 'left' ? prevMovie() : item.position === 'right' ? nextMovie() : null"
-              class="smooth-card cursor-pointer rounded-2xl overflow-hidden relative" :class="[
-                item.position === 'center'
-                  ? 'w-[280px] sm:w-[320px] scale-105 z-30 opacity-100 ring-2 ring-[#e50914] shadow-[0_0_30px_rgba(229,9,20,0.5)]'
-                  : 'w-[220px] sm:w-[260px] scale-90 z-10 opacity-40 blur-[0.5px] hover:opacity-75 hidden sm:block'
-              ]">
-              <ProductCard v-bind="item" />
+              <div class="mt-4 min-h-[72px]">
+                <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-[#ffb4aa]">Suất chiếu gần nhất</p>
+                <div v-if="movieSchedule(movie.id).length" class="flex flex-wrap gap-2">
+                  <button v-for="showtime in movieSchedule(movie.id)" :key="showtime.id" type="button"
+                    @click="bookMovie(movie)"
+                    class="rounded-lg border border-[#5e3f3b] bg-[#242626] px-2.5 py-1.5 text-[11px] font-semibold text-white hover:border-[#e50914] hover:bg-[#e50914] transition-colors">
+                    {{ showtimeLabel(showtime) }}
+                  </button>
+                </div>
+                <p v-else class="text-xs text-[#777]">Đang cập nhật giờ chiếu</p>
+              </div>
+
+              <button type="button" @click="bookMovie(movie)"
+                class="mt-4 w-full rounded-xl bg-[#e50914] px-4 py-3 text-sm font-bold text-white hover:bg-[#c0000c] transition-colors">
+                Chọn suất & đặt vé
+              </button>
             </div>
-          </div>
+          </article>
+        </div>
+
+        <div v-else class="rounded-2xl border border-dashed border-[#343535] bg-[#181a1a] px-6 py-14 text-center">
+          <span class="material-symbols-outlined text-4xl text-[#777]">event_busy</span>
+          <p class="mt-3 font-semibold text-white">Hiện chưa có suất chiếu đang mở bán</p>
+          <p class="mt-1 text-sm text-[#aaa8a7]">Danh sách sẽ xuất hiện khi rạp mở suất chiếu mới.</p>
         </div>
 
       </div>
@@ -414,8 +492,12 @@ const selectedDate = ref(dates.value[0])
             Sắp Chiếu</h2>
         </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
-          <ProductCard v-for="product in products.slice(1, 5)" :key="'coming-' + product.id" v-bind="product" />
+        <div v-if="upcomingMovies.length" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+          <ProductCard v-for="product in upcomingMovies" :key="'coming-' + product.id" v-bind="product" />
+        </div>
+        <div v-else class="rounded-2xl border border-dashed border-[#343535] bg-[#181a1a] px-6 py-12 text-center">
+          <p class="font-semibold text-white">Chưa có phim sắp chiếu được Super Admin công bố</p>
+          <p class="mt-1 text-sm text-[#aaa8a7]">Phim sẽ xuất hiện ở đây ngay khi được đặt trạng thái “Sắp chiếu”.</p>
         </div>
       </div>
     </section>
@@ -511,16 +593,16 @@ const selectedDate = ref(dates.value[0])
               <span class="text-xs font-bold uppercase text-[#ffb4aa] mr-2 flex items-center gap-1">
                 <span class="material-symbols-outlined text-base">calendar_today</span> Ngày:
               </span>
-              <button v-for="d in dates" :key="d" @click="selectedDate = d"
+              <button v-for="d in dates" :key="d.value" @click="selectedDate = d.value"
                 class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                :class="selectedDate === d ? 'bg-[#ffb4aa] text-[#121414] font-bold' : 'bg-[#1e2020] text-[#c8c6c5] border border-[#343535] hover:border-[#ffb4aa]/50'">
-                {{ d }}
+                :class="selectedDate === d.value ? 'bg-[#ffb4aa] text-[#121414] font-bold' : 'bg-[#1e2020] text-[#c8c6c5] border border-[#343535] hover:border-[#ffb4aa]/50'">
+                {{ d.label }}
               </button>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div v-for="movie in nowShowingMovies.slice(0, 4)" :key="'book-' + movie.id"
+          <div v-if="quickBookingMovies.length" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div v-for="{ movie, schedules } in quickBookingMovies" :key="'book-' + movie.id"
               class="p-5 rounded-xl bg-[#121414] border border-[#343535] flex gap-4 hover:border-[#5e3f3b] transition-all">
               <img :src="getMovieImage(movie)" :alt="getMovieTitle(movie)"
                 class="w-20 h-28 object-cover rounded-lg shadow-md" />
@@ -529,17 +611,24 @@ const selectedDate = ref(dates.value[0])
                   <h4 class="font-montserrat font-bold text-[#e3e2e2] text-base mb-1 line-clamp-1">
                     {{ getMovieTitle(movie) }}
                   </h4>
-                  <p class="font-sans text-xs text-[#c8c6c5] mb-3">2D Phụ Đề • 120 phút • T13</p>
+                  <p class="font-sans text-xs text-[#c8c6c5] mb-3">
+                    {{ movie.category }} • {{ movie.duration }} phút
+                  </p>
                 </div>
 
                 <div class="flex flex-wrap gap-2">
-                  <NuxtLink v-for="time in showtimes.slice(0, 4)" :key="time" to="/products"
+                  <button v-for="schedule in schedules.slice(0, 6)" :key="schedule.id" type="button"
+                    @click="chooseQuickShowtime(movie, schedule)"
                     class="px-3 py-1.5 rounded-lg bg-[#1e2020] hover:bg-[#e50914] border border-[#5e3f3b]/40 hover:border-[#ffb4aa] text-[#ffb4aa] hover:text-white text-xs font-semibold transition-all">
-                    {{ time }}
-                  </NuxtLink>
+                    {{ schedule.time }} · {{ new Intl.NumberFormat('vi-VN').format(schedule.price) }}đ
+                  </button>
                 </div>
               </div>
             </div>
+          </div>
+          <div v-else class="rounded-xl border border-dashed border-[#343535] bg-[#121414] px-6 py-12 text-center">
+            <p class="font-semibold text-white">Không có suất chiếu đang mở bán cho rạp và ngày này</p>
+            <p class="mt-1 text-xs text-[#aaa8a7]">Hãy chọn rạp hoặc ngày khác.</p>
           </div>
         </div>
 

@@ -7,6 +7,7 @@ definePageMeta({
 })
 
 const userStore = useUserStore()
+const route = useRoute()
 
 const email = ref('customer@gmail.com')
 const password = ref('customer123')
@@ -32,7 +33,15 @@ async function handleLogin() {
     } else if (userStore.currentUser?.role === 'branch-admin') {
       navigateTo('/branch-admin/dashboard')
     } else {
-      navigateTo('/products')
+      const requestedRedirect = Array.isArray(route.query.redirect)
+        ? route.query.redirect[0]
+        : route.query.redirect
+      const safeRedirect = typeof requestedRedirect === 'string'
+        && requestedRedirect.startsWith('/')
+        && !requestedRedirect.startsWith('//')
+        ? requestedRedirect
+        : '/products'
+      await navigateTo(safeRedirect)
     }
   } else {
     error.value = 'Email hoặc mật khẩu không chính xác!'

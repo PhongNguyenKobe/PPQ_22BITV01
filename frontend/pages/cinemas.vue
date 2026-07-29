@@ -16,7 +16,7 @@ const activeCinema = ref(0)
 onMounted(async () => {
   try {
     loading.value = true
-    const allMovies = await movieService.getAll()
+    const allMovies = await movieService.getPublic()
     movies.value = allMovies
 
     // Fetch showtimes for all movies

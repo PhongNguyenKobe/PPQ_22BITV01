@@ -100,6 +100,7 @@ class Movie(Base):
     __tablename__ = "movies"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    tmdb_id: Mapped[int | None] = mapped_column(Integer, unique=True, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     original_title: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
@@ -109,6 +110,8 @@ class Movie(Base):
     language: Mapped[str | None] = mapped_column(String(50))
     trailer_url: Mapped[str | None] = mapped_column(Text)
     poster_url: Mapped[str | None] = mapped_column(Text)
+    director: Mapped[str | None] = mapped_column(String(255))
+    cast_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'UPCOMING'"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

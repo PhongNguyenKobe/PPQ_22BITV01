@@ -75,6 +75,8 @@ class MovieDraftPayload(BaseModel):
     poster_url: str | None = None
     status: str = Field(default="UPCOMING", pattern="^(UPCOMING|NOW_SHOWING|ENDED)$")
     genres: list[str] = Field(default_factory=list)
+    director: str | None = Field(default=None, max_length=255)
+    cast_names: list[str] = Field(default_factory=list)
 
 
 class AdminUserCreate(BaseModel):
@@ -264,6 +266,11 @@ class TmdbMovieImportPayload(BaseModel):
     original_title: str | None = Field(default=None, max_length=255)
     language: str | None = Field(default="vi-VN", max_length=50)
     duration_min: int = Field(default=120, gt=0)
+    trailer_url: str | None = None
+    genres: list[str] = Field(default_factory=list)
+    director: str | None = Field(default=None, max_length=255)
+    cast_names: list[str] = Field(default_factory=list)
+    status: str = Field(default="UPCOMING", pattern="^(UPCOMING|NOW_SHOWING)$")
 
 
 class TmdbMovieImportResponse(BaseModel):

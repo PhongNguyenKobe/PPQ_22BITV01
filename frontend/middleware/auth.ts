@@ -23,7 +23,10 @@ export default defineNuxtRouteMiddleware((to, from) => {
   const isBranchAdminRoute = branchAdminRoutes.some(route => to.path.startsWith(route))
 
   if (isProtected && !userStore.isAuthenticated) {
-    return navigateTo('/login')
+    return navigateTo({
+      path: '/login',
+      query: { redirect: to.fullPath },
+    })
   }
 
   if (isAdminRoute && userStore.currentUser?.role !== 'admin') {

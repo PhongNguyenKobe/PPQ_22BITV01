@@ -16,6 +16,7 @@ import {
   type UserProfile,
   type SuperAdminStats,
   type Promotion,
+  CANONICAL_MOVIE_GENRES,
 } from '~/services/api'
 import { useUserStore } from '~/store/user'
 
@@ -70,6 +71,7 @@ const seats = ref<AdminSeat[]>([])
 const seatTypes = ref<AdminSeatType[]>([])
 const showtimes = ref<AdminShowtime[]>([])
 const movies = ref<Movie[]>([])
+const movieUsage = ref<Record<string, number>>({})
 const tmdbMovies = ref<TmdbPopularMovie[]>([])
 const superStats = ref<SuperAdminStats | null>(null)
 const promotions = ref<Promotion[]>([])
@@ -189,21 +191,44 @@ const movieForm = ref({
   poster: '',
   trailer: '',
   status: 'UPCOMING' as 'UPCOMING' | 'NOW_SHOWING' | 'ENDED',
-  genres: '',
+  genres: [] as string[],
 })
+const tmdbMovieQuery = ref('')
+const selectedTmdbMovieId = ref('')
+const tmdbImportStatus = ref<'UPCOMING' | 'NOW_SHOWING'>('UPCOMING')
+const tmdbImporting = ref(false)
+const editingMovieId = ref('')
+const movieEditForm = ref({
+  title: '',
+  description: '',
+  duration: 120,
+  releaseDate: '',
+  poster: '',
+  trailer: '',
+  status: 'UPCOMING' as 'UPCOMING' | 'NOW_SHOWING' | 'ENDED',
+  genres: [] as string[],
+  director: '',
+  castText: '',
+})
+const filteredTmdbMovies = computed(() => {
+  const query = tmdbMovieQuery.value.trim().toLocaleLowerCase('vi')
+  if (!query) return tmdbMovies.value
+  return tmdbMovies.value.filter((movie) =>
+    movie.title.toLocaleLowerCase('vi').includes(query)
+    || (movie.original_title || '').toLocaleLowerCase('vi').includes(query)
+  )
+})
+const selectedTmdbMovie = computed(() =>
+  tmdbMovies.value.find((movie) => String(movie.tmdb_id) === selectedTmdbMovieId.value),
+)
 
 const showtimeMovieOptions = computed(() => {
-  const tmdbOptions = tmdbMovies.value.map((movie) => ({
-    value: `tmdb:${movie.tmdb_id}`,
-    label: `${movie.title} (TMDB)`,
-    suggestedPrice: movie.suggested_ticket_price,
-  }))
   const backendOptions = movies.value.map((movie) => ({
     value: movie.id,
-    label: `${movie.title} (DB)`,
+    label: movie.title,
     suggestedPrice: showtimes.value.find((item) => item.movie_id === movie.id)?.base_price || 90000,
   }))
-  return [...tmdbOptions, ...backendOptions]
+  return backendOptions
 })
 
 const selectedShowtimeMovie = computed(() =>
@@ -426,6 +451,7 @@ async function loadAll() {
       users.value = usersData
       branches.value = branchData
       movies.value = movieData
+      movieUsage.value = await adminBackendService.getMovieUsage()
       tmdbMovies.value = tmdbMovieData
       promotions.value = promotionData
       auditoriums.value = []
@@ -526,33 +552,113 @@ async function createMovie() {
     poster_url: movieForm.value.poster || undefined,
     trailer_url: movieForm.value.trailer || undefined,
     status: movieForm.value.status,
-    genres: movieForm.value.genres.split(',').map((item) => item.trim()).filter(Boolean),
+    genres: movieForm.value.genres,
   })
   movies.value = await movieService.getAll()
-  movieForm.value = { title: '', description: '', duration: 120, releaseDate: '', poster: '', trailer: '', status: 'UPCOMING', genres: '' }
+  movieForm.value = { title: '', description: '', duration: 120, releaseDate: '', poster: '', trailer: '', status: 'UPCOMING', genres: [] }
 }
 
-async function editMovie(movie: Movie) {
-  const title = window.prompt('Tên phim', movie.title)
-  if (!title) return
-  const description = window.prompt('Mô tả', movie.description) ?? movie.description
-  const updated = await adminBackendService.updateMovie(movie.id, {
-    title,
-    description,
-    duration_min: movie.duration,
-    release_date: movie.releaseDate || null,
-    poster_url: movie.poster || null,
-    trailer_url: movie.trailer || null,
-    status: 'NOW_SHOWING',
-    genres: movie.genre,
+async function importTmdbMovieToCatalog() {
+  const movie = selectedTmdbMovie.value
+  if (!movie) {
+    error.value = 'Vui lòng chọn một phim TMDB.'
+    return
+  }
+  error.value = ''
+  tmdbImporting.value = true
+  try {
+    const detail = await tmdbService.getMovieDetail(movie.tmdb_id)
+    await adminBackendService.importTmdbMovie({
+      tmdb_id: movie.tmdb_id,
+      title: detail.title || movie.title,
+      overview: detail.description || movie.overview || null,
+      poster_path: movie.poster_path || null,
+      release_date: detail.releaseDate || movie.release_date || null,
+      original_title: movie.original_title || null,
+      language: 'vi-VN',
+      duration_min: detail.duration || 120,
+      trailer_url: detail.trailerUrl || null,
+      genres: detail.genre || [],
+      director: detail.director || null,
+      cast_names: detail.cast || [],
+      status: tmdbImportStatus.value,
+    })
+    movies.value = await movieService.getAll()
+    selectedTmdbMovieId.value = ''
+    tmdbMovieQuery.value = ''
+  } catch (e: any) {
+    error.value = e?.message || 'Không thể import phim từ TMDB.'
+  } finally {
+    tmdbImporting.value = false
+  }
+}
+
+function editMovie(movie: Movie) {
+  editingMovieId.value = movie.id
+  movieEditForm.value = {
+    title: movie.title,
+    description: movie.description,
+    duration: movie.duration,
+    releaseDate: movie.releaseDate,
+    poster: movie.poster === '/images/movie-placeholder.svg' ? '' : movie.poster,
+    trailer: movie.trailer,
+    status: movie.status || 'UPCOMING',
+    genres: [...movie.genre],
+    director: movie.director,
+    castText: movie.cast.join(', '),
+  }
+}
+
+async function saveMovieEdit() {
+  const form = movieEditForm.value
+  if (!editingMovieId.value || !form.title.trim()) return
+  const updated = await adminBackendService.updateMovie(editingMovieId.value, {
+    title: form.title.trim(),
+    description: form.description.trim() || null,
+    duration_min: form.duration,
+    release_date: form.releaseDate || null,
+    poster_url: form.poster || null,
+    trailer_url: form.trailer || null,
+    status: form.status,
+    genres: form.genres,
+    director: form.director.trim() || null,
+    cast_names: form.castText.split(',').map(value => value.trim()).filter(Boolean),
   })
   movies.value = movies.value.map((item) => item.id === updated.id ? updated : item)
+  editingMovieId.value = ''
 }
 
 async function deleteMovie(movie: Movie) {
-  if (!window.confirm(`Xoá phim "${movie.title}"?`)) return
-  await adminBackendService.deleteMovie(movie.id)
-  movies.value = movies.value.filter((item) => item.id !== movie.id)
+  if ((movieUsage.value[movie.id] || 0) > 0) {
+    error.value = `Không thể xóa “${movie.title}” vì phim đã có lịch chiếu. Hãy dùng “Ngừng phát hành”.`
+    return
+  }
+  if (!window.confirm(`Xóa vĩnh viễn phim "${movie.title}" khỏi kho? Phim chưa có suất chiếu nên thao tác này không ảnh hưởng dữ liệu bán vé.`)) return
+  try {
+    await adminBackendService.deleteMovie(movie.id)
+    movies.value = movies.value.filter((item) => item.id !== movie.id)
+    delete movieUsage.value[movie.id]
+  } catch (e: any) {
+    error.value = e?.message || 'Không thể xóa phim vì đang có dữ liệu lịch chiếu liên quan.'
+  }
+}
+
+async function endMovie(movie: Movie) {
+  if (!window.confirm(`Ngừng phát hành “${movie.title}”? Phim sẽ bị ẩn khỏi trang người dùng nhưng lịch sử suất chiếu, vé và doanh thu vẫn được giữ.`)) return
+  const updated = await adminBackendService.updateMovie(movie.id, {
+    title: movie.title,
+    original_title: movie.title,
+    description: movie.description || null,
+    duration_min: movie.duration,
+    release_date: movie.releaseDate || null,
+    poster_url: movie.poster === '/images/movie-placeholder.svg' ? null : movie.poster,
+    trailer_url: movie.trailer || null,
+    status: 'ENDED',
+    genres: movie.genre,
+    director: movie.director || null,
+    cast_names: movie.cast,
+  })
+  movies.value = movies.value.map((item) => item.id === updated.id ? updated : item)
 }
 
 async function createUser() {
@@ -805,26 +911,6 @@ async function createShowtime() {
       && new Date(showtimeForm.value.startsAt).getTime() <= Date.now() + 15 * 60 * 1000
     ) {
       throw new Error('Suất chiếu OPEN phải bắt đầu sau hiện tại ít nhất 15 phút để còn thời gian bán vé.')
-    }
-
-    if (movieId.startsWith('tmdb:')) {
-      const tmdbId = Number(movieId.replace('tmdb:', ''))
-      const tmdbMovie = tmdbMovies.value.find((item) => item.tmdb_id === tmdbId)
-      if (!tmdbMovie) {
-        throw new Error('Không tìm thấy phim TMDB để import')
-      }
-
-      const imported = await adminBackendService.importTmdbMovie({
-        tmdb_id: tmdbMovie.tmdb_id,
-        title: tmdbMovie.title,
-        overview: tmdbMovie.overview || null,
-        poster_path: tmdbMovie.poster_path || null,
-        release_date: tmdbMovie.release_date || null,
-        original_title: tmdbMovie.original_title || null,
-        language: 'vi-VN',
-        duration_min: selectedMovieDuration.value || 120,
-      })
-      movieId = imported.id
     }
 
     await adminBackendService.createShowtime({
@@ -1240,25 +1326,96 @@ function showtimeStatusClass(status: string) {
     <section v-if="activeTab === 'movies'" class="space-y-4">
       <div class="panel p-5 space-y-4">
         <div class="flex items-center justify-between gap-3">
-          <h3 class="text-lg font-bold text-on-surface">Tạo phim mới</h3>
+          <div>
+            <h3 class="text-lg font-bold text-on-surface">Import phim từ TMDB</h3>
+            <p class="mt-1 text-xs text-on-surface-variant">Poster, mô tả, ngày phát hành, thời lượng, trailer và thể loại được đồng bộ tự động.</p>
+          </div>
           <span class="pill-muted">Phim: {{ movies.length }}</span>
         </div>
-        <form class="grid md:grid-cols-3 gap-3" @submit.prevent="createMovie">
-          <input v-model="movieForm.title" placeholder="Tên phim" class="field-input" required />
-          <input v-model.number="movieForm.duration" type="number" min="1" placeholder="Thời lượng (phút)" class="field-input" required />
-          <input v-model="movieForm.releaseDate" type="date" class="field-input" />
-          <input v-model="movieForm.poster" placeholder="URL poster" class="field-input" />
-          <input v-model="movieForm.trailer" placeholder="URL trailer" class="field-input" />
-          <select v-model="movieForm.status" class="field-input">
+
+        <form class="grid gap-3 md:grid-cols-[1fr_1.5fr_0.8fr_auto]" @submit.prevent="importTmdbMovieToCatalog">
+          <input v-model="tmdbMovieQuery" placeholder="Lọc nhanh phim TMDB..." class="field-input" />
+          <select v-model="selectedTmdbMovieId" class="field-input" required>
+            <option value="">Chọn phim từ TMDB</option>
+            <option v-for="movie in filteredTmdbMovies" :key="movie.tmdb_id" :value="String(movie.tmdb_id)">
+              {{ movie.title }}{{ movie.release_date ? ` (${movie.release_date.slice(0, 4)})` : '' }}
+            </option>
+          </select>
+          <select v-model="tmdbImportStatus" class="field-input">
             <option value="UPCOMING">Sắp chiếu</option>
             <option value="NOW_SHOWING">Đang chiếu</option>
-            <option value="ENDED">Đã kết thúc</option>
           </select>
-          <input v-model="movieForm.genres" placeholder="Thể loại, cách nhau bởi dấu phẩy" class="field-input md:col-span-2" />
-          <textarea v-model="movieForm.description" placeholder="Mô tả" class="field-input md:col-span-3" rows="3"></textarea>
-          <button class="md:col-span-3 action-primary">Tạo phim</button>
+          <button class="action-primary px-6" :disabled="tmdbImporting">
+            {{ tmdbImporting ? 'Đang import...' : 'Import phim' }}
+          </button>
         </form>
+
+        <div v-if="selectedTmdbMovie" class="flex gap-4 rounded-xl border border-white/10 bg-black/20 p-4">
+          <img
+            :src="selectedTmdbMovie.poster_path ? `/api/tmdb-image/w185${selectedTmdbMovie.poster_path}` : '/images/movie-placeholder.svg'"
+            :alt="selectedTmdbMovie.title"
+            class="h-28 w-20 rounded-lg object-cover"
+          />
+          <div>
+            <p class="font-bold text-on-surface">{{ selectedTmdbMovie.title }}</p>
+            <p class="mt-1 text-xs text-on-surface-variant">Khởi chiếu: {{ selectedTmdbMovie.release_date || 'Chưa công bố' }}</p>
+            <p class="mt-2 line-clamp-3 text-sm text-on-surface-variant">{{ selectedTmdbMovie.overview || 'TMDB chưa có mô tả tiếng Việt.' }}</p>
+          </div>
+        </div>
+
+        <details class="rounded-xl border border-white/10 p-4">
+          <summary class="cursor-pointer text-sm font-semibold text-on-surface">Nhập thủ công — chỉ dùng khi phim không có trên TMDB</summary>
+          <form class="mt-4 grid gap-3 md:grid-cols-3" @submit.prevent="createMovie">
+            <input v-model="movieForm.title" placeholder="Tên phim" class="field-input" required />
+            <input v-model.number="movieForm.duration" type="number" min="1" placeholder="Thời lượng (phút)" class="field-input" required />
+            <input v-model="movieForm.releaseDate" type="date" class="field-input" />
+            <input v-model="movieForm.poster" placeholder="URL poster" class="field-input" />
+            <input v-model="movieForm.trailer" placeholder="URL trailer" class="field-input" />
+            <select v-model="movieForm.status" class="field-input">
+              <option value="UPCOMING">Sắp chiếu</option>
+              <option value="NOW_SHOWING">Đang chiếu</option>
+              <option value="ENDED">Đã kết thúc</option>
+            </select>
+            <select v-model="movieForm.genres" multiple class="field-input min-h-32 md:col-span-2">
+              <option v-for="genre in CANONICAL_MOVIE_GENRES" :key="genre" :value="genre">{{ genre }}</option>
+            </select>
+            <textarea v-model="movieForm.description" placeholder="Mô tả" class="field-input md:col-span-3" rows="3"></textarea>
+            <button class="action-primary md:col-span-3">Tạo phim thủ công</button>
+          </form>
+        </details>
       </div>
+      <form v-if="editingMovieId" class="panel grid gap-3 p-5 md:grid-cols-3" @submit.prevent="saveMovieEdit">
+        <div class="md:col-span-3 flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-on-surface">Chỉnh sửa thông tin phim</h3>
+            <p class="text-xs text-on-surface-variant">Super Admin có thể sửa dữ liệu TMDB và chọn lại thể loại chuẩn.</p>
+          </div>
+          <button type="button" class="action-link" @click="editingMovieId = ''">Đóng</button>
+        </div>
+        <input v-model="movieEditForm.title" class="field-input" placeholder="Tên phim" required />
+        <input v-model.number="movieEditForm.duration" class="field-input" type="number" min="1" placeholder="Thời lượng" required />
+        <input v-model="movieEditForm.releaseDate" class="field-input" type="date" />
+        <input v-model="movieEditForm.poster" class="field-input" placeholder="URL poster" />
+        <input v-model="movieEditForm.trailer" class="field-input" placeholder="URL trailer" />
+        <select v-model="movieEditForm.status" class="field-input">
+          <option value="UPCOMING">Sắp chiếu</option>
+          <option value="NOW_SHOWING">Đang chiếu</option>
+          <option value="ENDED">Đã kết thúc</option>
+        </select>
+        <input v-model="movieEditForm.director" class="field-input" placeholder="Đạo diễn" />
+        <input v-model="movieEditForm.castText" class="field-input md:col-span-2" placeholder="Diễn viên, cách nhau bởi dấu phẩy" />
+        <div class="md:col-span-3">
+          <p class="mb-2 text-xs font-semibold text-on-surface-variant">Thể loại (có thể chọn nhiều)</p>
+          <div class="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+            <label v-for="genre in CANONICAL_MOVIE_GENRES" :key="genre" class="flex items-center gap-2 rounded-lg border border-white/10 p-2 text-sm">
+              <input v-model="movieEditForm.genres" type="checkbox" :value="genre" />
+              <span>{{ genre }}</span>
+            </label>
+          </div>
+        </div>
+        <textarea v-model="movieEditForm.description" class="field-input md:col-span-3" rows="4" placeholder="Mô tả phim"></textarea>
+        <button class="action-primary md:col-span-3">Lưu thay đổi</button>
+      </form>
       <div class="panel overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
@@ -1268,7 +1425,20 @@ function showtimeStatusClass(status: string) {
                 <td class="px-4 py-3"><div class="font-semibold">{{ movie.title }}</div><div class="text-xs text-on-surface-variant line-clamp-1">{{ movie.description }}</div></td>
                 <td class="px-4 py-3">{{ movie.genre.join(', ') || '—' }}</td>
                 <td class="px-4 py-3">{{ movie.duration }} phút</td>
-                <td class="px-4 py-3"><div class="flex gap-2"><button @click="editMovie(movie)" class="action-link action-link-blue">Sửa</button><button @click="deleteMovie(movie)" class="action-link action-link-rose">Xoá</button></div></td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-2">
+                    <button @click="editMovie(movie)" class="action-link action-link-blue">Sửa</button>
+                    <button v-if="movie.status !== 'ENDED'" @click="endMovie(movie)" class="action-link action-link-rose">Ngừng phát hành</button>
+                    <button
+                      @click="deleteMovie(movie)"
+                      class="action-link action-link-rose"
+                      :disabled="(movieUsage[movie.id] || 0) > 0"
+                      :title="(movieUsage[movie.id] || 0) > 0 ? `Không thể xóa: đã có ${movieUsage[movie.id]} suất chiếu` : 'Xóa phim chưa có suất chiếu khỏi kho'"
+                    >
+                      {{ (movieUsage[movie.id] || 0) > 0 ? 'Đã có lịch chiếu' : 'Xóa khỏi kho' }}
+                    </button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1570,7 +1740,7 @@ function showtimeStatusClass(status: string) {
 
       <div v-if="showtimeMode === 'single'" class="panel p-5 space-y-4">
         <h3 class="text-lg font-bold text-on-surface">Tạo suất chiếu</h3>
-        <p class="text-xs text-on-surface-variant">Phim chọn từ TMDB sẽ được import tự động vào catalog nội bộ trước khi tạo suất.</p>
+          <p class="text-xs text-on-surface-variant">Chỉ hiển thị phim đã được Super Admin duyệt và thêm vào catalog nội bộ.</p>
         <p v-if="error" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-semibold text-red-300">
           {{ error }}
         </p>

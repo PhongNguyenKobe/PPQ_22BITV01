@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia'
 import ProductCard from "~/components/ProductCard.vue";
 import { useProductsStore } from '~/store/products'
+import { useUserStore } from '~/store/user'
 
 definePageMeta({
   layout: "default",
@@ -10,11 +11,22 @@ definePageMeta({
 
 // State
 const productsStore = useProductsStore()
+const userStore = useUserStore()
+const route = useRoute()
 const { products, loading } = storeToRefs(productsStore)
 const error = ref("");
+const isAdminPreview = computed(() =>
+  route.query.preview === 'admin'
+  && ['admin', 'branch-admin'].includes(userStore.currentUser?.role || '')
+)
+const adminReturnPath = computed(() =>
+  userStore.currentUser?.role === 'branch-admin'
+    ? '/branch-admin/dashboard'
+    : '/admin/dashboard'
+)
 
 const searchTerm = ref("");
-const selectedCategory = ref("All");
+const selectedCategory = ref("ALL");
 const selectedStatus = ref<"ALL" | "NOW_SHOWING" | "UPCOMING">("ALL");
 const sortOption = ref<"none" | "price-asc" | "price-desc">("none");
 
@@ -29,9 +41,13 @@ onMounted(async () => {
 });
 // Danh mục
 const categories = computed(() => [
-  "All",
-  ...new Set(products.value.flatMap((p) => p.genres)),
-]);
+  ...new Set(
+    products.value
+      .flatMap((product) => product.genres)
+      .map((genre) => genre.trim())
+      .filter(Boolean)
+  ),
+].sort((a, b) => a.localeCompare(b, "vi")));
 
 // Search + Filter + Sort
 const filteredProducts = computed(() => {
@@ -45,8 +61,11 @@ const filteredProducts = computed(() => {
     );
   }
 
-  if (selectedCategory.value !== "All") {
-    updated = updated.filter((p) => p.genres.includes(selectedCategory.value));
+  if (selectedCategory.value !== "ALL") {
+    const selected = selectedCategory.value.toLocaleLowerCase("vi");
+    updated = updated.filter((product) =>
+      product.genres.some((genre) => genre.toLocaleLowerCase("vi") === selected)
+    );
   }
   if (selectedStatus.value !== "ALL") updated = updated.filter((p) => p.status === selectedStatus.value)
 
@@ -62,13 +81,24 @@ const filteredProducts = computed(() => {
 // Reset
 function clearFilters() {
   searchTerm.value = "";
-  selectedCategory.value = "All";
+  selectedCategory.value = "ALL";
   selectedStatus.value = "ALL";
   sortOption.value = "none";
 }
 </script>
 
 <template>
+  <div v-if="isAdminPreview" class="sticky top-0 z-40 border-b border-amber-400/30 bg-amber-500/10 px-4 py-3 backdrop-blur-xl">
+    <div class="mx-auto flex max-w-container-max flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-sm font-bold text-amber-200">Chế độ xem trước dành cho quản trị viên</p>
+        <p class="text-xs text-amber-100/70">Bạn đang kiểm tra nội dung khách hàng sẽ nhìn thấy. Mua vé đã được khóa trong chế độ này.</p>
+      </div>
+      <NuxtLink :to="adminReturnPath" class="rounded-lg bg-amber-300 px-4 py-2 text-xs font-bold text-black">
+        Quay lại quản trị
+      </NuxtLink>
+    </div>
+  </div>
   <!-- Loading -->
   <div
     v-if="loading"
@@ -101,7 +131,8 @@ function clearFilters() {
         class="control-input"
       />
 
-      <select v-model="selectedCategory" class="control-input">
+      <select v-model="selectedCategory" class="control-input" aria-label="Lọc theo thể loại">
+        <option value="ALL">Tất cả thể loại</option>
         <option v-for="cat in categories" :key="cat" :value="cat">
           {{ cat }}
         </option>
@@ -131,6 +162,7 @@ function clearFilters() {
         v-for="product in filteredProducts"
         :key="product.id"
         v-bind="product"
+        :admin-preview="isAdminPreview"
       />
     </div>
 

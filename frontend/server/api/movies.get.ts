@@ -9,6 +9,8 @@ interface TMDBMovie {
   poster_url?: string | null
   vote_average?: number
   genre_ids?: number[]
+  release_date?: string
+  original_title?: string
 }
 
 interface TMDBResponse {
@@ -26,8 +28,12 @@ interface BackendMovie {
   trailer_url?: string | null
 }
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
+  const requestedList = String(getQuery(event).list || 'popular')
+  const list = ['popular', 'now_playing', 'upcoming'].includes(requestedList)
+    ? requestedList
+    : 'popular'
 
   const fallback: TMDBResponse & {
     source: string
@@ -69,7 +75,7 @@ export default defineEventHandler(async () => {
 
   try {
     const data = await tmdbFetch<TMDBResponse>(
-      '/3/movie/popular',
+      `/3/movie/${list}`,
       config.tmdbToken,
       { language: 'vi-VN', page: 1 },
     )

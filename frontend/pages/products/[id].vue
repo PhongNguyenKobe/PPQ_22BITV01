@@ -19,6 +19,15 @@ const userStore = useUserStore()
 const { products } = storeToRefs(productsStore)
 const { currentUser } = storeToRefs(userStore)
 const loading = ref(true)
+const isAdminPreview = computed(() =>
+  route.query.preview === 'admin'
+  && ['admin', 'branch-admin'].includes(currentUser.value?.role || '')
+)
+const adminReturnPath = computed(() =>
+  currentUser.value?.role === 'branch-admin'
+    ? '/branch-admin/dashboard'
+    : '/admin/dashboard'
+)
 
 // State bình luận
 const newComment = ref('')
@@ -88,13 +97,17 @@ const formattedPrice = computed(() => {
   return new Intl.NumberFormat('vi-VN').format(currentProduct.value.price * 1000) + 'đ'
 })
 
+const genreLabel = computed(() =>
+  currentProduct.value?.genres.length
+    ? currentProduct.value.genres.join(' · ')
+    : 'Chưa phân loại'
+)
+
 // Start Booking
 function startBooking() {
   if (!currentProduct.value) return
-
-  if (!userStore.isAuthenticated) {
-    return router.push('/login')
-  }
+  if (isAdminPreview.value) return
+  if (currentProduct.value.status === 'UPCOMING') return
 
   ticketsStore.selectMovie({
     id: currentProduct.value.id,
@@ -107,6 +120,13 @@ function startBooking() {
     description: currentProduct.value.description,
     trailerUrl: currentProduct.value.trailerUrl || null,
   })
+
+  if (!userStore.isAuthenticated) {
+    return router.push({
+      path: '/login',
+      query: { redirect: '/checkout/cinema' },
+    })
+  }
 
   router.push('/checkout/cinema')
 }
@@ -152,6 +172,17 @@ function toggleLike(comment: typeof comments.value[0]) {
 
 <template>
   <div class="min-h-screen bg-[#0b0c10] text-gray-100 selection:bg-red-600 selection:text-white">
+    <div v-if="isAdminPreview" class="sticky top-0 z-50 border-b border-amber-400/30 bg-[#241d0b]/95 px-4 py-3 backdrop-blur-xl">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-bold text-amber-200">Đang xem trước trang chi tiết phim</p>
+          <p class="text-xs text-amber-100/70">Đây là nội dung khách hàng nhìn thấy; thao tác đặt vé đã được khóa.</p>
+        </div>
+        <NuxtLink :to="adminReturnPath" class="rounded-lg bg-amber-300 px-4 py-2 text-xs font-bold text-black">
+          Quay lại quản trị
+        </NuxtLink>
+      </div>
+    </div>
 
     <!-- Loading -->
     <div v-if="loading" class="min-h-[80vh] flex flex-col items-center justify-center gap-4">
@@ -195,7 +226,7 @@ function toggleLike(comment: typeof comments.value[0]) {
 
           <!-- Back Button -->
           <div class="mb-8">
-            <NuxtLink to="/products"
+            <NuxtLink :to="{ path: '/products', query: isAdminPreview ? { preview: 'admin' } : {} }"
               class="inline-flex items-center gap-2 text-xs font-bold text-gray-300 hover:text-red-400 transition-colors uppercase tracking-wider bg-black/50 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/10 shadow-lg">
               <span class="material-symbols-outlined text-sm">arrow_back</span>
               Quay lại danh sách phim
@@ -211,7 +242,7 @@ function toggleLike(comment: typeof comments.value[0]) {
                   class="w-full aspect-[2/3] object-cover rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] border border-white/15 group-hover:scale-[1.02] transition-transform duration-300" />
                 <span
                   class="absolute top-4 left-4 bg-red-600 text-white font-black text-[10px] tracking-widest px-3 py-1.5 rounded-lg uppercase shadow-lg border border-red-400/30">
-                  {{ currentProduct.category }}
+                  {{ genreLabel }}
                 </span>
               </div>
             </div>
@@ -227,7 +258,7 @@ function toggleLike(comment: typeof comments.value[0]) {
                 <span
                   class="text-xs text-gray-300 font-medium flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
                   <span class="material-symbols-outlined text-sm text-gray-400">schedule</span>
-                  120 Phút
+                  {{ currentProduct.duration }} Phút
                 </span>
               </div>
 
@@ -261,11 +292,19 @@ function toggleLike(comment: typeof comments.value[0]) {
 
               <!-- Action Buttons -->
               <div class="flex flex-wrap items-center gap-4 mb-8">
-                <button @click="startBooking"
+                <button v-if="currentProduct.status !== 'UPCOMING' && !isAdminPreview" @click="startBooking"
                   class="flex-1 sm:flex-none px-10 py-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black text-sm rounded-2xl shadow-[0_10px_30px_rgba(229,9,20,0.5)] hover:shadow-[0_15px_35px_rgba(229,9,20,0.7)] transition-all duration-300 flex items-center justify-center gap-2 transform hover:-translate-y-0.5">
                   <span class="material-symbols-outlined text-xl">confirmation_number</span>
                   ĐẶT VÉ NGAY
                 </button>
+                <span v-else-if="isAdminPreview"
+                  class="flex-1 sm:flex-none px-8 py-4 bg-amber-400/10 text-amber-200 border border-amber-400/30 font-bold text-sm rounded-2xl text-center">
+                  CHẾ ĐỘ CHỈ XEM — KHÔNG ĐẶT VÉ
+                </span>
+                <span v-else
+                  class="flex-1 sm:flex-none px-8 py-4 bg-white/5 text-gray-300 border border-white/15 font-bold text-sm rounded-2xl text-center">
+                  SẮP RA MẮT — CHƯA MỞ BÁN VÉ
+                </span>
 
                 <a :href="trailerHref" target="_blank" rel="noopener noreferrer"
                   class="flex-1 sm:flex-none px-8 py-4 bg-black/50 hover:bg-white/10 text-white border border-white/15 hover:border-white/30 font-bold text-sm rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 backdrop-blur-md">
@@ -277,17 +316,20 @@ function toggleLike(comment: typeof comments.value[0]) {
               <!-- Facts Grid -->
               <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 border-t border-white/10 pt-6">
                 <div>
-                  <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Định dạng</span>
-                  <span class="text-sm font-semibold text-white">{{ currentProduct.category }} / 2D / IMAX</span>
+                  <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Thể loại</span>
+                  <span class="text-sm font-semibold text-white">{{ genreLabel }}</span>
                 </div>
                 <div>
-                  <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Khuyên
-                    dùng</span>
-                  <span class="text-sm font-semibold text-white">Khán giả trên 13 tuổi</span>
+                  <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Đạo diễn</span>
+                  <span class="text-sm font-semibold text-white">{{ currentProduct.director || 'Chưa cập nhật' }}</span>
                 </div>
                 <div>
-                  <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Ngôn ngữ</span>
-                  <span class="text-sm font-semibold text-white">Phụ đề Tiếng Việt</span>
+                  <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Khởi chiếu</span>
+                  <span class="text-sm font-semibold text-white">{{ currentProduct.releaseDate || 'Chưa công bố' }}</span>
+                </div>
+                <div class="col-span-2 sm:col-span-3">
+                  <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Diễn viên</span>
+                  <span class="text-sm font-semibold text-white">{{ currentProduct.cast.length ? currentProduct.cast.join(', ') : 'Chưa cập nhật' }}</span>
                 </div>
               </div>
 

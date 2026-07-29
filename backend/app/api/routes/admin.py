@@ -127,8 +127,23 @@ async def _ensure_default_seat_types(db: AsyncSession) -> None:
     await db.commit()
 
 
+CANONICAL_MOVIE_GENRES = {
+    "Hành động", "Phiêu lưu", "Hoạt hình", "Hài", "Tội phạm", "Tài liệu",
+    "Chính kịch", "Gia đình", "Kỳ ảo", "Lịch sử", "Kinh dị", "Âm nhạc",
+    "Bí ẩn", "Lãng mạn", "Khoa học viễn tưởng", "Phim truyền hình",
+    "Giật gân", "Chiến tranh", "Miền Tây",
+}
+CANONICAL_MOVIE_GENRES_BY_CASEFOLD = {
+    value.casefold(): value for value in CANONICAL_MOVIE_GENRES
+}
+
+
 async def _resolve_genres(db: AsyncSession, values: list[str]) -> list[MovieGenre]:
-    cleaned = list(dict.fromkeys(value.strip() for value in values if value.strip()))
+    cleaned = list(dict.fromkeys(
+        canonical
+        for value in values
+        if (canonical := CANONICAL_MOVIE_GENRES_BY_CASEFOLD.get(value.strip().casefold()))
+    ))
     if not cleaned:
         return []
     result = await db.execute(
@@ -155,18 +170,34 @@ async def _resolve_genres(db: AsyncSession, values: list[str]) -> list[MovieGenr
 async def import_tmdb_movie(
     payload: TmdbMovieImportPayload,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
 ) -> TmdbMovieImportResponse:
+    poster_url = f"https://image.tmdb.org/t/p/w500{payload.poster_path}" if payload.poster_path else None
     result = await db.execute(
-        select(Movie).where(Movie.title == payload.title)
+        select(Movie).options(selectinload(Movie.genres)).where(
+            or_(Movie.tmdb_id == payload.tmdb_id, Movie.title == payload.title)
+        )
     )
     existing = result.scalars().first()
     if existing is not None:
+        existing.tmdb_id = payload.tmdb_id
+        existing.original_title = payload.original_title or existing.original_title
+        existing.description = payload.overview or existing.description
+        existing.duration_min = payload.duration_min
+        existing.release_date = payload.release_date or existing.release_date
+        existing.language = payload.language or existing.language
+        existing.trailer_url = payload.trailer_url or existing.trailer_url
+        existing.poster_url = poster_url or existing.poster_url
+        existing.director = payload.director or existing.director
+        existing.cast_names = payload.cast_names or existing.cast_names
+        existing.status = payload.status
+        if payload.genres:
+            existing.genres = await _resolve_genres(db, payload.genres)
+        await db.commit()
         return TmdbMovieImportResponse(id=existing.id, title=existing.title, imported=False)
 
-    poster_url = f"https://image.tmdb.org/t/p/w500{payload.poster_path}" if payload.poster_path else None
-
     movie = Movie(
+        tmdb_id=payload.tmdb_id,
         title=payload.title,
         original_title=payload.original_title or payload.title,
         description=payload.overview,
@@ -174,12 +205,13 @@ async def import_tmdb_movie(
         release_date=payload.release_date,
         age_rating="P",
         language=payload.language,
-        # A TMDB detail URL is not a playable trailer. Admin can add the
-        # official YouTube URL from the movie edit form after importing.
-        trailer_url=None,
+        trailer_url=payload.trailer_url,
         poster_url=poster_url,
-        status="NOW_SHOWING",
+        director=payload.director,
+        cast_names=payload.cast_names,
+        status=payload.status,
     )
+    movie.genres = await _resolve_genres(db, payload.genres)
     db.add(movie)
     await db.commit()
     await db.refresh(movie)
@@ -381,6 +413,19 @@ async def update_movie(
     await db.commit()
     refreshed = await db.execute(select(Movie).options(selectinload(Movie.genres)).where(Movie.id == movie.id))
     return MovieRead.model_validate(refreshed.scalar_one())
+
+
+@router.get("/movies/usage", response_model=dict[str, int])
+async def movie_usage(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+) -> dict[str, int]:
+    rows = await db.execute(
+        select(Movie.id, func.count(Showtime.id))
+        .outerjoin(Showtime, Showtime.movie_id == Movie.id)
+        .group_by(Movie.id)
+    )
+    return {str(movie_id): int(showtime_count) for movie_id, showtime_count in rows.all()}
 
 
 @router.delete("/movies/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)

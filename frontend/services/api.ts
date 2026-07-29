@@ -162,6 +162,42 @@ export interface BackendBranch {
   city: string
 }
 
+export const CANONICAL_MOVIE_GENRES = [
+  'Hành động',
+  'Phiêu lưu',
+  'Hoạt hình',
+  'Hài',
+  'Tội phạm',
+  'Tài liệu',
+  'Chính kịch',
+  'Gia đình',
+  'Kỳ ảo',
+  'Lịch sử',
+  'Kinh dị',
+  'Âm nhạc',
+  'Bí ẩn',
+  'Lãng mạn',
+  'Khoa học viễn tưởng',
+  'Phim truyền hình',
+  'Giật gân',
+  'Chiến tranh',
+  'Miền Tây',
+] as const
+
+const canonicalGenreLookup = new Map(
+  CANONICAL_MOVIE_GENRES.map((genre) => [genre.toLocaleLowerCase('vi'), genre]),
+)
+
+export function normalizeMovieGenres(genres: string[]): string[] {
+  return [...new Set(
+    genres
+      .map((genre) => canonicalGenreLookup.get(String(genre).trim().toLocaleLowerCase('vi')))
+      .filter((genre): genre is typeof CANONICAL_MOVIE_GENRES[number] => Boolean(genre)),
+  )]
+}
+
+export type TmdbMovieList = 'popular' | 'now_playing' | 'upcoming'
+
 export function youtubeEmbedUrl(value?: string | null): string {
   if (!value) return ''
   try {
@@ -434,6 +470,11 @@ export interface AdminImportTmdbMoviePayload {
   original_title?: string | null
   language?: string | null
   duration_min?: number
+  trailer_url?: string | null
+  genres?: string[]
+  director?: string | null
+  cast_names?: string[]
+  status?: 'UPCOMING' | 'NOW_SHOWING'
 }
 
 export interface AdminImportTmdbMovieResult {
@@ -672,6 +713,11 @@ export const adminBackendService = {
 
   async deleteMovie(movieId: string): Promise<void> {
     await apiClient.delete(`/admin/movies/${movieId}`)
+  },
+
+  async getMovieUsage(): Promise<Record<string, number>> {
+    const res = await apiClient.get<Record<string, number>>('/admin/movies/usage')
+    return res.data
   },
 
   async getBranches(): Promise<BackendBranch[]> {
@@ -1071,6 +1117,7 @@ export const mockTickets: UserTicket[] = [
 // ----------------------------------------------------
 export interface BackendMovie {
   id: string
+  tmdb_id: number | null
   title: string
   original_title: string | null
   description: string | null
@@ -1080,6 +1127,8 @@ export interface BackendMovie {
   language: string | null
   trailer_url: string | null
   poster_url: string | null
+  director: string | null
+  cast_names: string[]
   status: string
   created_at: string
   updated_at: string
@@ -1117,15 +1166,15 @@ export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
     id: bm.id,
     title: bm.title,
     rating: 0, // backend không có rating, để 0
-    genre: bm.genres.map(g => g.name),
+    genre: normalizeMovieGenres(bm.genres.map(g => g.name)),
     format: [], // backend không có format, để trống
     poster: bm.poster_url || '/images/movie-placeholder.svg',
     trailer: bm.trailer_url || '',
     description: bm.description || '',
     duration: bm.duration_min,
     releaseDate: bm.release_date || '',
-    director: '', // backend không có director
-    cast: [], // backend không có cast
+    director: bm.director || '',
+    cast: bm.cast_names || [],
     isFeatured: bm.status === 'NOW_SHOWING',
     aiMatchReason: undefined,
     status: bm.status as NonNullable<Movie['status']>,
@@ -1216,6 +1265,14 @@ export const movieService = {
     return res.data.map(mapBackendMovieToFrontend)
   },
 
+  async getPublic(status?: 'UPCOMING' | 'NOW_SHOWING'): Promise<Movie[]> {
+    if (USE_MOCK) return mockMovies
+    const res = await apiClient.get<BackendMovie[]>('/movies', {
+      params: { public_only: true, ...(status ? { status } : {}) },
+    })
+    return res.data.map(mapBackendMovieToFrontend)
+  },
+
   async getById(id: string): Promise<Movie> {
     if (USE_MOCK) {
       const m = mockMovies.find(item => item.id === id)
@@ -1297,8 +1354,10 @@ export const movieService = {
     return res.data.map(mapBackendMovieToFrontend)
   },
 
-  async getPopularFromTmdb(): Promise<TmdbPopularMovie[]> {
-    const data = await $fetch<{ source?: string; results?: any[] }>('/api/movies')
+  async getFromTmdb(list: TmdbMovieList = 'popular'): Promise<TmdbPopularMovie[]> {
+    const data = await $fetch<{ source?: string; results?: any[] }>('/api/movies', {
+      query: { list },
+    })
     if (data?.source === 'backend') return []
     const results = Array.isArray(data?.results) ? data.results : []
     return results.map((item: any) => ({
@@ -1310,6 +1369,10 @@ export const movieService = {
       original_title: item.original_title ? String(item.original_title) : null,
       suggested_ticket_price: Number(item.suggested_ticket_price || 90000),
     }))
+  },
+
+  async getPopularFromTmdb(): Promise<TmdbPopularMovie[]> {
+    return this.getFromTmdb('popular')
   }
 }
 

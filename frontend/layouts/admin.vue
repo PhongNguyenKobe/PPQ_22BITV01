@@ -68,7 +68,7 @@ function handleLogout() {
         <div>
           <!-- Sidebar Brand -->
           <div class="admin-sidebar-brand flex items-center justify-between" :class="isCollapsed ? 'px-4' : 'px-6'">
-            <NuxtLink to="/products" class="brand-link flex items-center gap-3">
+            <NuxtLink :to="{ path: '/products', query: { preview: 'admin' } }" class="brand-link flex items-center gap-3">
               <span class="material-symbols-outlined text-primary-container text-3xl">local_activity</span>
               <span v-if="!isCollapsed" class="font-headline-md font-black tracking-wider text-on-surface text-lg">
                 Cine<span class="text-primary-container">AI</span>
@@ -121,11 +121,11 @@ function handleLogout() {
             </NuxtLink>
 
             <NuxtLink
-              to="/products"
+              :to="{ path: '/products', query: { preview: 'admin' } }"
               class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
             >
               <span class="material-symbols-outlined text-xl font-light">movie</span>
-              <span v-if="!isCollapsed" class="text-sm font-semibold">Trang bán vé</span>
+              <span v-if="!isCollapsed" class="text-sm font-semibold">Xem trước trang bán vé</span>
             </NuxtLink>
           </nav>
         </div>
@@ -227,9 +227,9 @@ function handleLogout() {
           </div>
 
           <!-- Return to main ticket view -->
-          <NuxtLink to="/products" class="back-btn hidden lg:flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-glass-stroke bg-white/5 hover:bg-white/10 text-xs font-bold text-on-surface transition-all">
-            <span class="material-symbols-outlined text-sm">home</span>
-            Trang bán vé
+          <NuxtLink :to="{ path: '/products', query: { preview: 'admin' } }" class="back-btn hidden lg:flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-glass-stroke bg-white/5 hover:bg-white/10 text-xs font-bold text-on-surface transition-all">
+            <span class="material-symbols-outlined text-sm">visibility</span>
+            Xem trước trang bán vé
           </NuxtLink>
         </div>
       </header>

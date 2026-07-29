@@ -29,7 +29,7 @@ onMounted(async () => {
       let targetMovieId = selectedMovie.value.backendMovieId || selectedMovie.value.id
       if (!selectedMovie.value.backendMovieId) {
         const movieIdAsString = String(selectedMovie.value.id)
-        const backendMovies = await movieService.getAll()
+        const backendMovies = await movieService.getPublic()
         const byTmdbId = backendMovies.find((movie) => {
           const match = movie.trailer?.match(/themoviedb\.org\/movie\/(\d+)/i)
           return match ? match[1] === movieIdAsString : false
