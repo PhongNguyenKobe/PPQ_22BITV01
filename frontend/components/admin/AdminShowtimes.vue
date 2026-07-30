@@ -135,7 +135,7 @@ const scheduleBranchOptions = computed(() =>
 
 const draftShowtimes = computed(() => showtimes.value.filter((item) => item.stored_status === 'DRAFT'))
 const publishableDraftShowtimes = computed(() =>
-  draftShowtimes.value.filter(item => new Date(item.booking_closes_at).getTime() > Date.now()),
+  draftShowtimes.value.filter(item => item.booking_closes_at ? new Date(item.booking_closes_at).getTime() > Date.now() : false),
 )
 const expiredDraftCount = computed(() => draftShowtimes.value.length - publishableDraftShowtimes.value.length)
 const bulkConflictIndexes = computed(() => {
@@ -442,7 +442,7 @@ async function editShowtime(item: AdminShowtime) {
     error.value = 'Trạng thái không hợp lệ.'
     return
   }
-  if (statusRaw === 'OPEN' && new Date(item.booking_closes_at).getTime() <= Date.now()) {
+  if (statusRaw === 'OPEN' && (item.booking_closes_at ? new Date(item.booking_closes_at).getTime() : 0) <= Date.now()) {
     error.value = 'Không thể mở bán vì suất này đã qua giờ đóng bán. Hãy tạo một suất mới trong tương lai.'
     return
   }
