@@ -260,6 +260,21 @@ async def vnpay_ipn(request: Request, db: AsyncSession = Depends(get_db)):
     return {"RspCode": response_code, "Message": message}
 
 
+@router.get("/vnpay/callback")
+async def vnpay_callback(request: Request, db: AsyncSession = Depends(get_db)):
+    print("CALLBACK RECEIVED PARAMS:", dict(request.query_params), flush=True)
+    payment, response_code, message = await _apply_vnpay_result(db, dict(request.query_params), "CALLBACK")
+    success = payment is not None and payment.status == "SUCCESS"
+    print("CALLBACK RESULT:", success, response_code, message, flush=True)
+    return {
+        "success": success,
+        "message": "Payment verified" if success else f"Payment verification failed: {message}",
+        "transaction_ref": str(payment.provider_ref) if payment else None,
+        "payment_status": payment.status if payment else None,
+    }
+
+
+
 @router.get("/{payment_id}", response_model=PaymentRead)
 async def get_payment(
     payment_id: UUID,
