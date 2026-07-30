@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMoviesStore } from '~/store/movies'
 import { useTicketsStore } from '~/store/tickets'
+import { formatDate } from '~/utils/date'
 
 definePageMeta({ layout: 'default' })
 
@@ -284,7 +285,7 @@ function startVoiceSearch() {
           </div>
 
           <div v-if="ticketsStore.selectedShowtime" class="mt-4">
-            <h3 class="font-headline-md text-2xl font-black text-on-surface">{{ ticketsStore.selectedShowtime.time }} • {{ ticketsStore.selectedShowtime.date }}</h3>
+            <h3 class="font-headline-md text-2xl font-black text-on-surface">{{ ticketsStore.selectedShowtime.time }} • {{ formatDate(ticketsStore.selectedShowtime.date) }}</h3>
             <div class="mt-3 space-y-2 text-sm text-on-surface-variant">
               <div class="flex justify-between gap-4"><span>Rạp</span><span class="text-on-surface font-bold">{{ ticketsStore.selectedShowtime.branchName }}</span></div>
               <div class="flex justify-between gap-4"><span>Phòng</span><span class="text-on-surface font-bold">{{ ticketsStore.selectedShowtime.screenName }}</span></div>

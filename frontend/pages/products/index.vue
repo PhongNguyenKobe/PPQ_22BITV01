@@ -214,34 +214,75 @@ function availabilityFor(product: { id: string | number; backendMovieId?: string
       </select>
     </div>
 
-    <div class="filters-wrap mb-5">
-      <input
-        v-model="searchTerm"
-        type="text"
-        placeholder="Tìm theo tên phim..."
-        class="control-input"
-      />
+    <div class="glass-panel p-6 rounded-3xl border border-white/10 shadow-2xl mb-8 space-y-6">
+      <!-- Top Row: Search input + Toggles / Dropdowns -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+        <!-- Search Input -->
+        <div class="md:col-span-6 relative">
+          <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Tìm theo tên phim..."
+            class="control-input !pl-11"
+          />
+        </div>
+        
+        <!-- Category Dropdown -->
+        <div class="md:col-span-3 relative">
+          <select v-model="selectedCategory" class="control-input !pr-10 appearance-none cursor-pointer" aria-label="Lọc theo thể loại">
+            <option value="ALL">Tất cả thể loại</option>
+            <option v-for="cat in categories" :key="cat" :value="cat">
+              {{ cat }}
+            </option>
+          </select>
+          <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
+        </div>
 
-      <select v-model="selectedCategory" class="control-input" aria-label="Lọc theo thể loại">
-        <option value="ALL">Tất cả thể loại</option>
-        <option v-for="cat in categories" :key="cat" :value="cat">
-          {{ cat }}
-        </option>
-      </select>
+        <!-- Sort Option Dropdown -->
+        <div class="md:col-span-3 relative">
+          <select v-model="sortOption" class="control-input !pr-10 appearance-none cursor-pointer">
+            <option value="none">Sắp xếp: mặc định</option>
+            <option value="price-asc">Giá: Thấp → Cao</option>
+            <option value="price-desc">Giá: Cao → Thấp</option>
+          </select>
+          <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
+        </div>
+      </div>
 
-      <select v-model="selectedStatus" class="control-input">
-        <option value="ALL">Tất cả trạng thái</option>
-        <option value="NOW_SHOWING">Đang chiếu</option>
-        <option value="UPCOMING">Sắp chiếu</option>
-      </select>
+      <!-- Bottom Row: Status Tabs (Pills) + Clear Button -->
+      <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-white/5">
+        <!-- Status Tabs / Pills -->
+        <div class="flex bg-black/40 p-1 rounded-xl border border-white/5">
+          <button
+            class="rounded-lg px-4 py-2 text-xs font-bold transition-all"
+            :class="selectedStatus === 'ALL' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'text-gray-400 hover:text-white'"
+            @click="selectedStatus = 'ALL'"
+          >
+            Tất cả trạng thái
+          </button>
+          <button
+            class="rounded-lg px-4 py-2 text-xs font-bold transition-all"
+            :class="selectedStatus === 'NOW_SHOWING' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'text-gray-400 hover:text-white'"
+            @click="selectedStatus = 'NOW_SHOWING'"
+          >
+            Đang chiếu
+          </button>
+          <button
+            class="rounded-lg px-4 py-2 text-xs font-bold transition-all"
+            :class="selectedStatus === 'UPCOMING' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'text-gray-400 hover:text-white'"
+            @click="selectedStatus = 'UPCOMING'"
+          >
+            Sắp chiếu
+          </button>
+        </div>
 
-      <select v-model="sortOption" class="control-input">
-        <option value="none">Sắp xếp: mặc định</option>
-        <option value="price-asc">Giá: Thấp → Cao</option>
-        <option value="price-desc">Giá: Cao → Thấp</option>
-      </select>
-
-      <button @click="clearFilters" class="control-clear">Xóa bộ lọc</button>
+        <!-- Clear Button -->
+        <button @click="clearFilters" class="px-5 py-2.5 rounded-xl border border-white/10 hover:border-red-500/50 hover:bg-red-600/10 text-xs font-bold text-gray-300 hover:text-red-400 transition-all flex items-center gap-2">
+          <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+          Xóa bộ lọc
+        </button>
+      </div>
     </div>
 
     <p class="text-xs text-on-surface-variant mb-5">

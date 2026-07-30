@@ -51,7 +51,14 @@ const heroMovies = computed(() => {
     && movie.imageUrl
     && !movie.imageUrl.includes('movie-placeholder'),
   )
-  return clean.slice(0, 5)
+  
+  const sorted = [...clean].sort((a, b) => {
+    const countA = movieShowtimes.value[String(a.id)]?.length || 0
+    const countB = movieShowtimes.value[String(b.id)]?.length || 0
+    return countB - countA
+  })
+
+  return sorted.slice(0, 5)
 })
 
 const currentHeroMovie = computed(() => {

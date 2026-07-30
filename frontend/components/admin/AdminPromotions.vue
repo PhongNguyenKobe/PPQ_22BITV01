@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { adminBackendService, type Promotion } from '~/services/api'
+import { formatDate } from '~/utils/date'
 
 const promotions = ref<Promotion[]>([])
 const loading = ref(false)
@@ -231,8 +232,8 @@ onMounted(() => {
             </div>
             
             <div class="text-[11px] text-on-surface-variant flex items-center justify-between pt-2 border-t border-white/10">
-              <span class="truncate">Từ: {{ new Date(item.starts_at).toLocaleDateString('vi-VN') }}</span>
-              <span class="truncate text-right">Đến: {{ new Date(item.ends_at).toLocaleDateString('vi-VN') }}</span>
+              <span class="truncate">Từ: {{ formatDate(item.starts_at) }}</span>
+              <span class="truncate text-right">Đến: {{ formatDate(item.ends_at) }}</span>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { adminBackendService, movieService, type AdminAuditorium, type AdminShowtime, type Movie, type BulkShowtimeDraft } from '~/services/api'
+import { formatDate, formatDateTime } from '~/utils/date'
 
 const auditoriums = ref<AdminAuditorium[]>([])
 const showtimes = ref<AdminShowtime[]>([])
@@ -483,7 +484,7 @@ async function deleteShowtime(item: AdminShowtime) {
 }
 
 function fmtDateTime(value: string) {
-  return new Date(value).toLocaleString('vi-VN')
+  return formatDateTime(value)
 }
 
 function fmtCurrency(value: number) {
@@ -563,7 +564,7 @@ onMounted(() => {
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Giờ bắt đầu chiếu</label>
           <input v-model="showtimeForm.startsAt" :min="minimumShowtimeDate" type="datetime-local" class="field-input" required />
           <p v-if="selectedMovieReleaseDate" class="text-[10px] text-on-surface-variant mt-1">
-            Ngày ra mắt phim: {{ new Date(`${selectedMovieReleaseDate}T00:00:00`).toLocaleDateString('vi-VN') }}
+            Ngày ra mắt phim: {{ formatDate(selectedMovieReleaseDate) }}
           </p>
         </div>
         <div class="space-y-1">
@@ -710,7 +711,7 @@ onMounted(() => {
                 </td>
                 <td class="px-4 py-3">
                   <div class="rounded-lg bg-white/5 border border-white/5 px-3 py-2 text-xs font-bold text-on-surface-variant flex items-center justify-center">
-                    {{ new Date(item.ends_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) }}
+                    {{ formatDateTime(item.ends_at) }}
                   </div>
                 </td>
                 <td class="px-4 py-3">

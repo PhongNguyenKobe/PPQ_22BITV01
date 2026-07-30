@@ -132,7 +132,7 @@ watch(selectedBranch, () => {
         <button class="text-on-surface-variant" @click="selected = null">Đóng</button>
       </div>
       <div v-for="entry in history" :key="entry.id" class="border-t border-white/5 py-3 text-sm">
-        <div class="flex flex-wrap justify-between gap-2"><b>{{ entry.source }} · {{ entry.old_status || '—' }} → {{ entry.new_status }}</b><span>{{ new Date(entry.created_at).toLocaleString('vi-VN') }}</span></div>
+        <div class="flex flex-wrap justify-between gap-2"><b>{{ entry.source }} · {{ entry.old_status || '—' }} → {{ entry.new_status }}</b><span>{{ formatDateTime(entry.created_at) }}</span></div>
         <p class="text-xs text-on-surface-variant">Response: {{ entry.response_code || '—' }} · Provider: {{ entry.provider_status || '—' }} · {{ entry.note || '' }}</p>
       </div>
     </div>

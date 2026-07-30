@@ -359,8 +359,8 @@ function handleSelectShowtime(showtime: Showtime) {
                     </span>
                   </div>
 
-                  <p class="text-xs text-gray-400 line-clamp-3 leading-relaxed hidden lg:block font-light">
-                    {{ movie.description }}
+                  <p class="text-xs text-gray-400 leading-relaxed hidden lg:block font-light">
+                    {{ movie.description ? (movie.description.length > 120 ? movie.description.slice(0, 120) + '...' : movie.description) : '' }}
                   </p>
                 </div>
               </div>

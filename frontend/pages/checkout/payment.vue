@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { checkoutService } from '~/services/api'
 import { isShowtimeExpired } from '../../utils/showtime'
+import { formatDate } from '~/utils/date'
 
 definePageMeta({
   layout: 'default',
@@ -213,7 +214,7 @@ async function handleConfirmPayment() {
               </div>
               <div class="summary-row">
                 <span>Suất chiếu</span>
-                <strong>{{ selectedShowtime.time }} • {{ selectedShowtime.date }}</strong>
+                <strong>{{ selectedShowtime.time }} • {{ formatDate(selectedShowtime.date) }}</strong>
               </div>
               <div class="summary-row">
                 <span>Phòng</span>

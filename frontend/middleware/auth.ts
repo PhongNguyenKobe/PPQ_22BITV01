@@ -1,6 +1,8 @@
 import { useUserStore } from '~/store/user'
 
 export default defineNuxtRouteMiddleware((to, from) => {
+  if (process.server) return
+
   const userStore = useUserStore()
 
   console.log('[auth middleware] path:', to.path)

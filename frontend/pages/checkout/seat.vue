@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
+import { formatDate } from '~/utils/date'
 
 definePageMeta({
   layout: 'default',
@@ -95,7 +96,7 @@ function handleProceedToPayment() {
               </div>
               <div class="summary-row">
                 <span>Suất chiếu</span>
-                <strong>{{ selectedShowtime.time }} • {{ selectedShowtime.date }}</strong>
+                <strong>{{ selectedShowtime.time }} • {{ formatDate(selectedShowtime.date) }}</strong>
               </div>
               <div class="summary-row">
                 <span>Phòng</span>

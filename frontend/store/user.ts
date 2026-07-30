@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, skipHydrate } from 'pinia'
 import { ref } from 'vue'
 import { authService, mapBackendUserToProfile, setAuthToken, type UserProfile } from '~/services/api'
 
@@ -43,6 +43,7 @@ export const useUserStore = defineStore('user', () => {
       const mappedUser = mapBackendUserToProfile(backendUser, authToken.value)
       currentUser.value = mappedUser
       registeredUsers.value = [mappedUser]
+      isAuthenticated.value = true
       if (process.client) {
         localStorage.setItem('cineai_user', JSON.stringify(mappedUser))
       }
@@ -117,10 +118,10 @@ export const useUserStore = defineStore('user', () => {
   }
 
   return {
-    currentUser,
-    isAuthenticated,
+    currentUser: skipHydrate(currentUser),
+    isAuthenticated: skipHydrate(isAuthenticated),
     registeredUsers,
-    authToken,
+    authToken: skipHydrate(authToken),
     authError,
     login,
     register,

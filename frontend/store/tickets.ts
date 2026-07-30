@@ -194,6 +194,34 @@ export const useTicketsStore = defineStore('tickets', () => {
     }
   }
 
+  async function startVnpayPayment(promotionCode?: string, payableAmount?: number): Promise<string | null> {
+    if (!selectedShowtime.value || selectedSeats.value.length === 0) {
+      return null
+    }
+    if (isShowtimeExpired(selectedShowtime.value)) {
+      purchaseError.value = 'Đã hết thời gian mua vé cho suất chiếu này. Vui lòng chọn suất khác.'
+      return null
+    }
+
+    loading.value = true
+    purchaseError.value = ''
+    try {
+      const res = await checkoutService.createVnpayPayment({
+        showtimeId: selectedShowtime.value.id,
+        seats: selectedSeats.value.map(s => s.id),
+        totalAmount: payableAmount ?? totalAmount.value,
+        promotionCode,
+      })
+      return res.paymentUrl
+    } catch (e: any) {
+      purchaseError.value = e?.message || 'Không thể khởi tạo thanh toán VNPAY.'
+      console.error('VNPAY payment initialization failed:', e)
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     selectedMovie,
     selectedCinema,

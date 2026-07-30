@@ -5,6 +5,7 @@ import { useProductsStore } from '~/store/products'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
 import { branchesService, youtubeTrailerLink, type BranchDetail } from '~/services/api'
+import { formatDate } from '~/utils/date'
 
 definePageMeta({
   layout: 'default'
@@ -345,7 +346,7 @@ function toggleLike(comment: typeof comments.value[0]) {
                 </div>
                 <div>
                   <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Khởi chiếu</span>
-                  <span class="text-sm font-semibold text-white">{{ currentProduct.releaseDate || 'Chưa công bố' }}</span>
+                  <span class="text-sm font-semibold text-white">{{ formatDate(currentProduct.releaseDate) || 'Chưa công bố' }}</span>
                 </div>
                 <div class="col-span-2 sm:col-span-3">
                   <span class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Diễn viên</span>

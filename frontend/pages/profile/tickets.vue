@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
 import type { UserTicket } from '~/services/api'
+import { formatDate, formatDateTime } from '~/utils/date'
 
 definePageMeta({
   layout: 'default',
@@ -147,7 +148,7 @@ onMounted(async () => {
               </div>
               <div>
                 <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Thời Gian</span>
-                <span class="font-bold text-primary block">{{ ticket.time }} | {{ ticket.date }}</span>
+                <span class="font-bold text-primary block">{{ ticket.time }} | {{ formatDate(ticket.date) }}</span>
               </div>
               <div>
                 <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Ghế Ngồi</span>
@@ -157,7 +158,7 @@ onMounted(async () => {
 
             <div
               class="border-t border-glass-stroke/20 pt-3 flex justify-between items-center text-xs text-on-surface-variant">
-              <span>Ngày đặt: {{ ticket.bookingDate }}</span>
+              <span>Ngày đặt: {{ formatDateTime(ticket.bookingDate) }}</span>
               <span class="font-bold text-on-surface">{{ ticket.totalAmount.toLocaleString() }}đ</span>
             </div>
           </div>
@@ -238,7 +239,7 @@ onMounted(async () => {
               <div>
                 <p class="text-on-surface-variant text-[11px] uppercase tracking-wider mb-1">Thời Gian</p>
                 <p class="font-bold text-primary-container">{{ selectedTicket.time }}</p>
-                <p class="font-semibold text-white/90 text-xs">{{ selectedTicket.date }}</p>
+                <p class="font-semibold text-white/90 text-xs">{{ formatDate(selectedTicket.date) }}</p>
               </div>
               <div>
                 <p class="text-on-surface-variant text-[11px] uppercase tracking-wider mb-1">Ghế Ngồi</p>
@@ -259,7 +260,7 @@ onMounted(async () => {
           </div>
 
           <div class="text-center mt-6">
-            <p class="text-[11px] text-on-surface-variant/70">Ngày đặt vé: {{ selectedTicket.bookingDate }}</p>
+            <p class="text-[11px] text-on-surface-variant/70">Ngày đặt vé: {{ formatDateTime(selectedTicket.bookingDate) }}</p>
             <p v-if="selectedTicket.status === 'CANCEL_REQUESTED'" class="mt-3 text-sm font-bold text-amber-400">
               Đang chờ chi nhánh duyệt yêu cầu hủy
             </p>
