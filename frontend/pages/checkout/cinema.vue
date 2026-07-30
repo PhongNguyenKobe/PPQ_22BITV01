@@ -34,19 +34,41 @@ onMounted(async () => {
           const match = movie.trailer?.match(/themoviedb\.org\/movie\/(\d+)/i)
           return match ? match[1] === movieIdAsString : false
         })
+        const selectedTitle = String(selectedMovie.value.name || selectedMovie.value.title || '')
+          .trim()
+          .toLocaleLowerCase()
+        const byTitle = backendMovies.find((movie) => movie.title.trim().toLocaleLowerCase() === selectedTitle)
+        const mappedMovie = byTmdbId || byTitle
 
-        if (byTmdbId) {
-          targetMovieId = byTmdbId.id
+        if (mappedMovie) {
+          targetMovieId = mappedMovie.id
           ticketsStore.selectMovie({
             ...selectedMovie.value,
-            backendMovieId: byTmdbId.id,
+            backendMovieId: mappedMovie.id,
           })
         } else {
           requiresCatalogMapping.value = true
         }
       }
 
-      const allShowtimes = await movieService.getShowtimes(String(targetMovieId))
+      let allShowtimes = await movieService.getShowtimes(String(targetMovieId))
+      // A saved checkout can point at a movie record from an earlier catalog.
+      // Retry against the current backend catalog by title before declaring no showtimes.
+      if (!allShowtimes.length) {
+        const backendMovies = await movieService.getAll()
+        const selectedTitle = String(selectedMovie.value.name || selectedMovie.value.title || '')
+          .trim()
+          .toLocaleLowerCase()
+        const currentMovie = backendMovies.find((movie) => movie.title.trim().toLocaleLowerCase() === selectedTitle)
+        if (currentMovie && currentMovie.id !== targetMovieId) {
+          targetMovieId = currentMovie.id
+          ticketsStore.selectMovie({
+            ...selectedMovie.value,
+            backendMovieId: currentMovie.id,
+          })
+          allShowtimes = await movieService.getShowtimes(String(targetMovieId))
+        }
+      }
       showtimes.value = allShowtimes
       if (allShowtimes.length > 0) {
         requiresCatalogMapping.value = false

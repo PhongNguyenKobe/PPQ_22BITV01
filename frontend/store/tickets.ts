@@ -166,6 +166,30 @@ export const useTicketsStore = defineStore('tickets', () => {
     }
   }
 
+  async function startVnpayPayment(promotionCode?: string, payableAmount?: number): Promise<string | null> {
+    if (!selectedShowtime.value || selectedSeats.value.length === 0) return null
+    if (isShowtimeExpired(selectedShowtime.value)) {
+      purchaseError.value = 'Đã hết thời gian mua vé cho suất chiếu này. Vui lòng chọn suất khác.'
+      return null
+    }
+    loading.value = true
+    purchaseError.value = ''
+    try {
+      const payment = await checkoutService.createVnpayPayment({
+        showtimeId: selectedShowtime.value.id,
+        seats: selectedSeats.value.map((seat) => seat.id),
+        totalAmount: payableAmount ?? totalAmount.value,
+        promotionCode,
+      })
+      return payment.paymentUrl
+    } catch (e: any) {
+      purchaseError.value = e?.message || 'Không thể khởi tạo thanh toán VNPay. Vui lòng thử lại.'
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     selectedMovie,
     selectedCinema,
@@ -182,6 +206,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     selectShowtime,
     toggleSeat,
     clearSelection,
-    purchaseTickets
+    purchaseTickets,
+    startVnpayPayment,
   }
 })

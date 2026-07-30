@@ -27,6 +27,13 @@ class Settings(BaseSettings):
         ],
         validation_alias="BACKEND_CORS_ORIGINS",
     )
+    vnpay_tmn_code: str | None = Field(default=None, validation_alias="VNPAY_TMN_CODE")
+    vnpay_hash_secret: str | None = Field(default=None, validation_alias="VNPAY_HASH_SECRET")
+    vnpay_payment_url: str = Field(
+        "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
+        validation_alias="VNPAY_PAYMENT_URL",
+    )
+    vnpay_return_url: str | None = Field(default=None, validation_alias="VNPAY_RETURN_URL")
 
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_file_encoding="utf-8", extra="ignore")
 

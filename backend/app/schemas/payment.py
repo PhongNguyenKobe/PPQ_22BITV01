@@ -48,3 +48,22 @@ class CheckoutResponse(BaseModel):
     qr_code: str | None = None
     confirmation_number: str
     message: str
+
+
+class VnpayCreateRequest(BaseModel):
+    booking_id: UUID
+    amount: Decimal = Field(gt=0)
+    promotion_code: str | None = Field(default=None, max_length=50)
+
+
+class VnpayCreateResponse(BaseModel):
+    payment_url: str
+    transaction_ref: str
+    expires_at: datetime | None = None
+
+
+class VnpayCallbackResponse(BaseModel):
+    success: bool
+    message: str
+    transaction_ref: str | None = None
+    payment_status: str | None = None
