@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
 import { movieService, type Movie, type Showtime } from "~/services/api"
+import { useTicketsStore } from "~/store/tickets"
+
+const ticketsStore = useTicketsStore()
 
 definePageMeta({ layout: "default" })
 
@@ -184,8 +187,20 @@ const filteredShowtimes = computed(() => {
   return result
 })
 
-function handleSelectShowtime(showtime: Showtime) {
-  navigateTo(`/checkout/seat?showtimeId=${showtime.id}`)
+function handleSelectShowtime(movie: any, showtime: Showtime) {
+  ticketsStore.selectMovie({
+    id: movie.id,
+    name: movie.title,
+    title: movie.title,
+    imageUrl: movie.poster,
+    category: movie.category,
+    rating: movie.rating,
+    price: showtime.price / 1000,
+    backendMovieId: movie.id,
+  })
+  ticketsStore.selectCinema(showtime.branchName)
+  ticketsStore.selectShowtime(showtime)
+  navigateTo('/checkout/cinema')
 }
 </script>
 
@@ -359,8 +374,8 @@ function handleSelectShowtime(showtime: Showtime) {
                     </span>
                   </div>
 
-                  <p class="text-xs text-gray-400 leading-relaxed hidden lg:block font-light">
-                    {{ movie.description ? (movie.description.length > 120 ? movie.description.slice(0, 120) + '...' : movie.description) : '' }}
+                  <p class="text-xs text-gray-400 leading-relaxed hidden lg:block font-light line-clamp-2">
+                    {{ movie.description || '' }}
                   </p>
                 </div>
               </div>
@@ -404,7 +419,7 @@ function handleSelectShowtime(showtime: Showtime) {
 
                           <!-- Time Buttons -->
                           <div class="flex flex-wrap gap-3">
-                            <button v-for="st in groupedByScreen" :key="st.id" @click="handleSelectShowtime(st)"
+                            <button v-for="st in groupedByScreen" :key="st.id" @click="handleSelectShowtime(movie, st)"
                               class="group relative bg-white/5 hover:bg-red-600 border border-white/10 hover:border-red-500 rounded-xl px-4 py-2.5 transition-all duration-200 text-left hover:scale-105 shadow-md">
                               <span class="block text-sm font-black text-white group-hover:text-white">
                                 {{ st.time }}

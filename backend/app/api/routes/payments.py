@@ -209,7 +209,7 @@ async def checkout(
         payment_method="VNPAY" if vnpay else payload.payment_method,
         status="PENDING" if vnpay else "SUCCESS",
         paid_at=None if vnpay else datetime.now(timezone.utc),
-        provider_ref=f"CINEAI{payment_id.hex}" if vnpay else None,
+        provider_ref=str(payment_id) if vnpay else None,
     )
     if not vnpay:
         booking.status = "CONFIRMED"

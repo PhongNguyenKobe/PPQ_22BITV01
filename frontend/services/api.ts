@@ -1252,7 +1252,8 @@ export const mockTickets: UserTicket[] = [
     totalAmount: 416000,
     paymentMethod: 'Ví Momo',
     qrCode: 'CineAI_E_TICKET_MOCK_QR_CODE_1',
-    bookingDate: '2026-06-19 12:44'
+    bookingDate: '2026-06-19 12:44',
+    status: 'CONFIRMED'
   }
 ]
 
@@ -1597,7 +1598,8 @@ export const checkoutService = {
         totalAmount: bookingDetails.totalAmount,
         paymentMethod: bookingDetails.paymentMethod,
         qrCode: `CineAI_E_TICKET_${Date.now()}`,
-        bookingDate: new Date().toISOString().replace('T', ' ').substring(0, 16)
+        bookingDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: 'CONFIRMED'
       }
 
       return newTicket
@@ -1634,6 +1636,7 @@ export const checkoutService = {
       paymentMethod: bookingDetails.paymentMethod,
       qrCode: payment.qr_code || payment.confirmation_number,
       bookingDate: String(booking.booking_date).replace('T', ' ').slice(0, 16),
+      status: booking.status || 'CONFIRMED',
     }
   }
 }
