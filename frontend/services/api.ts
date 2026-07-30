@@ -725,7 +725,7 @@ export const usersApi = {
         totalAmount: Number(ticket.total_price),
         paymentMethod: ticket.payment_method || 'Không xác định',
         qrCode: `CINEAI_E_TICKET_${ticket.id}`,
-        bookingDate: ticket.booking_date.replace('T', ' ').slice(0, 16),
+        bookingDate: ticket.booking_date,
         status: ticket.status,
         cancellationReason: ticket.cancellation_reason,
       }))
@@ -1598,7 +1598,7 @@ export const checkoutService = {
         totalAmount: bookingDetails.totalAmount,
         paymentMethod: bookingDetails.paymentMethod,
         qrCode: `CineAI_E_TICKET_${Date.now()}`,
-        bookingDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        bookingDate: new Date().toISOString(),
         status: 'CONFIRMED'
       }
 
@@ -1635,7 +1635,7 @@ export const checkoutService = {
       totalAmount: Number(payment.total_amount),
       paymentMethod: bookingDetails.paymentMethod,
       qrCode: payment.qr_code || payment.confirmation_number,
-      bookingDate: String(booking.booking_date).replace('T', ' ').slice(0, 16),
+      bookingDate: String(booking.booking_date),
       status: booking.status || 'CONFIRMED',
     }
   }
