@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // Set this to false when backend (FastAPI) is running
-const USE_MOCK = false  
+const USE_MOCK = false
 const API_BASE_URL = import.meta.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
 
 const apiClient = axios.create({
@@ -14,6 +14,21 @@ const apiClient = axios.create({
 function notify(message: string, type: 'success' | 'error') {
   if (import.meta.client) window.dispatchEvent(new CustomEvent('cineai:toast', { detail: { message, type } }))
 }
+
+export interface BulkShowtimeDraft {
+  movie_id: string
+  movie_title: string
+  auditorium_id: string
+  auditorium_name: string
+  starts_at: string // Khóa cứng kiểu string để không bị lỗi 'string | Date'
+  ends_at: string // Khóa cứng kiểu string
+  base_price: number
+  status?: 'DRAFT' | 'OPEN' | 'CANCELLED'
+  date?: string
+  time?: string
+  [key: string]: any
+}
+
 // ----------------------------------------------------
 // Xử lý lỗi tập trung cho toàn bộ API module
 // ----------------------------------------------------
@@ -50,7 +65,9 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     const normalized = handleApiError(error)
-    notify(normalized.message, 'error')
+    if (error.config?.headers?.['X-Suppress-Error-Toast'] !== 'true') {
+      notify(normalized.message, 'error')
+    }
     return Promise.reject(normalized)
   }
 )
@@ -126,6 +143,23 @@ export interface UserTicket {
   paymentMethod: string
   qrCode: string
   bookingDate: string
+  status: string
+  cancellationReason?: string | null
+}
+
+interface BackendUserTicket {
+  id: string
+  movie_title: string
+  poster_url?: string | null
+  branch_name: string
+  auditorium_name: string
+  starts_at: string
+  seats?: Array<{ row: string; number: number }>
+  total_price: number | string
+  payment_method?: string | null
+  booking_date: string
+  status: string
+  cancellation_reason?: string | null
 }
 
 export interface UserProfile {
@@ -161,6 +195,42 @@ export interface BackendBranch {
   name: string
   city: string
 }
+
+export const CANONICAL_MOVIE_GENRES = [
+  'Hành động',
+  'Phiêu lưu',
+  'Hoạt hình',
+  'Hài',
+  'Tội phạm',
+  'Tài liệu',
+  'Chính kịch',
+  'Gia đình',
+  'Kỳ ảo',
+  'Lịch sử',
+  'Kinh dị',
+  'Âm nhạc',
+  'Bí ẩn',
+  'Lãng mạn',
+  'Khoa học viễn tưởng',
+  'Phim truyền hình',
+  'Giật gân',
+  'Chiến tranh',
+  'Miền Tây',
+] as const
+
+const canonicalGenreLookup = new Map(
+  CANONICAL_MOVIE_GENRES.map((genre) => [genre.toLocaleLowerCase('vi'), genre]),
+)
+
+export function normalizeMovieGenres(genres: string[]): string[] {
+  return [...new Set(
+    genres
+      .map((genre) => canonicalGenreLookup.get(String(genre).trim().toLocaleLowerCase('vi')))
+      .filter((genre): genre is typeof CANONICAL_MOVIE_GENRES[number] => Boolean(genre)),
+  )]
+}
+
+export type TmdbMovieList = 'popular' | 'now_playing' | 'upcoming'
 
 export function youtubeEmbedUrl(value?: string | null): string {
   if (!value) return ''
@@ -263,6 +333,41 @@ export interface AdminShowtime {
   booking_count: number
   sold_seats: number
   revenue: number
+}
+
+export interface AdminBooking {
+  id: string
+  movie_title: string
+  branch_name: string
+  auditorium_name: string
+  starts_at: string
+  seats: Array<{ id: string; row: string; number: number }>
+  quantity: number
+  total_price: number
+  status: string
+  created_at: string
+}
+
+export interface AdminPayment {
+  id: string
+  booking_id: string
+  user_id: string
+  amount: number
+  payment_method: string
+  status: string
+  transaction_id: string | null
+  provider_ref: string | null
+  provider_transaction_no: string | null
+  bank_transaction_no: string | null
+  bank_code: string | null
+  card_type: string | null
+  response_code: string | null
+  provider_status: string | null
+  signature_valid: boolean | null
+  provider_paid_at: string | null
+  last_verified_at: string | null
+  paid_at: string | null
+  created_at: string
 }
 
 export interface BranchAdminSalesPoint {
@@ -434,6 +539,11 @@ export interface AdminImportTmdbMoviePayload {
   original_title?: string | null
   language?: string | null
   duration_min?: number
+  trailer_url?: string | null
+  genres?: string[]
+  director?: string | null
+  cast_names?: string[]
+  status?: 'UPCOMING' | 'NOW_SHOWING'
 }
 
 export interface AdminImportTmdbMovieResult {
@@ -478,7 +588,7 @@ export interface AuthCredentials {
 
 export interface RegisterPayload {
   email: string
-  phone?: string | null
+  phone: string
   full_name: string
   date_of_birth?: string | null
   gender?: string | null
@@ -586,9 +696,43 @@ export const usersApi = {
     return mapBackendUserToProfile(res.data)
   },
 
-  async getMyTickets(): Promise<any[]> {
-    const res = await apiClient.get<any[]>('/users/me/tickets')
+  async changePassword(payload: { current_password: string; new_password: string }): Promise<void> {
+    await apiClient.patch('/users/me/password', payload)
+  },
+
+  async getMyTickets(): Promise<UserTicket[]> {
+    const res = await apiClient.get<BackendUserTicket[]>('/users/me/tickets')
+    const invalidTicket = res.data.find(ticket =>
+      !ticket.movie_title ||
+      !ticket.branch_name ||
+      !ticket.auditorium_name ||
+      !ticket.starts_at
+    )
+    if (invalidTicket) {
+      throw new Error('Backend đang chạy phiên bản cũ. Hãy khởi động lại backend để tải đầy đủ thông tin vé.')
+    }
     return res.data
+      .filter(ticket => ['CONFIRMED', 'CANCEL_REQUESTED', 'CANCELLED'].includes(ticket.status))
+      .map(ticket => ({
+        id: ticket.id,
+        movieTitle: ticket.movie_title,
+        poster: ticket.poster_url || '/images/movie-placeholder.svg',
+        branchName: ticket.branch_name,
+        screenName: ticket.auditorium_name,
+        date: ticket.starts_at.slice(0, 10),
+        time: ticket.starts_at.slice(11, 16),
+        seats: (ticket.seats || []).map(seat => `${seat.row}${seat.number}`),
+        totalAmount: Number(ticket.total_price),
+        paymentMethod: ticket.payment_method || 'Không xác định',
+        qrCode: `CINEAI_E_TICKET_${ticket.id}`,
+        bookingDate: ticket.booking_date.replace('T', ' ').slice(0, 16),
+        status: ticket.status,
+        cancellationReason: ticket.cancellation_reason,
+      }))
+  },
+
+  async requestTicketCancellation(bookingId: string, reason: string): Promise<void> {
+    await apiClient.put(`/bookings/${bookingId}/cancel-request`, null, { params: { reason } })
   },
 
 }
@@ -606,8 +750,10 @@ export const branchesService = {
     const res = await apiClient.get<BackendBranch[]>('/branches')
     return res.data
   },
-  async getById(id: string): Promise<BranchDetail> {
-    const res = await apiClient.get<any>(`/branches/${id}`)
+  async getById(id: string, suppressErrorToast = false): Promise<BranchDetail> {
+    const res = await apiClient.get<any>(`/branches/${id}`, {
+      headers: suppressErrorToast ? { 'X-Suppress-Error-Toast': 'true' } : undefined,
+    })
     return {
       ...res.data,
       movies: (res.data.movies || []).map(mapBackendMovieToFrontend),
@@ -674,6 +820,11 @@ export const adminBackendService = {
     await apiClient.delete(`/admin/movies/${movieId}`)
   },
 
+  async getMovieUsage(): Promise<Record<string, number>> {
+    const res = await apiClient.get<Record<string, number>>('/admin/movies/usage')
+    return res.data
+  },
+
   async getBranches(): Promise<BackendBranch[]> {
     const res = await apiClient.get<BackendBranch[]>('/admin/branches')
     return res.data
@@ -706,10 +857,10 @@ export const adminBackendService = {
     await apiClient.delete(`/admin/users/${userId}`)
   },
 
- async getBranchesManage(): Promise<AdminBranchManage[]> {
-  const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
-  return res.data
-},
+  async getBranchesManage(): Promise<AdminBranchManage[]> {
+    const res = await apiClient.get<AdminBranchManage[]>('/admin/branches/manage')
+    return res.data
+  },
 
   async createBranch(payload: AdminCreateBranchPayload): Promise<AdminBranchManage> {
     const res = await apiClient.post<AdminBranchManage>('/admin/branches/manage', payload)
@@ -814,6 +965,45 @@ export const adminBackendService = {
 
   async deleteShowtime(showtimeId: string): Promise<void> {
     await apiClient.delete(`/admin/showtimes/${showtimeId}`)
+  },
+
+  async getBookings(params: Record<string, string | number | undefined> = {}): Promise<{ total: number; bookings: AdminBooking[] }> {
+    const res = await apiClient.get('/admin/bookings', { params })
+    return res.data
+  },
+
+  async cancelBooking(bookingId: string, reason: string): Promise<AdminBooking> {
+    const res = await apiClient.put(`/admin/bookings/${bookingId}/cancel`, null, { params: { reason } })
+    return res.data
+  },
+
+  async getPayments(params: Record<string, string | number | undefined> = {}): Promise<{ total: number; payments: AdminPayment[] }> {
+    const res = await apiClient.get('/admin/payments', { params })
+    return res.data
+  },
+
+  async refundPayment(paymentId: string, reason: string): Promise<void> {
+    await apiClient.post(`/admin/payments/${paymentId}/refund`, null, { params: { reason } })
+  },
+
+  async reconcilePayment(paymentId: string): Promise<any> {
+    return (await apiClient.post(`/admin/payments/${paymentId}/reconcile`)).data
+  },
+
+  async getPaymentHistory(paymentId: string): Promise<any[]> {
+    return (await apiClient.get(`/admin/payments/${paymentId}/history`)).data
+  },
+
+  async getRevenueReport(start_date: string, end_date: string, group_by = 'day', branch_id?: string) {
+    return (await apiClient.get('/admin/reports/revenue', { params: { start_date, end_date, group_by, branch_id } })).data
+  },
+
+  async getOccupancyReport(start_date: string, end_date: string, branch_id?: string) {
+    return (await apiClient.get('/admin/reports/occupancy', { params: { start_date, end_date, branch_id } })).data
+  },
+
+  async getTopMoviesReport(start_date: string, end_date: string, branch_id?: string) {
+    return (await apiClient.get('/admin/reports/top-movies', { params: { start_date, end_date, branch_id } })).data
   },
 
   async importTmdbMovie(payload: AdminImportTmdbMoviePayload): Promise<AdminImportTmdbMovieResult> {
@@ -1013,7 +1203,7 @@ export const mockShowtimes: Showtime[] = [
 export const generateSeats = (showtimeId: string): Seat[] => {
   const seats: Seat[] = []
   const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J']
-  
+
   rows.forEach((row, rowIndex) => {
     for (let i = 1; i <= 10; i++) {
       const id = `${showtimeId}_${row}${i}`
@@ -1071,6 +1261,7 @@ export const mockTickets: UserTicket[] = [
 // ----------------------------------------------------
 export interface BackendMovie {
   id: string
+  tmdb_id: number | null
   title: string
   original_title: string | null
   description: string | null
@@ -1080,6 +1271,8 @@ export interface BackendMovie {
   language: string | null
   trailer_url: string | null
   poster_url: string | null
+  director: string | null
+  cast_names: string[]
   status: string
   created_at: string
   updated_at: string
@@ -1117,15 +1310,15 @@ export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
     id: bm.id,
     title: bm.title,
     rating: 0, // backend không có rating, để 0
-    genre: bm.genres.map(g => g.name),
+    genre: normalizeMovieGenres(bm.genres.map(g => g.name)),
     format: [], // backend không có format, để trống
     poster: bm.poster_url || '/images/movie-placeholder.svg',
     trailer: bm.trailer_url || '',
     description: bm.description || '',
     duration: bm.duration_min,
     releaseDate: bm.release_date || '',
-    director: '', // backend không có director
-    cast: [], // backend không có cast
+    director: bm.director || '',
+    cast: bm.cast_names || [],
     isFeatured: bm.status === 'NOW_SHOWING',
     aiMatchReason: undefined,
     status: bm.status as NonNullable<Movie['status']>,
@@ -1144,7 +1337,7 @@ export function mapBackendShowtimeToFrontend(bs: BackendShowtime): Showtime {
     String(startDate.getDate()).padStart(2, '0'),
   ].join('-')
   const timeStr = startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) // "18:00"
-  
+
   return {
     id: bs.id,
     movieId: bs.movie_id,
@@ -1213,6 +1406,14 @@ export const movieService = {
   async getAll(status?: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'): Promise<Movie[]> {
     if (USE_MOCK) return mockMovies
     const res = await apiClient.get<BackendMovie[]>('/movies', { params: status ? { status } : undefined })
+    return res.data.map(mapBackendMovieToFrontend)
+  },
+
+  async getPublic(status?: 'UPCOMING' | 'NOW_SHOWING'): Promise<Movie[]> {
+    if (USE_MOCK) return mockMovies
+    const res = await apiClient.get<BackendMovie[]>('/movies', {
+      params: { public_only: true, ...(status ? { status } : {}) },
+    })
     return res.data.map(mapBackendMovieToFrontend)
   },
 
@@ -1297,8 +1498,10 @@ export const movieService = {
     return res.data.map(mapBackendMovieToFrontend)
   },
 
-  async getPopularFromTmdb(): Promise<TmdbPopularMovie[]> {
-    const data = await $fetch<{ source?: string; results?: any[] }>('/api/movies')
+  async getFromTmdb(list: TmdbMovieList = 'popular'): Promise<TmdbPopularMovie[]> {
+    const data = await $fetch<{ source?: string; results?: any[] }>('/api/movies', {
+      query: { list },
+    })
     if (data?.source === 'backend') return []
     const results = Array.isArray(data?.results) ? data.results : []
     return results.map((item: any) => ({
@@ -1310,6 +1513,10 @@ export const movieService = {
       original_title: item.original_title ? String(item.original_title) : null,
       suggested_ticket_price: Number(item.suggested_ticket_price || 90000),
     }))
+  },
+
+  async getPopularFromTmdb(): Promise<TmdbPopularMovie[]> {
+    return this.getFromTmdb('popular')
   }
 }
 
@@ -1338,14 +1545,15 @@ export const checkoutService = {
       quantity: bookingDetails.seats.length,
       total_price: bookingDetails.totalAmount,
     })
-    const response = await apiClient.post<any>('/payments/vnpay/create', {
+    const response = await apiClient.post<any>('/payments/checkout', {
       booking_id: bookingRes.data.id,
       amount: bookingDetails.totalAmount,
+      payment_method: 'VNPAY',
       promotion_code: bookingDetails.promotionCode || null,
     })
     return {
       paymentUrl: response.data.payment_url,
-      transactionRef: response.data.transaction_ref,
+      transactionRef: response.data.payment_id,
     }
   },
 
@@ -1363,6 +1571,12 @@ export const checkoutService = {
     showtimeId: string
     seats: string[]
     seatLabels?: string[]
+    movieTitle?: string
+    poster?: string
+    branchName?: string
+    screenName?: string
+    date?: string
+    time?: string
     paymentMethod: string
     totalAmount: number
     promotionCode?: string
@@ -1370,7 +1584,7 @@ export const checkoutService = {
     if (USE_MOCK) {
       const showtime = mockShowtimes.find(s => s.id === bookingDetails.showtimeId)
       const movie = mockMovies.find(m => m.id === showtime?.movieId)
-      
+
       const newTicket: UserTicket = {
         id: `t-${Math.floor(1000 + Math.random() * 9000)}`,
         movieTitle: movie?.title || 'Phim đã đặt',
@@ -1385,10 +1599,10 @@ export const checkoutService = {
         qrCode: `CineAI_E_TICKET_${Date.now()}`,
         bookingDate: new Date().toISOString().replace('T', ' ').substring(0, 16)
       }
-      
+
       return newTicket
     }
-    
+
     const bookingRes = await apiClient.post<any>('/bookings', {
       showtime_id: bookingDetails.showtimeId,
       seat_ids: bookingDetails.seats,
@@ -1403,18 +1617,18 @@ export const checkoutService = {
       promotion_code: bookingDetails.promotionCode || null,
     })
     const payment = paymentRes.data
-    const showtime = await apiClient.get<any>(`/movies/${booking.movie_id}/showtimes`)
-      .then((response) => response.data.find((item: any) => item.id === bookingDetails.showtimeId))
-      .catch(() => null)
-
+    if (payment.payment_url && process.client) {
+      window.location.assign(payment.payment_url)
+      return await new Promise<UserTicket>(() => {})
+    }
     return {
       id: booking.id,
-      movieTitle: showtime?.movie_title || selectedMovieTitle(booking.movie_id),
-      poster: showtime?.poster_url || '/images/movie-placeholder.svg',
-      branchName: showtime?.branch_name || 'CineAI',
-      screenName: showtime?.auditorium_name || 'Phòng chiếu',
-      date: String(showtime?.starts_at || booking.booking_date).slice(0, 10),
-      time: String(showtime?.starts_at || booking.booking_date).slice(11, 16),
+      movieTitle: bookingDetails.movieTitle || selectedMovieTitle(booking.movie_id),
+      poster: bookingDetails.poster || '/images/movie-placeholder.svg',
+      branchName: bookingDetails.branchName || 'CineAI',
+      screenName: bookingDetails.screenName || 'Phòng chiếu',
+      date: bookingDetails.date || String(booking.booking_date).slice(0, 10),
+      time: bookingDetails.time || String(booking.booking_date).slice(11, 16),
       seats: bookingDetails.seatLabels || booking.seats.map((seat: any) => `${seat.row}${seat.number}`),
       totalAmount: Number(payment.total_amount),
       paymentMethod: bookingDetails.paymentMethod,
@@ -1433,7 +1647,7 @@ export const aiService = {
     if (USE_MOCK) {
       await new Promise(resolve => setTimeout(resolve, 800)) // simulate latency
       const m = message.toLowerCase()
-      
+
       if (m.includes('đặt vé') || m.includes('mua vé') || m.includes('chọn ghế')) {
         return {
           response: 'Để đặt vé, bạn hãy truy cập mục **Khám phá AI**, chọn phim yêu thích, chọn suất chiếu, sau đó sơ đồ phòng chiếu thông minh sẽ xuất hiện để bạn chọn ghế ngồi và tiến hành thanh toán nhé!',
@@ -1461,7 +1675,7 @@ export const aiService = {
         response: 'Xin chào! Tôi là CineAI Assistant 🤖. Tôi có thể giúp bạn gợi ý phim, tra cứu lịch chiếu, hướng dẫn chọn ghế hoặc giải đáp các thắc mắc về dịch vụ. Bạn có câu hỏi nào khác không?'
       }
     }
-    
+
     const res = await apiClient.post('/chatbot', { message, context })
     return res.data
   },
@@ -1497,7 +1711,7 @@ export const aiService = {
         data
       }
     }
-    
+
     const formData = new FormData()
     if (typeof audioBlob === 'string') {
       formData.append('transcript', audioBlob)
@@ -1570,18 +1784,38 @@ export const adminService = {
           { label: 'Thứ Bảy', tickets: 110 },
           { label: 'Chủ Nhật', tickets: 120 }
         ],
-        showtimesList: mockShowtimes.filter(s => s.branchName.includes('Sala')).map((showtime, index) => ({
-          id: showtime.id,
-          movie_id: showtime.movieId,
-          movie_title: mockMovies.find(movie => movie.id === showtime.movieId)?.title || 'Phim đã ẩn',
-          auditorium_id: `aud-${index + 1}`,
-          auditorium_name: showtime.screenName,
-          branch_name: showtime.branchName,
-          starts_at: `${showtime.date}T${showtime.time}:00+07:00`,
-          ends_at: `${showtime.date}T${showtime.time}:00+07:00`,
-          status: 'OPEN',
-          base_price: showtime.price,
-        })),
+        showtimesList: mockShowtimes
+          .filter(s => s.branchName.includes('Sala'))
+          .map((showtime, index) => {
+            const matchedMovie = mockMovies.find(movie => movie.id === showtime.movieId)
+            const startTimeStr = `${showtime.date}T${showtime.time}:00+07:00`
+
+            // Giả lập giờ kết thúc = giờ bắt đầu + 2 tiếng (120 phút)
+            const startDate = new Date(startTimeStr)
+            const endDate = new Date(startDate.getTime() + 120 * 60 * 1000)
+            const endTimeStr = endDate.toISOString()
+
+            return {
+              id: String(showtime.id),
+              movie_id: String(showtime.movieId),
+              movie_title: matchedMovie?.title || 'Phim đã ẩn',
+              auditorium_id: `aud-${index + 1}`,
+              auditorium_name: showtime.screenName,
+              branch_name: showtime.branchName,
+              starts_at: startTimeStr,
+              ends_at: endTimeStr,
+              status: 'OPEN',
+              base_price: showtime.price,
+
+              //  BỔ SUNG ĐỦ DỮ LIỆU CHUẨN KHIÊN TYPE AdminShowtime KHÔNG BỊ LỖI
+              stored_status: 'OPEN' as const,
+              booking_closes_at: startTimeStr,
+              cancellation_reason: null,
+              booking_count: 15,
+              sold_seats: 15,
+              revenue: showtime.price * 15,
+            }
+          }),
         promotionsList: [
           { code: 'AISELECTION', discount: 15, desc: 'Giảm 15% cho phim do AI gợi ý', active: true },
           { code: 'WEEKEND30', discount: 10, desc: 'Giảm 10k/vé dịp cuối tuần', active: true },
@@ -1589,24 +1823,48 @@ export const adminService = {
         ]
       }
     }
+
+    // Gọi API thật từ Server
     const res = await apiClient.get<any>('/branch-admin/stats', {
       params: branchId ? { branchId } : undefined,
     })
+
+    const rawData = res.data
+
     return {
-      branchId: res.data.branch_id,
-      branchName: res.data.branch_name,
-      ticketsSold: res.data.ticketsSold,
-      activeShowtimes: res.data.activeShowtimes,
-      activePromos: res.data.activePromos,
-      branchRevenue: res.data.branchRevenue,
-      orders: res.data.orders || 0,
-      seatsSold: res.data.seatsSold || 0,
-      occupancyRate: res.data.occupancyRate || 0,
-      movieCount: res.data.movieCount || 0,
-      showtimeCount: res.data.showtimeCount || 0,
-      salesChartData: res.data.salesChartData || [],
-      showtimesList: res.data.showtimesList || [],
-      promotionsList: res.data.promotionsList || [],
+      branchId: rawData.branch_id || rawData.branchId || '',
+      branchName: rawData.branch_name || rawData.branchName || '',
+      ticketsSold: rawData.ticketsSold || 0,
+      activeShowtimes: rawData.activeShowtimes || 0,
+      activePromos: rawData.activePromos || 0,
+      branchRevenue: rawData.branchRevenue || 0,
+      orders: rawData.orders || 0,
+      seatsSold: rawData.seatsSold || 0,
+      occupancyRate: rawData.occupancyRate || 0,
+      movieCount: rawData.movieCount || 0,
+      showtimeCount: rawData.showtimeCount || 0,
+      salesChartData: rawData.salesChartData || [],
+      showtimesList: (rawData.showtimesList || []).map((item: any): AdminShowtime => ({
+        id: String(item.id),
+        movie_id: String(item.movie_id || item.movieId),
+        movie_title: item.movie_title || item.movieTitle || 'Phim chưa xác định',
+        auditorium_id: String(item.auditorium_id || item.auditoriumId),
+        auditorium_name: item.auditorium_name || item.screenName || 'Phòng chiếu',
+        branch_name: item.branch_name || item.branchName || '',
+        starts_at: item.starts_at || item.startsAt,
+        ends_at: item.ends_at || item.endsAt,
+        status: item.status || 'OPEN',
+        base_price: item.base_price || item.price || 0,
+
+        // Chuẩn hóa dữ liệu fallback phòng trường hợp API thiếu trường
+        stored_status: item.stored_status || 'OPEN',
+        booking_closes_at: item.booking_closes_at || null,
+        cancellation_reason: item.cancellation_reason || null,
+        booking_count: item.booking_count || 0,
+        sold_seats: item.sold_seats || 0,
+        revenue: item.revenue || 0,
+      })),
+      promotionsList: rawData.promotionsList || [],
     }
   }
 }

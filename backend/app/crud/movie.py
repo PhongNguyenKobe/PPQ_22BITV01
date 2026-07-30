@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -12,10 +12,24 @@ async def list_movies(
     db: AsyncSession,
     genre_code: str | None = None,
     status: str | None = None,
+    public_only: bool = False,
     skip: int = 0,
     limit: int = 20,
 ) -> list[Movie]:
     query = select(Movie).options(selectinload(Movie.genres)).order_by(Movie.created_at.desc())
+
+    if public_only:
+        query = query.where(
+            or_(
+                Movie.status == "UPCOMING",
+                (
+                    (Movie.status == "NOW_SHOWING")
+                    & Movie.showtimes.any(
+                        (Showtime.status == "OPEN") & (Showtime.booking_closes_at > func.now())
+                    )
+                ),
+            )
+        )
 
     if status == "NOW_SHOWING":
         query = query.where(

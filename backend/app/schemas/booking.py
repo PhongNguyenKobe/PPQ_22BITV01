@@ -51,6 +51,11 @@ class BookingRead(BaseModel):
     user_id: UUID
     showtime_id: UUID
     movie_id: UUID
+    movie_title: str
+    poster_url: str | None = None
+    branch_name: str
+    auditorium_name: str
+    starts_at: datetime
     booking_date: datetime
     seats: list[dict] = Field(default_factory=list)  # [{'row': 'A', 'number': 1}, ...]
     quantity: int
@@ -58,7 +63,11 @@ class BookingRead(BaseModel):
     subtotal_price: Decimal = Decimal("0")
     discount_amount: Decimal = Decimal("0")
     promotion_code: str | None = None
-    status: str  # 'PENDING', 'CONFIRMED', 'CANCELLED'
+    status: str  # 'PENDING', 'CONFIRMED', 'CANCEL_REQUESTED', 'CANCELLED', 'EXPIRED'
+    cancellation_reason: str | None = None
+    cancellation_requested_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    payment_method: str | None = None
     created_at: datetime
 
 

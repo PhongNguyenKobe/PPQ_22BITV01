@@ -7,11 +7,14 @@ definePageMeta({
 })
 
 const userStore = useUserStore()
+const route = useRoute()
 
 const email = ref('customer@gmail.com')
 const password = ref('customer123')
 const role = ref<'customer' | 'admin'>('customer')
 const error = ref('')
+const showPassword = ref(false)
+const submitting = ref(false)
 
 const credentialsHelp = {
   customer: { email: 'customer@gmail.com', password: 'customer123', desc: 'Tài khoản khách hàng mặc định' },
@@ -21,10 +24,16 @@ const credentialsHelp = {
 async function handleLogin() {
   error.value = ''
 
-  const help = credentialsHelp[role.value]
-  const identifier = email.value || help.email
-  const secret = password.value || help.password
+  const identifier = email.value.trim()
+  const secret = password.value
+  if (!identifier || !secret) {
+    error.value = 'Vui lòng nhập email/số điện thoại và mật khẩu!'
+    return
+  }
+
+  submitting.value = true
   const success = await userStore.login(identifier, secret)
+  submitting.value = false
 
   if (success) {
     if (userStore.currentUser?.role === 'admin') {
@@ -32,10 +41,20 @@ async function handleLogin() {
     } else if (userStore.currentUser?.role === 'branch-admin') {
       navigateTo('/branch-admin/dashboard')
     } else {
-      navigateTo('/products')
+      const requestedRedirect = Array.isArray(route.query.redirect)
+        ? route.query.redirect[0]
+        : route.query.redirect
+      const safeRedirect = typeof requestedRedirect === 'string'
+        && requestedRedirect.startsWith('/')
+        && !requestedRedirect.startsWith('//')
+        ? requestedRedirect
+        : '/products'
+      await navigateTo(safeRedirect)
     }
   } else {
-    error.value = 'Email hoặc mật khẩu không chính xác!'
+    error.value = userStore.authError === 'Invalid credentials'
+      ? 'Email, số điện thoại hoặc mật khẩu không chính xác!'
+      : userStore.authError || 'Không thể đăng nhập. Vui lòng thử lại!'
   }
 }
 
@@ -78,23 +97,30 @@ function selectRole(newRole: 'customer' | 'admin') {
         </div>
 
         <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Email tài
-            khoản</label>
-          <input v-model="email" type="email" required
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Email hoặc số
+            điện thoại</label>
+          <input v-model="email" type="text" required maxlength="255" autocomplete="username"
             class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
-            placeholder="Nhập email đăng nhập" />
+            placeholder="Nhập email hoặc số điện thoại" />
         </div>
 
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Mật khẩu</label>
-          <input v-model="password" type="password"
-            class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
-            placeholder="Nhập mật khẩu" />
+          <div class="relative">
+            <input v-model="password" :type="showPassword ? 'text' : 'password'" required maxlength="128"
+              autocomplete="current-password"
+              class="w-full bg-surface-container border border-glass-stroke rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-1 focus:ring-primary-container text-on-surface"
+              placeholder="Nhập mật khẩu" />
+            <button type="button" class="absolute inset-y-0 right-0 px-4 text-on-surface-variant hover:text-white"
+              :aria-label="showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'" @click="showPassword = !showPassword">
+              <span class="material-symbols-outlined text-lg">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+            </button>
+          </div>
         </div>
 
-        <button type="submit"
-          class="w-full bg-primary-container text-on-primary-container py-3.5 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all text-sm shadow-lg red-glow">
-          Đăng Nhập
+        <button type="submit" :disabled="submitting"
+          class="w-full bg-primary-container text-on-primary-container py-3.5 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all text-sm shadow-lg red-glow disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100">
+          {{ submitting ? 'Đang đăng nhập...' : 'Đăng Nhập' }}
         </button>
       </form>
 

@@ -24,6 +24,16 @@ class PaymentRead(BaseModel):
     payment_method: str
     status: str  # 'PENDING', 'SUCCESS', 'FAILED', 'REFUNDED'
     transaction_id: str | None = None
+    provider_ref: str | None = None
+    provider_transaction_no: str | None = None
+    bank_transaction_no: str | None = None
+    bank_code: str | None = None
+    card_type: str | None = None
+    response_code: str | None = None
+    provider_status: str | None = None
+    signature_valid: bool | None = None
+    provider_paid_at: datetime | None = None
+    last_verified_at: datetime | None = None
     paid_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -48,22 +58,4 @@ class CheckoutResponse(BaseModel):
     qr_code: str | None = None
     confirmation_number: str
     message: str
-
-
-class VnpayCreateRequest(BaseModel):
-    booking_id: UUID
-    amount: Decimal = Field(gt=0)
-    promotion_code: str | None = Field(default=None, max_length=50)
-
-
-class VnpayCreateResponse(BaseModel):
-    payment_url: str
-    transaction_ref: str
-    expires_at: datetime | None = None
-
-
-class VnpayCallbackResponse(BaseModel):
-    success: bool
-    message: str
-    transaction_ref: str | None = None
-    payment_status: str | None = None
+    payment_url: str | None = None

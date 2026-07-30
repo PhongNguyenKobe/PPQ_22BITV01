@@ -4,8 +4,8 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -23,6 +23,11 @@ class Booking(Base):
     discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default=text("0"))
     promotion_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("promotions.id", ondelete="SET NULL"))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'PENDING'"))
+    seat_snapshot: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    cancellation_reason: Mapped[str | None] = mapped_column(Text)
+    cancellation_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
@@ -56,11 +61,40 @@ class Payment(Base):
     payment_method: Mapped[str] = mapped_column(String(30), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'PENDING'"))
     transaction_id: Mapped[str | None] = mapped_column(String(150), unique=True)
+    provider_ref: Mapped[str | None] = mapped_column(String(100), unique=True)
+    provider_transaction_no: Mapped[str | None] = mapped_column(String(30), index=True)
+    bank_transaction_no: Mapped[str | None] = mapped_column(String(255))
+    bank_code: Mapped[str | None] = mapped_column(String(30))
+    card_type: Mapped[str | None] = mapped_column(String(30))
+    response_code: Mapped[str | None] = mapped_column(String(10))
+    provider_status: Mapped[str | None] = mapped_column(String(10))
+    signature_valid: Mapped[bool | None] = mapped_column(Boolean)
+    provider_paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
     booking = relationship("Booking", back_populates="payments")
+    status_history = relationship("PaymentStatusHistory", back_populates="payment", cascade="all, delete-orphan", lazy="selectin")
+
+
+class PaymentStatusHistory(Base):
+    __tablename__ = "payment_status_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    payment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True)
+    old_status: Mapped[str | None] = mapped_column(String(20))
+    new_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False)
+    response_code: Mapped[str | None] = mapped_column(String(10))
+    provider_status: Mapped[str | None] = mapped_column(String(10))
+    signature_valid: Mapped[bool | None] = mapped_column(Boolean)
+    note: Mapped[str | None] = mapped_column(Text)
+    raw_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    payment = relationship("Payment", back_populates="status_history")
 
 
 class SeatHold(Base):

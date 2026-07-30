@@ -15,6 +15,12 @@ const props = defineProps<{
   description: string
   rating?: number
   trailerUrl?: string
+  genres?: string[]
+  status?: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'
+  adminPreview?: boolean
+  branchNames?: string[]
+  selectedBranchName?: string
+  selectedBranchId?: string
 }>()
 
 const router = useRouter()
@@ -35,12 +41,15 @@ const trailerHref = computed(() =>
   youtubeTrailerLink(props.trailerUrl, props.name)
 )
 
-function startBooking() {
-  if (!userStore.isAuthenticated) {
-    router.push('/login')
-    return
-  }
+const genreLabel = computed(() =>
+  props.genres?.length ? props.genres.slice(0, 2).join(' · ') : props.category
+)
+const detailQuery = computed(() => ({
+  ...(props.adminPreview ? { preview: 'admin' } : {}),
+  ...(props.selectedBranchId ? { branch_id: props.selectedBranchId } : {}),
+}))
 
+function startBooking() {
   ticketsStore.selectMovie({
     id: props.id,
     name: props.name,
@@ -52,8 +61,17 @@ function startBooking() {
     description: props.description,
     trailerUrl: props.trailerUrl || null,
   })
+  if (props.selectedBranchName) ticketsStore.selectCinema(props.selectedBranchName)
 
-  router.push('/checkout/cinema')
+  if (!userStore.isAuthenticated) {
+    router.push({
+      path: '/login',
+      query: { redirect: '/checkout/cinema' },
+    })
+    return
+  }
+
+  router.push(props.selectedBranchName ? '/checkout/showtime' : '/checkout/cinema')
 }
 </script>
 
@@ -82,16 +100,27 @@ function startBooking() {
           <p class="text-xs text-white/70 font-semibold">{{ category }} • {{ formattedPrice }}₫</p>
           <div class="grid grid-cols-1 gap-2">
             <NuxtLink
+              v-if="status !== 'UPCOMING' && !adminPreview"
               to="/checkout/cinema"
               class="overlay-btn overlay-btn-primary"
               @click.prevent="startBooking"
             >
               Mua vé
             </NuxtLink>
+            <NuxtLink
+              v-else-if="status === 'UPCOMING'"
+              :to="{ path: `/products/${id}`, query: detailQuery }"
+              class="overlay-btn overlay-btn-primary"
+            >
+              Xem thông tin
+            </NuxtLink>
+            <span v-else class="overlay-btn overlay-btn-primary cursor-default">
+              Chế độ chỉ xem
+            </span>
 
             <div class="grid grid-cols-2 gap-2">
               <NuxtLink
-                :to="`/products/${id}`"
+                :to="{ path: `/products/${id}`, query: detailQuery }"
                 class="overlay-btn overlay-btn-secondary"
               >
                 Xem chi tiết
@@ -113,9 +142,15 @@ function startBooking() {
       <!-- Category badge -->
       <div class="absolute top-3 left-3 flex flex-col gap-1 z-10">
         <span
+          v-if="status === 'UPCOMING'"
+          class="w-fit bg-red-600 text-[10px] font-bold px-2.5 py-0.5 rounded text-white tracking-wide uppercase"
+        >
+          Sắp chiếu
+        </span>
+        <span
           class="bg-black/60 border border-white/20 text-[10px] font-bold px-2.5 py-0.5 rounded text-white tracking-wide uppercase backdrop-blur-sm"
         >
-          {{ category }}
+          {{ genreLabel }}
         </span>
       </div>
 
@@ -143,7 +178,11 @@ function startBooking() {
           {{ name }}
         </h3>
         <p class="text-xs text-on-surface-variant line-clamp-1">
-          Giá: {{ formattedPrice }}₫
+          {{ status === 'UPCOMING' ? 'Ngày phát hành sẽ được cập nhật' : `Giá: ${formattedPrice}₫` }}
+        </p>
+        <p v-if="branchNames?.length" class="mt-2 line-clamp-2 text-[11px] font-semibold text-sky-300">
+          <span class="material-symbols-outlined mr-1 align-middle text-[13px]">location_on</span>
+          {{ selectedBranchName || (branchNames.length === 1 ? branchNames[0] : `Đang chiếu tại ${branchNames.length} chi nhánh`) }}
         </p>
       </div>
     </div>

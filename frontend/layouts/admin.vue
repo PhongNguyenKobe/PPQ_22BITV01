@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '~/store/user'
-import { branchesService, type BackendBranch } from '~/services/api'
+import { adminBackendService, branchesService, type BackendBranch } from '~/services/api'
 
 const userStore = useUserStore()
 const { currentUser } = storeToRefs(userStore)
@@ -10,35 +10,57 @@ const route = useRoute()
 
 const isCollapsed = ref(false)
 const showNotifications = ref(false)
-const selectedBranch = ref('ALL')
+const selectedBranch = useState<string>('admin-selected-branch', () => 'ALL')
 const branchOptions = ref<BackendBranch[]>([])
+const previewQuery = computed(() => {
+  const branchId = currentUser.value?.role === 'branch-admin'
+    ? currentUser.value.branchId
+    : selectedBranch.value !== 'ALL' ? selectedBranch.value : undefined
+  return { preview: 'admin', ...(branchId ? { branch_id: branchId } : {}) }
+})
 
 onMounted(async () => {
   try {
     branchOptions.value = await branchesService.getAll()
+    if (currentUser.value?.role === 'admin') {
+      const managedBranches = await adminBackendService.getBranchesManage()
+      notifications.value = managedBranches
+        .filter(branch => !branch.is_active || branch.auditoriums_count === 0)
+        .map((branch, index) => ({
+          id: index + 1,
+          text: !branch.is_active
+            ? `${branch.name} đang ngừng hoạt động`
+            : `${branch.name} chưa được cấu hình phòng chiếu`,
+          time: 'Cần kiểm tra',
+          unread: true,
+        }))
+      notificationCount.value = notifications.value.length
+    }
   } catch {
     branchOptions.value = []
   }
 })
 
-const notificationCount = ref(3)
-const notifications = ref([
-  { id: 1, text: 'Phòng 4 IMAX tại Chi nhánh Cầu Giấy báo lỗi máy chiếu', time: '5 phút trước', unread: true },
-  { id: 2, text: 'Chi nhánh Hà Đông đạt chỉ tiêu doanh thu ngày (+120%)', time: '20 phút trước', unread: true },
-  { id: 3, text: 'Yêu cầu duyệt phim "CineAI Chronicles" được gửi từ Branch-Admin', time: '1 giờ trước', unread: true }
-])
+const notificationCount = ref(0)
+const notifications = ref<Array<{ id: number; text: string; time: string; unread: boolean }>>([])
 
 const adminMenu = [
   { tab: 'overview', label: 'Tổng quan', icon: 'dashboard' },
   { tab: 'movies', label: 'Phim', icon: 'movie' },
   { tab: 'users', label: 'Người dùng', icon: 'group' },
   { tab: 'branches', label: 'Chi nhánh', icon: 'location_city' },
+  { tab: 'schedule-monitor', label: 'Giám sát lịch chiếu', icon: 'calendar_view_week' },
   { tab: 'promotions', label: 'Khuyến mãi', icon: 'sell' },
+  { tab: 'bookings', label: 'Đơn đặt vé', icon: 'confirmation_number' },
+  { tab: 'payments', label: 'Thanh toán', icon: 'payments' },
+  { tab: 'reports', label: 'Báo cáo', icon: 'analytics' },
 ]
 const branchMenu = [
   { tab: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters' },
   { tab: 'seats', label: 'Ghế ngồi', icon: 'event_seat' },
   { tab: 'showtimes', label: 'Suất chiếu', icon: 'schedule' },
+  { tab: 'bookings', label: 'Đơn đặt vé', icon: 'confirmation_number' },
+  { tab: 'payments', label: 'Giao dịch & hoàn tiền', icon: 'payments' },
 ]
 
 function isCurrentTab(tab: string) {
@@ -64,11 +86,11 @@ function handleLogout() {
       class="admin-sidebar transition-all duration-300 ease-in-out"
       :class="isCollapsed ? 'w-20' : 'w-64'"
     >
-      <div class="flex flex-col h-full justify-between">
-        <div>
+      <div class="flex h-full min-h-0 flex-col">
+        <div class="min-h-0 flex-1 overflow-y-auto">
           <!-- Sidebar Brand -->
           <div class="admin-sidebar-brand flex items-center justify-between" :class="isCollapsed ? 'px-4' : 'px-6'">
-            <NuxtLink to="/products" class="brand-link flex items-center gap-3">
+            <NuxtLink :to="{ path: '/products', query: previewQuery }" class="brand-link flex items-center gap-3">
               <span class="material-symbols-outlined text-primary-container text-3xl">local_activity</span>
               <span v-if="!isCollapsed" class="font-headline-md font-black tracking-wider text-on-surface text-lg">
                 Cine<span class="text-primary-container">AI</span>
@@ -121,17 +143,17 @@ function handleLogout() {
             </NuxtLink>
 
             <NuxtLink
-              to="/products"
+              :to="{ path: '/products', query: previewQuery }"
               class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
             >
               <span class="material-symbols-outlined text-xl font-light">movie</span>
-              <span v-if="!isCollapsed" class="text-sm font-semibold">Trang bán vé</span>
+              <span v-if="!isCollapsed" class="text-sm font-semibold">Xem trước trang bán vé</span>
             </NuxtLink>
           </nav>
         </div>
 
         <!-- Sidebar User Section -->
-        <div class="sidebar-user p-4 border-t border-glass-stroke bg-white/[0.02]">
+        <div class="sidebar-user shrink-0 p-4 border-t border-glass-stroke bg-white/[0.02]">
           <div class="flex items-center gap-3" :class="isCollapsed ? 'justify-center' : 'mb-4'">
             <div class="avatar-circle w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm bg-gradient-to-tr from-primary-container to-ai-accent">
               {{ currentUser?.name.substring(0, 2).toUpperCase() }}
@@ -144,12 +166,12 @@ function handleLogout() {
             </div>
           </div>
           <button
-            v-if="!isCollapsed"
             @click="handleLogout"
             class="logout-btn w-full mt-2 border border-red-500/20 bg-red-950/20 hover:bg-red-950/40 text-red-400 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all duration-200"
+            title="Đăng xuất"
           >
             <span class="material-symbols-outlined text-sm">logout</span>
-            Đăng xuất
+            <span v-if="!isCollapsed">Đăng xuất</span>
           </button>
         </div>
       </div>
@@ -227,9 +249,9 @@ function handleLogout() {
           </div>
 
           <!-- Return to main ticket view -->
-          <NuxtLink to="/products" class="back-btn hidden lg:flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-glass-stroke bg-white/5 hover:bg-white/10 text-xs font-bold text-on-surface transition-all">
-            <span class="material-symbols-outlined text-sm">home</span>
-            Trang bán vé
+          <NuxtLink :to="{ path: '/products', query: previewQuery }" class="back-btn hidden lg:flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-glass-stroke bg-white/5 hover:bg-white/10 text-xs font-bold text-on-surface transition-all">
+            <span class="material-symbols-outlined text-sm">visibility</span>
+            Xem trước trang bán vé
           </NuxtLink>
         </div>
       </header>

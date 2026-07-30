@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { checkoutService } from '~/services/api'
+import { isShowtimeExpired } from '../../utils/showtime'
 
 definePageMeta({
   layout: 'default',

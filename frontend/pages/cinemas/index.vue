@@ -1,37 +1,37 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
-import { movieService, type Movie, type Showtime } from "~/services/api"
+import { ref, computed, onMounted, watch } from "vue"
+import { branchesService, type BranchDetail } from "~/services/api"
 
 definePageMeta({ layout: "default" })
 
-const movies = ref<Movie[]>([])
-const showtimesMap = ref<Record<string, Showtime[]>>({})
+const branches = ref<BranchDetail[]>([])
 const loading = ref(true)
 const error = ref("")
 
-const selectedChain = ref("Tất cả chuỗi rạp")
+const allBranchesLabel = "Tất cả chi nhánh"
+const selectedChain = ref(allBranchesLabel)
 const activeCinema = ref(0)
 
-// Fetch data
 onMounted(async () => {
   try {
     loading.value = true
-    const allMovies = await movieService.getAll()
-    movies.value = allMovies
-
-    // Fetch showtimes for all movies
-    const promises = allMovies.map(async (m) => {
+    const branchList = await branchesService.getAll()
+    branches.value = await Promise.all(branchList.map(async (branch) => {
       try {
-        const sts = await movieService.getShowtimes(m.id)
-        return { movieId: m.id, showtimes: sts }
+        return await branchesService.getById(branch.id)
       } catch {
-        return { movieId: m.id, showtimes: [] }
+        return {
+          ...branch,
+          address_line: "",
+          district: null,
+          phone: null,
+          latitude: null,
+          longitude: null,
+          movies: [],
+          showtimes: [],
+        } satisfies BranchDetail
       }
-    })
-    const results = await Promise.all(promises)
-    results.forEach((r) => {
-      showtimesMap.value[r.movieId] = r.showtimes
-    })
+    }))
   } catch (e) {
     console.error("Failed to load cinemas data:", e)
     error.value = "Không thể tải dữ liệu hệ thống rạp."
@@ -40,68 +40,47 @@ onMounted(async () => {
   }
 })
 
-// Get unique branch names from all showtimes
 const chains = computed(() => {
-  const branchSet = new Set<string>()
-  Object.values(showtimesMap.value).forEach((sts) =>
-    sts.forEach((st) => branchSet.add(st.branchName))
-  )
-  return ["Tất cả chuỗi rạp", ...Array.from(branchSet).sort()]
+  const cities = [...new Set(branches.value.map(branch => branch.city).filter(Boolean))].sort()
+  return [allBranchesLabel, ...cities]
 })
 
-// Build cinema list from branch data
 const cinemaList = computed(() => {
-  const branchMap = new Map<string, { showtimeCount: number; movies: Set<string> }>()
+  const visibleBranches = selectedChain.value === allBranchesLabel
+    ? branches.value
+    : branches.value.filter(branch => branch.city === selectedChain.value)
 
-  Object.values(showtimesMap.value).forEach((sts) => {
-    sts.forEach((st) => {
-      if (!branchMap.has(st.branchName)) {
-        branchMap.set(st.branchName, { showtimeCount: 0, movies: new Set() })
-      }
-      const entry = branchMap.get(st.branchName)!
-      entry.showtimeCount++
-      entry.movies.add(st.movieId)
-    })
-  })
-
-  return Array.from(branchMap.entries()).map(([name, data]) => ({
-    name,
-    address: "Hệ thống rạp CineAI",
-    showtimeCount: data.showtimeCount,
-    movieCount: data.movies.size,
+  return visibleBranches.map(branch => ({
+    id: branch.id,
+    name: branch.name,
+    city: branch.city,
+    address: [branch.address_line, branch.district, branch.city].filter(Boolean).join(", "),
+    phone: branch.phone,
+    showtimeCount: branch.showtimes.length,
+    movieCount: branch.movies.length,
+    movies: branch.movies,
   }))
 })
 
-// Movies playing at the active cinema
 const movieGrid = computed(() => {
-  if (cinemaList.value.length === 0) return []
-
   const activeBranch = cinemaList.value[activeCinema.value]
   if (!activeBranch) return []
 
-  // Find movies that have showtimes at this branch
-  const movieIds = new Set<string>()
-  Object.entries(showtimesMap.value).forEach(([movieId, sts]) => {
-    if (sts.some((st) => st.branchName === activeBranch.name)) {
-      movieIds.add(movieId)
-    }
-  })
-
-  return movies.value
-    .filter((m) => movieIds.has(m.id))
+  return activeBranch.movies
     .slice(0, 6)
-    .map((m) => ({
-      name: m.title,
-      genre: m.genre.join(", ") + ` - ${m.duration} ph`,
-      rating: m.releaseDate,
-      img: m.poster,
+    .map((movie) => ({
+      id: movie.id,
+      name: movie.title,
+      genre: movie.genre.join(", ") + ` - ${movie.duration} ph`,
+      rating: movie.releaseDate,
+      img: movie.poster,
     }))
 })
 
-// Find the first movie for banner
-const activeCinemaMovie = computed(() => {
-  if (cinemaList.value.length === 0) return null
-  return cinemaList.value[activeCinema.value] || null
+const activeCinemaMovie = computed(() => cinemaList.value[activeCinema.value] || null)
+
+watch(selectedChain, () => {
+  activeCinema.value = 0
 })
 </script>
 
@@ -149,7 +128,7 @@ const activeCinemaMovie = computed(() => {
             </div>
             <div class="rounded-2xl overflow-hidden" style="background:rgba(31,31,31,0.6);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);max-height:600px;overflow-y:auto">
               <div
-                v-for="(cinema, i) in cinemaList" :key="i"
+                v-for="(cinema, i) in cinemaList" :key="cinema.id"
                 @click="activeCinema = i"
                 class="p-5 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-all"
                 :class="activeCinema === i ? 'border-l-4 border-l-primary-container bg-primary-container/5' : ''"
@@ -240,12 +219,20 @@ const activeCinemaMovie = computed(() => {
                     </div>
                     <div class="flex items-center justify-between">
                       <span class="text-primary-container font-bold text-label-md">{{ m.rating }}</span>
-                      <NuxtLink to="/showtimes" class="bg-primary-container/10 hover:bg-primary-container text-primary-container hover:text-white px-4 py-2 rounded-lg font-label-md text-label-md transition-all">Xem lịch chiếu</NuxtLink>
+                      <NuxtLink :to="`/movies/${m.id}`" class="bg-primary-container/10 hover:bg-primary-container text-primary-container hover:text-white px-4 py-2 rounded-lg font-label-md text-label-md transition-all">Xem lịch chiếu</NuxtLink>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+
+            <NuxtLink
+              v-if="activeCinemaMovie"
+              :to="`/cinemas/${activeCinemaMovie.id}`"
+              class="w-fit rounded-xl border border-primary-container/40 px-5 py-3 font-bold text-primary-container transition hover:bg-primary-container hover:text-white"
+            >
+              Xem toàn bộ thông tin và lịch chiếu của rạp
+            </NuxtLink>
 
             <!-- AI CTA -->
             <div class="rounded-3xl p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden" style="background:rgba(31,31,31,0.6);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1)">

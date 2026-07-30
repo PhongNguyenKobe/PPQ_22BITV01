@@ -13,6 +13,10 @@ interface Product {
   trailerUrl?: string
   status: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'
   genres: string[]
+  duration: number
+  releaseDate: string
+  director: string
+  cast: string[]
 }
 
 export const useProductsStore = defineStore('products', {
@@ -28,7 +32,7 @@ export const useProductsStore = defineStore('products', {
       this.loading = true
       this.error = ''
       try {
-        const backendMovies = await movieService.getAll()
+        const backendMovies = await movieService.getPublic()
         this.products = backendMovies.map((movie) => {
           return {
             id: movie.id,
@@ -42,6 +46,10 @@ export const useProductsStore = defineStore('products', {
             description: movie.description,
             rating: movie.rating,
             trailerUrl: movie.trailer,
+            duration: movie.duration,
+            releaseDate: movie.releaseDate,
+            director: movie.director,
+            cast: movie.cast,
           }
         })
       } catch (err) {

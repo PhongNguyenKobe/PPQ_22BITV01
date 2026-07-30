@@ -33,6 +33,30 @@ interface TmdbVideosResponse {
   results: TmdbVideo[]
 }
 
+// TMDB movie genre IDs are stable. Keep one Vietnamese taxonomy in the
+// internal catalog even when TMDB returns an untranslated English name.
+const TMDB_GENRES_VI: Record<number, string> = {
+  28: 'Hành động',
+  12: 'Phiêu lưu',
+  16: 'Hoạt hình',
+  35: 'Hài',
+  80: 'Tội phạm',
+  99: 'Tài liệu',
+  18: 'Chính kịch',
+  10751: 'Gia đình',
+  14: 'Kỳ ảo',
+  36: 'Lịch sử',
+  27: 'Kinh dị',
+  10402: 'Âm nhạc',
+  9648: 'Bí ẩn',
+  10749: 'Lãng mạn',
+  878: 'Khoa học viễn tưởng',
+  10770: 'Phim truyền hình',
+  53: 'Giật gân',
+  10752: 'Chiến tranh',
+  37: 'Miền Tây',
+}
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const id = getRouterParam(event, 'id')
@@ -121,7 +145,7 @@ export default defineEventHandler(async (event) => {
       rating: movie.vote_average || 0,
       duration: movie.runtime || 0,
       releaseDate: movie.release_date || '',
-      genre: movie.genres?.map((g) => g.name) || [],
+      genre: movie.genres?.map((genre) => TMDB_GENRES_VI[genre.id] || genre.name) || [],
       director,
       cast: castList,
       trailerUrl: trailerKey ? `https://www.youtube.com/embed/${trailerKey}` : '',

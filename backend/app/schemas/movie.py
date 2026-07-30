@@ -17,6 +17,7 @@ class MovieRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    tmdb_id: int | None = None
     title: str
     original_title: str | None = None
     description: str | None = None
@@ -26,6 +27,8 @@ class MovieRead(BaseModel):
     language: str | None = None
     trailer_url: str | None = None
     poster_url: str | None = None
+    director: str | None = None
+    cast_names: list[str] = Field(default_factory=list)
     status: str
     created_at: datetime
     updated_at: datetime

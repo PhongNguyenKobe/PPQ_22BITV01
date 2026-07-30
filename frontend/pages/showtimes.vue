@@ -117,7 +117,7 @@ const aiCards = computed(() => {
 onMounted(async () => {
   try {
     loading.value = true
-    const allMovies = await movieService.getAll()
+    const allMovies = await movieService.getPublic()
     movies.value = allMovies
 
     const showtimePromises = allMovies.map(async (m) => {

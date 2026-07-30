@@ -14,7 +14,7 @@ export const useMoviesStore = defineStore('movies', () => {
     loading.value = true
     error.value = null
     try {
-      movies.value = await movieService.getAll()
+      movies.value = await movieService.getPublic()
     } catch (e) {
       console.error('Failed to load movies:', e)
       error.value = 'Không thể tải danh sách phim'
