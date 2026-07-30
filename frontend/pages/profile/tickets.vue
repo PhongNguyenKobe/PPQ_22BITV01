@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
@@ -20,6 +20,37 @@ const { currentUser, isAuthenticated } = storeToRefs(userStore)
 const selectedTicket = ref<UserTicket | null>(null)
 const cancellationLoading = ref(false)
 const cancellationError = ref('')
+
+// Phân trang
+const currentPage = ref(1)
+const pageSize = 6
+
+const totalPages = computed(() => Math.ceil(ticketHistory.value.length / pageSize))
+
+const paginatedTickets = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return ticketHistory.value.slice(start, start + pageSize)
+})
+
+const visiblePages = computed(() => {
+  const range = []
+  const start = Math.max(1, currentPage.value - 2)
+  const end = Math.min(totalPages.value, currentPage.value + 2)
+  for (let i = start; i <= end; i++) {
+    range.push(i)
+  }
+  return range
+})
+
+function scrollToTop() {
+  if (process.client) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+watch(ticketHistory, () => {
+  currentPage.value = 1
+})
 
 const canRequestCancellation = computed(() => {
   if (!selectedTicket.value || selectedTicket.value.status !== 'CONFIRMED') return false
@@ -106,78 +137,112 @@ onMounted(async () => {
         </NuxtLink>
       </div>
 
-      <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <!-- Loop tickets -->
-        <div v-for="ticket in ticketHistory" :key="ticket.id" @click="selectedTicket = ticket"
-          class="glass-panel border border-glass-stroke rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-xl relative cursor-pointer hover:border-primary-container/50 hover:shadow-primary-container/20 transition-all duration-300 transform hover:-translate-y-1">
-          <!-- Absolute decorative ticket notches -->
-          <div
-            class="hidden md:block absolute left-[65%] top-0 -translate-y-1/2 w-8 h-8 rounded-full bg-background z-20">
-          </div>
-          <div
-            class="hidden md:block absolute left-[65%] bottom-0 translate-y-1/2 w-8 h-8 rounded-full bg-background z-20">
-          </div>
-
-          <!-- Movie Poster & Details (Left 65%) -->
-          <div class="p-6 md:w-[65%] flex flex-col justify-between space-y-4">
-            <div class="flex gap-4">
-              <!-- Small poster -->
-              <img :src="ticket.poster" :alt="ticket.movieTitle"
-                class="w-20 h-28 object-cover rounded-xl border border-glass-stroke flex-shrink-0" />
-              <div>
-                <span
-                  class="text-[10px] bg-primary-container/10 border border-primary-container/20 text-primary-container px-2 py-0.5 rounded font-bold uppercase">
-                  Vé Đã Xác Nhận
-                </span>
-                <h3 class="font-black text-base text-on-surface line-clamp-2 mt-1 leading-snug">{{ ticket.movieTitle }}
-                </h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Mã đặt vé: <span
-                    class="text-on-surface font-bold font-mono">{{ ticket.id }}</span></p>
-              </div>
-            </div>
-
-            <!-- Showtime meta -->
-            <div class="grid grid-cols-2 gap-3 text-xs text-on-surface-variant border-t border-glass-stroke/40 pt-4">
-              <div>
-                <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Rạp Chiếu</span>
-                <span class="font-bold text-on-surface truncate block">{{ ticket.branchName }}</span>
-              </div>
-              <div>
-                <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Phòng Chiếu</span>
-                <span class="font-bold text-on-surface uppercase">{{ ticket.screenName }}</span>
-              </div>
-              <div>
-                <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Thời Gian</span>
-                <span class="font-bold text-primary block">{{ ticket.time }} | {{ formatDate(ticket.date) }}</span>
-              </div>
-              <div>
-                <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Ghế Ngồi</span>
-                <span class="font-bold text-on-surface truncate block">{{ ticket.seats.join(', ') }}</span>
-              </div>
-            </div>
-
+      <div v-else class="space-y-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <!-- Loop tickets -->
+          <div v-for="ticket in paginatedTickets" :key="ticket.id" @click="selectedTicket = ticket"
+            class="glass-panel border border-glass-stroke rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-xl relative cursor-pointer hover:border-primary-container/50 hover:shadow-primary-container/20 transition-all duration-300 transform hover:-translate-y-1">
+            <!-- Absolute decorative ticket notches -->
             <div
-              class="border-t border-glass-stroke/20 pt-3 flex justify-between items-center text-xs text-on-surface-variant">
-              <span>Ngày đặt: {{ formatDateTime(ticket.bookingDate) }}</span>
-              <span class="font-bold text-on-surface">{{ ticket.totalAmount.toLocaleString() }}đ</span>
+              class="hidden md:block absolute left-[65%] top-0 -translate-y-1/2 w-8 h-8 rounded-full bg-background z-20">
             </div>
+            <div
+              class="hidden md:block absolute left-[65%] bottom-0 translate-y-1/2 w-8 h-8 rounded-full bg-background z-20">
+            </div>
+
+            <!-- Movie Poster & Details (Left 65%) -->
+            <div class="p-6 md:w-[65%] flex flex-col justify-between space-y-4">
+              <div class="flex gap-4">
+                <!-- Small poster -->
+                <img :src="ticket.poster" :alt="ticket.movieTitle"
+                  class="w-20 h-28 object-cover rounded-xl border border-glass-stroke flex-shrink-0" />
+                <div>
+                  <span
+                    class="text-[10px] bg-primary-container/10 border border-primary-container/20 text-primary-container px-2 py-0.5 rounded font-bold uppercase">
+                    Vé Đã Xác Nhận
+                  </span>
+                  <h3 class="font-black text-base text-on-surface line-clamp-2 mt-1 leading-snug">{{ ticket.movieTitle }}
+                  </h3>
+                  <p class="text-[11px] text-on-surface-variant mt-1">Mã đặt vé: <span
+                      class="text-on-surface font-bold font-mono">{{ ticket.id }}</span></p>
+                </div>
+              </div>
+
+              <!-- Showtime meta -->
+              <div class="grid grid-cols-2 gap-3 text-xs text-on-surface-variant border-t border-glass-stroke/40 pt-4">
+                <div>
+                  <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Rạp Chiếu</span>
+                  <span class="font-bold text-on-surface truncate block">{{ ticket.branchName }}</span>
+                </div>
+                <div>
+                  <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Phòng Chiếu</span>
+                  <span class="font-bold text-on-surface uppercase">{{ ticket.screenName }}</span>
+                </div>
+                <div>
+                  <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Thời Gian</span>
+                  <span class="font-bold text-primary block">{{ ticket.time }} | {{ formatDate(ticket.date) }}</span>
+                </div>
+                <div>
+                  <span class="block text-[10px] uppercase text-on-surface-variant mb-0.5">Ghế Ngồi</span>
+                  <span class="font-bold text-on-surface truncate block">{{ ticket.seats.join(', ') }}</span>
+                </div>
+              </div>
+
+              <div
+                class="border-t border-glass-stroke/20 pt-3 flex justify-between items-center text-xs text-on-surface-variant">
+                <span>Ngày đặt: {{ formatDateTime(ticket.bookingDate) }}</span>
+                <span class="font-bold text-on-surface">{{ ticket.totalAmount.toLocaleString() }}đ</span>
+              </div>
+            </div>
+
+            <!-- Dotted Divider Line -->
+            <div class="border-t md:border-t-0 md:border-l border-dashed border-glass-stroke/60 relative"></div>
+
+            <!-- QR code panel (Right 35%) -->
+            <div
+              class="p-6 md:w-[35%] bg-surface-container/20 flex flex-col items-center justify-center text-center space-y-4">
+              <div class="w-32 h-32 bg-white p-2 rounded-2xl border border-glass-stroke shadow-md">
+                <QrCodeImage :value="ticket.qrCode" :size="120" />
+              </div>
+              <div>
+                <span class="text-[10px] text-on-surface-variant uppercase tracking-wider block">Quét tại quầy vé</span>
+                <span class="text-xs font-bold text-on-surface mt-0.5 block font-mono">{{ ticket.id }}</span>
+              </div>
+            </div>
+
           </div>
+        </div>
 
-          <!-- Dotted Divider Line -->
-          <div class="border-t md:border-t-0 md:border-l border-dashed border-glass-stroke/60 relative"></div>
-
-          <!-- QR code panel (Right 35%) -->
-          <div
-            class="p-6 md:w-[35%] bg-surface-container/20 flex flex-col items-center justify-center text-center space-y-4">
-            <div class="w-32 h-32 bg-white p-2 rounded-2xl border border-glass-stroke shadow-md">
-              <QrCodeImage :value="ticket.qrCode" :size="120" />
-            </div>
-            <div>
-              <span class="text-[10px] text-on-surface-variant uppercase tracking-wider block">Quét tại quầy vé</span>
-              <span class="text-xs font-bold text-on-surface mt-0.5 block font-mono">{{ ticket.id }}</span>
-            </div>
+        <!-- Pagination Controls -->
+        <div v-if="totalPages > 1" class="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-glass-stroke/20">
+          <span class="text-xs text-on-surface-variant">Hiển thị trang {{ currentPage }} / {{ totalPages }} (Tổng {{ ticketHistory.length }} vé)</span>
+          <div class="flex items-center gap-1.5">
+            <button 
+              :disabled="currentPage === 1" 
+              @click="currentPage--; scrollToTop()"
+              class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-primary-container disabled:bg-transparent border border-glass-stroke/40 hover:border-primary-container disabled:opacity-30 transition-all text-xs font-bold text-on-surface disabled:hover:text-on-surface disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              <span class="material-symbols-outlined text-xs">chevron_left</span>
+              Trước
+            </button>
+            <button 
+              v-for="page in visiblePages" 
+              :key="page"
+              @click="currentPage = page; scrollToTop()"
+              class="w-8 h-8 rounded-xl text-xs font-bold transition-all border flex items-center justify-center"
+              :class="currentPage === page ? 'bg-primary-container border-primary-container text-white' : 'bg-white/5 border-glass-stroke/40 hover:bg-white/10 text-on-surface'"
+            >
+              {{ page }}
+            </button>
+            <button 
+              :disabled="currentPage === totalPages" 
+              @click="currentPage++; scrollToTop()"
+              class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-primary-container disabled:bg-transparent border border-glass-stroke/40 hover:border-primary-container disabled:opacity-30 transition-all text-xs font-bold text-on-surface disabled:hover:text-on-surface disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              Sau
+              <span class="material-symbols-outlined text-xs">chevron_right</span>
+            </button>
           </div>
-
         </div>
       </div>
     </div>
