@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { adminBackendService, movieService, type AdminAuditorium, type AdminShowtime, type Movie, type BulkShowtimeDraft } from '~/services/api'
-import { useUserStore } from '~/store/user'
-
-const userStore = useUserStore()
-const isBranchAdmin = computed(() => userStore.currentUser?.role === 'branch-admin')
 
 const auditoriums = ref<AdminAuditorium[]>([])
 const showtimes = ref<AdminShowtime[]>([])
