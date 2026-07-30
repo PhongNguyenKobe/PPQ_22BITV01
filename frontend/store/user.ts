@@ -7,6 +7,16 @@ export const useUserStore = defineStore('user', () => {
   const currentUser = ref<UserProfile | null>(null)
   const isAuthenticated = ref(false)
   const authToken = ref<string | null>(null)
+  const authError = ref('')
+
+  function errorMessage(error: any): string {
+    const detail = error?.message
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) {
+      return detail.map(item => item?.msg || String(item)).join('. ')
+    }
+    return 'Đã có lỗi xảy ra. Vui lòng thử lại.'
+  }
 
   function setSession(user: UserProfile | null, token: string | null) {
     currentUser.value = user
@@ -68,23 +78,26 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function login(identifier: string, password: string): Promise<boolean> {
+    authError.value = ''
     try {
       const response = await authService.login({ identifier, password })
       const mappedUser = mapBackendUserToProfile(response.user, response.access_token)
       registeredUsers.value = [mappedUser]
       setSession(mappedUser, response.access_token)
       return true
-    } catch {
+    } catch (error) {
+      authError.value = errorMessage(error)
       return false
     }
   }
 
-  async function register(payload: { name: string; email: string; phone?: string; password: string; dateOfBirth?: string; gender?: string }): Promise<boolean> {
+  async function register(payload: { name: string; email: string; phone: string; password: string; dateOfBirth?: string; gender?: string }): Promise<boolean> {
+    authError.value = ''
     try {
       const response = await authService.register({
         full_name: payload.name,
         email: payload.email,
-        phone: payload.phone || null,
+        phone: payload.phone,
         password: payload.password,
         date_of_birth: payload.dateOfBirth || null,
         gender: payload.gender || null,
@@ -93,7 +106,8 @@ export const useUserStore = defineStore('user', () => {
       registeredUsers.value = [mappedUser]
       setSession(mappedUser, response.access_token)
       return true
-    } catch {
+    } catch (error) {
+      authError.value = errorMessage(error)
       return false
     }
   }
@@ -107,8 +121,10 @@ export const useUserStore = defineStore('user', () => {
     isAuthenticated,
     registeredUsers,
     authToken,
+    authError,
     login,
     register,
+    refreshCurrentUser,
     logout
   }
 })

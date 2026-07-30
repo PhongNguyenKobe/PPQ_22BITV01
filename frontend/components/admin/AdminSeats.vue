@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { adminBackendService, adminService, type AdminAuditorium, type AdminSeat, type AdminSeatType } from '~/services/api'
 import { useUserStore } from '~/store/user'
 
@@ -36,6 +36,27 @@ const seatTools: { code: SeatTool; label: string; cls: string }[] = [
 ]
 const seatLayout = ref<SeatLayoutCell[]>([])
 const seatLayoutSaving = ref(false)
+const isPainting = ref(false)
+const paintStart = ref<SeatLayoutCell | null>(null)
+const paintCurrent = ref<SeatLayoutCell | null>(null)
+
+const paintedSeatKeys = computed(() => {
+  if (!paintStart.value || !paintCurrent.value) return new Set<string>()
+  const firstRow = Math.min(paintStart.value.row.charCodeAt(0), paintCurrent.value.row.charCodeAt(0))
+  const lastRow = Math.max(paintStart.value.row.charCodeAt(0), paintCurrent.value.row.charCodeAt(0))
+  const firstNumber = Math.min(paintStart.value.number, paintCurrent.value.number)
+  const lastNumber = Math.max(paintStart.value.number, paintCurrent.value.number)
+  return new Set(
+    seatLayout.value
+      .filter(cell =>
+        cell.row.charCodeAt(0) >= firstRow
+        && cell.row.charCodeAt(0) <= lastRow
+        && cell.number >= firstNumber
+        && cell.number <= lastNumber,
+      )
+      .map(cell => `${cell.row}-${cell.number}`),
+  )
+})
 
 async function loadData() {
   loading.value = true
@@ -127,6 +148,29 @@ function applyToolToRow(row: string) {
   seatLayout.value.filter((cell) => cell.row === row).forEach(applySeatTool)
 }
 
+function startPainting(cell: SeatLayoutCell, event: PointerEvent) {
+  if (event.button !== 0) return
+  event.preventDefault()
+  isPainting.value = true
+  paintStart.value = cell
+  paintCurrent.value = cell
+}
+
+function extendPainting(cell: SeatLayoutCell) {
+  if (isPainting.value) paintCurrent.value = cell
+}
+
+function finishPainting() {
+  if (!isPainting.value) return
+  const selectedKeys = paintedSeatKeys.value
+  seatLayout.value
+    .filter(cell => selectedKeys.has(`${cell.row}-${cell.number}`))
+    .forEach(applySeatTool)
+  isPainting.value = false
+  paintStart.value = null
+  paintCurrent.value = null
+}
+
 async function saveSeatLayout() {
   if (!seatForm.value.auditoriumId || !seatLayout.value.length) return
   seatLayoutSaving.value = true
@@ -160,7 +204,10 @@ const seatLayoutRowNames = computed(() => [...new Set(seatLayout.value.map((cell
 
 onMounted(() => {
   loadData()
+  window.addEventListener('pointerup', finishPainting)
 })
+
+onBeforeUnmount(() => window.removeEventListener('pointerup', finishPainting))
 </script>
 
 <template>
@@ -211,7 +258,7 @@ onMounted(() => {
         <div class="mb-6">
           <p class="text-sm font-semibold text-on-surface mb-3 flex items-center gap-2">
             <span class="material-symbols-outlined text-primary text-[20px]">palette</span>
-            Công cụ vẽ (Chọn công cụ rồi bấm vào ghế)
+            Công cụ vẽ (chọn công cụ, bấm một ghế hoặc kéo để tô cả vùng)
           </p>
           <div class="flex flex-wrap gap-2">
             <button
@@ -257,14 +304,18 @@ onMounted(() => {
                   v-for="cell in seatLayout.filter((item) => item.row === row)"
                   :key="`${cell.row}-${cell.number}`"
                   type="button"
-                  class="relative h-10 w-11 rounded-t-lg rounded-b-sm border-b-4 text-[11px] font-bold transition-all hover:scale-110 shadow-sm flex items-center justify-center select-none"
+                  class="relative h-10 w-11 touch-none rounded-t-lg rounded-b-sm border-b-4 text-[11px] font-bold transition-all hover:scale-110 shadow-sm flex items-center justify-center select-none"
                   :class="
+                    [
                     !cell.active ? 'border-dashed border-white/10 border-b border-t border-l border-r bg-transparent text-white/10 hover:border-white/30 hover:bg-white/5'
                     : cell.typeCode === 'VIP' ? 'border-red-800 bg-red-500 text-white shadow-red-500/20 hover:shadow-red-500/40'
                     : cell.typeCode === 'COUPLE' ? 'border-pink-800 bg-pink-500 text-white shadow-pink-500/20 hover:shadow-pink-500/40 w-[60px]'
-                    : 'border-slate-800 bg-slate-600 text-white shadow-slate-900/40 hover:bg-slate-500'
+                    : 'border-slate-800 bg-slate-600 text-white shadow-slate-900/40 hover:bg-slate-500',
+                    paintedSeatKeys.has(`${cell.row}-${cell.number}`) ? 'ring-2 ring-cyan-300 scale-105 brightness-125' : ''
+                    ]
                   "
-                  @click="applySeatTool(cell)"
+                  @pointerdown="startPainting(cell, $event)"
+                  @pointerenter="extendPainting(cell)"
                 >
                   <span class="z-10">{{ cell.active ? `${cell.row}${cell.number}` : '+' }}</span>
                   <div v-if="cell.active" class="absolute top-0 left-0 w-full h-2/5 bg-white/10 rounded-t-lg"></div>

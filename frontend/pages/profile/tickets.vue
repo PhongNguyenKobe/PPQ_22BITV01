@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
@@ -13,19 +13,50 @@ definePageMeta({
 const ticketsStore = useTicketsStore()
 const userStore = useUserStore()
 
-const { ticketHistory } = storeToRefs(ticketsStore)
+const { ticketHistory, historyLoading, historyError } = storeToRefs(ticketsStore)
 const { currentUser, isAuthenticated } = storeToRefs(userStore)
 
 const selectedTicket = ref<UserTicket | null>(null)
+const cancellationLoading = ref(false)
+const cancellationError = ref('')
+
+const canRequestCancellation = computed(() => {
+  if (!selectedTicket.value || selectedTicket.value.status !== 'CONFIRMED') return false
+  return new Date(`${selectedTicket.value.date}T${selectedTicket.value.time}`).getTime() > Date.now()
+})
 
 function closeTicketDetails() {
   selectedTicket.value = null
+  cancellationError.value = ''
 }
 
-onMounted(() => {
-  if (!isAuthenticated.value) {
-    navigateTo('/login')
+async function requestCancellation() {
+  if (!selectedTicket.value || !canRequestCancellation.value) return
+  const reason = window.prompt('Vui lòng nhập lý do yêu cầu hủy vé (ít nhất 5 ký tự):')?.trim()
+  if (!reason) return
+  if (reason.length < 5) {
+    cancellationError.value = 'Lý do phải có ít nhất 5 ký tự.'
+    return
   }
+  cancellationLoading.value = true
+  cancellationError.value = ''
+  try {
+    const bookingId = selectedTicket.value.id
+    await ticketsStore.requestCancellation(bookingId, reason)
+    selectedTicket.value = ticketHistory.value.find(ticket => ticket.id === bookingId) || null
+  } catch (error: any) {
+    cancellationError.value = error?.message || 'Không thể gửi yêu cầu hủy vé.'
+  } finally {
+    cancellationLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  if (!isAuthenticated.value) {
+    await navigateTo('/login')
+    return
+  }
+  await ticketsStore.loadTicketHistory()
 })
 </script>
 
@@ -49,7 +80,25 @@ onMounted(() => {
       </div>
 
       <!-- Tickets container -->
-      <div v-if="ticketHistory.length === 0" class="py-16 text-center text-on-surface-variant">
+      <div v-if="historyError && ticketHistory.length > 0"
+        class="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        {{ historyError }} Dữ liệu bên dưới là bản lưu tạm trên trình duyệt.
+      </div>
+
+      <div v-if="historyLoading" class="py-16 text-center text-on-surface-variant">
+        <span class="material-symbols-outlined text-[40px] mb-2 animate-spin">progress_activity</span>
+        <p class="text-sm font-medium">Đang tải vé của bạn...</p>
+      </div>
+
+      <div v-else-if="historyError && ticketHistory.length === 0" class="py-16 text-center text-on-surface-variant">
+        <span class="material-symbols-outlined text-[40px] mb-2 text-red-400">error</span>
+        <p class="text-sm font-medium">{{ historyError }}</p>
+        <button class="text-primary-container font-bold hover:underline mt-2" @click="ticketsStore.loadTicketHistory()">
+          Thử lại
+        </button>
+      </div>
+
+      <div v-else-if="ticketHistory.length === 0" class="py-16 text-center text-on-surface-variant">
         <span class="material-symbols-outlined text-[48px] mb-2 text-on-surface-variant">confirmation_number</span>
         <p class="text-sm font-medium">Bạn chưa thực hiện bất kỳ giao dịch đặt vé nào.</p>
         <NuxtLink to="/products" class="text-primary-container font-bold hover:underline mt-2 inline-block">Đặt vé ngay
@@ -120,8 +169,7 @@ onMounted(() => {
           <div
             class="p-6 md:w-[35%] bg-surface-container/20 flex flex-col items-center justify-center text-center space-y-4">
             <div class="w-32 h-32 bg-white p-2 rounded-2xl border border-glass-stroke shadow-md">
-              <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${ticket.qrCode}`"
-                alt="E-Ticket QR code" class="w-full h-full" />
+              <QrCodeImage :value="ticket.qrCode" :size="120" />
             </div>
             <div>
               <span class="text-[10px] text-on-surface-variant uppercase tracking-wider block">Quét tại quầy vé</span>
@@ -169,8 +217,8 @@ onMounted(() => {
           <!-- Big QR Code -->
           <div class="flex flex-col items-center justify-center mb-6">
             <div class="bg-white p-3 rounded-2xl border border-glass-stroke shadow-lg mb-3">
-              <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${selectedTicket.qrCode}`"
-                class="w-40 h-40 md:w-48 md:h-48 object-contain" />
+              <QrCodeImage :value="selectedTicket.qrCode" :size="250"
+                class="w-40 h-40 md:w-48 md:h-48" />
             </div>
             <p class="text-center text-xs text-on-surface-variant uppercase tracking-widest">Mã đặt vé</p>
             <p class="text-center text-lg font-bold text-white font-mono mt-0.5">{{ selectedTicket.id }}</p>
@@ -212,6 +260,24 @@ onMounted(() => {
 
           <div class="text-center mt-6">
             <p class="text-[11px] text-on-surface-variant/70">Ngày đặt vé: {{ selectedTicket.bookingDate }}</p>
+            <p v-if="selectedTicket.status === 'CANCEL_REQUESTED'" class="mt-3 text-sm font-bold text-amber-400">
+              Đang chờ chi nhánh duyệt yêu cầu hủy
+            </p>
+            <p v-else-if="selectedTicket.status === 'CANCELLED'" class="mt-3 text-sm font-bold text-red-400">
+              Vé đã hủy
+            </p>
+            <p v-if="selectedTicket.cancellationReason" class="mt-1 text-xs text-on-surface-variant">
+              Lý do: {{ selectedTicket.cancellationReason }}
+            </p>
+            <p v-if="cancellationError" class="mt-3 text-xs text-red-400">{{ cancellationError }}</p>
+            <button
+              v-if="canRequestCancellation"
+              class="mt-4 rounded-xl border border-red-500/40 px-4 py-2 text-sm font-bold text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+              :disabled="cancellationLoading"
+              @click="requestCancellation"
+            >
+              {{ cancellationLoading ? 'Đang gửi...' : 'Yêu cầu hủy vé' }}
+            </button>
           </div>
         </div>
       </div>

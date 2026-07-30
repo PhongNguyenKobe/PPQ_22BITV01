@@ -1,23 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, reactive, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import {
-  adminBackendService,
-  adminService,
-  movieService,
-  tmdbService,
-  type AdminAuditorium,
-  type AdminBranchManage,
-  type AdminSeat,
-  type AdminSeatType,
-  type AdminShowtime,
-  type Movie,
-  type TmdbPopularMovie,
-  type UserProfile,
-  type SuperAdminStats,
-  type Promotion,
-  CANONICAL_MOVIE_GENRES,
-} from '~/services/api'
 import { useUserStore } from '~/store/user'
 
 definePageMeta({
@@ -25,7 +8,7 @@ definePageMeta({
   middleware: ['auth'],
 })
 
-type AdminTab = 'overview' | 'users' | 'movies' | 'promotions' | 'branches' | 'auditoriums' | 'seats' | 'showtimes'
+type AdminTab = 'overview' | 'users' | 'movies' | 'promotions' | 'branches' | 'schedule-monitor' | 'auditoriums' | 'seats' | 'showtimes' | 'bookings' | 'payments' | 'reports'
 type AdminTabItem = {
   key: AdminTab
   label: string
@@ -38,10 +21,14 @@ const allTabItems: AdminTabItem[] = [
   { key: 'movies', label: 'Phim', icon: 'movie', description: 'Danh mục phim và nội dung hiển thị' },
   { key: 'users', label: 'Người dùng', icon: 'group', description: 'Tài khoản và phân quyền' },
   { key: 'branches', label: 'Chi nhánh', icon: 'location_city', description: 'Khu vực và cụm rạp' },
+  { key: 'schedule-monitor', label: 'Giám sát lịch chiếu', icon: 'calendar_view_week', description: 'Xem phim và suất chiếu theo từng chi nhánh' },
   { key: 'promotions', label: 'Khuyến mãi', icon: 'sell', description: 'Mã giảm giá và giới hạn sử dụng' },
   { key: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters', description: 'Màn hình và sức chứa' },
   { key: 'seats', label: 'Ghế ngồi', icon: 'event_seat', description: 'Sơ đồ ghế theo phòng' },
   { key: 'showtimes', label: 'Suất chiếu', icon: 'schedule', description: 'Lịch chiếu đang mở bán' },
+  { key: 'bookings', label: 'Đơn đặt vé', icon: 'confirmation_number', description: 'Tra cứu và xử lý đơn vé' },
+  { key: 'payments', label: 'Thanh toán', icon: 'payments', description: 'Giao dịch và hoàn tiền' },
+  { key: 'reports', label: 'Báo cáo', icon: 'analytics', description: 'Doanh thu và hiệu suất vận hành' },
 ]
 
 const userStore = useUserStore()
@@ -52,37 +39,31 @@ const isBranchAdmin = computed(() => currentUser.value?.role === 'branch-admin')
 const tabItems = computed(() =>
   allTabItems.filter((tab) =>
     isBranchAdmin.value
-      ? ['auditoriums', 'seats', 'showtimes'].includes(tab.key)
-      : ['overview', 'movies', 'users', 'branches', 'promotions'].includes(tab.key),
+      ? ['auditoriums', 'seats', 'showtimes', 'bookings', 'payments'].includes(tab.key)
+      : ['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'bookings', 'payments', 'reports'].includes(tab.key),
   ),
 )
 
 const requestedTab = String(route.query.tab || '')
 const activeTab = ref<AdminTab>(
   currentUser.value?.role === 'branch-admin'
-    ? (['auditoriums', 'seats', 'showtimes'].includes(requestedTab) ? requestedTab as AdminTab : 'auditoriums')
-    : (['overview', 'movies', 'users', 'branches', 'promotions'].includes(requestedTab) ? requestedTab as AdminTab : 'overview'),
+    ? (['auditoriums', 'seats', 'showtimes', 'bookings', 'payments'].includes(requestedTab) ? requestedTab as AdminTab : 'auditoriums')
+    : (allTabItems.some(item => item.key === requestedTab) ? requestedTab as AdminTab : 'overview'),
 )
 
-const loading = ref(false)
-const error = ref('')
-
-const branches = ref<AdminBranchManage[]>([])
-const auditoriums = ref<AdminAuditorium[]>([])
-const seats = ref<AdminSeat[]>([])
-
-const auditoriumForm = ref({
-  branchId: '',
-  name: '',
-  totalSeats: 0,
-})
-
-const seatForm = ref({
-  auditoriumId: '',
-  row: '',
-  number: 0,
-  // 🛠️ FIX LỖI 2352: Ép kiểu trung gian qua unknown để tránh lỗi conversion mismatch
-  type: 'NORMAL' as unknown as AdminSeatType,
+const tabRenderKeys = ref<Record<AdminTab, number>>({
+  overview: 0,
+  users: 0,
+  movies: 0,
+  promotions: 0,
+  branches: 0,
+  'schedule-monitor': 0,
+  auditoriums: 0,
+  seats: 0,
+  showtimes: 0,
+  bookings: 0,
+  payments: 0,
+  reports: 0,
 })
 
 watch(
@@ -96,93 +77,8 @@ watch(
   { immediate: true },
 )
 
-const activeTabMeta = computed(
-  () => tabItems.value.find((tab) => tab.key === activeTab.value) || tabItems.value[0],
-)
-
-const branchNameMap = computed(() => {
-  const map = new Map<string, string>()
-  for (const branch of branches.value) {
-    map.set(branch.id, branch.name)
-  }
-  return map
-})
-
-// 🛠️ FIX LỖI 2551: Ép kiểu any cho adminBackendService để gọi hàm linh hoạt không bị TypeScript chặn
-async function loadSeatsByAuditorium(targetAuditoriumId?: string) {
-  const audId = targetAuditoriumId || seatForm.value.auditoriumId
-  if (!audId) return
-  try {
-    const service = adminBackendService as any
-    if (typeof service.getSeatsByAuditorium === 'function') {
-      seats.value = await service.getSeatsByAuditorium(audId)
-    } else if (typeof service.getSeats === 'function') {
-      seats.value = await service.getSeats(audId)
-    } else if (typeof service.getAuditoriumSeats === 'function') {
-      seats.value = await service.getAuditoriumSeats(audId)
-    }
-  } catch (err) {
-    console.error('Lỗi tải danh sách ghế:', err)
-  }
-}
-
-onMounted(async () => {
-  await loadAll()
-})
-
-async function loadAll() {
-  loading.value = true
-  error.value = ''
-  try {
-    if (isBranchAdmin.value) {
-      const statsData = await adminService.getBranchAdminStats()
-      branches.value = [{
-        id: statsData.branchId,
-        vendor_id: '',
-        code: '',
-        name: statsData.branchName,
-        address_line: '',
-        city: '',
-        district: null,
-        phone: null,
-        is_active: true,
-        auditoriums_count: 0,
-      }]
-    } else {
-      const branchData = await adminBackendService.getBranchesManage()
-      branches.value = branchData
-    }
-
-    if (!auditoriumForm.value.branchId && branches.value.length > 0) {
-      auditoriumForm.value.branchId = branches.value[0].id
-    }
-
-    if (!seatForm.value.auditoriumId && auditoriums.value.length > 0) {
-      const defaultAuditoriumId = auditoriums.value[0].id
-      seatForm.value.auditoriumId = defaultAuditoriumId
-      await loadSeatsByAuditorium(defaultAuditoriumId)
-    }
-  } catch (e: any) {
-    error.value = e?.message || 'Không thể tải dữ liệu admin.'
-  } finally {
-    loading.value = false
-  }
-}
-
-function fmtCurrency(value: number) {
-  return Number(value).toLocaleString('vi-VN') + 'đ'
-}
-
-function resolveUserBranchName(branchId: string | null | undefined) {
-  if (!branchId) return '-'
-  return branchNameMap.value.get(branchId) || branchId
-}
-
-function roleBadgeClass(role: UserProfile['role']) {
-  if (role === 'admin') return 'badge role-admin'
-  if (role === 'branch-admin') return 'badge role-branch-admin'
-  if (role === 'staff') return 'badge role-staff'
-  return 'badge role-customer'
+function refreshActiveTab() {
+  tabRenderKeys.value[activeTab.value] += 1
 }
 </script>
 <template>
@@ -198,7 +94,7 @@ function roleBadgeClass(role: UserProfile['role']) {
               : 'Theo dõi tổng quan, quản lý phim, tài khoản người dùng và hệ thống chi nhánh.' }}
           </p>
         </div>
-        <button @click="loadAll" class="action-ghost">
+        <button @click="refreshActiveTab" class="action-ghost">
           <span class="material-symbols-outlined text-base">refresh</span>
           Làm mới dữ liệu
         </button>
@@ -206,39 +102,51 @@ function roleBadgeClass(role: UserProfile['role']) {
     </section>
 
     <section v-if="activeTab === 'overview'" class="space-y-4">
-      <AdminOverview />
+      <AdminOverview :key="tabRenderKeys.overview" />
     </section>
 
-    <p v-if="error" class="panel border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</p>
-    <p v-if="loading" class="panel border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">Đang tải dữ liệu mới
-      nhất...</p>
-
     <section v-if="activeTab === 'promotions'" class="space-y-4">
-      <AdminPromotions />
+      <AdminPromotions :key="tabRenderKeys.promotions" />
     </section>
 
     <section v-if="activeTab === 'movies'" class="space-y-4">
-      <AdminMovies />
+      <AdminMovies :key="tabRenderKeys.movies" />
     </section>
 
     <section v-if="activeTab === 'users'" class="space-y-4">
-      <AdminUsers />
+      <AdminUsers :key="tabRenderKeys.users" />
     </section>
 
     <section v-if="activeTab === 'branches'" class="space-y-4">
-      <AdminBranches />
+      <AdminBranches :key="tabRenderKeys.branches" />
+    </section>
+
+    <section v-if="activeTab === 'schedule-monitor'" class="space-y-4">
+      <AdminScheduleMonitor :key="tabRenderKeys['schedule-monitor']" />
     </section>
 
     <section v-if="activeTab === 'auditoriums'" class="space-y-4">
-      <AdminAuditoriums />
+      <AdminAuditoriums :key="tabRenderKeys.auditoriums" />
     </section>
 
     <section v-if="activeTab === 'seats'" class="space-y-4">
-      <AdminSeats />
+      <AdminSeats :key="tabRenderKeys.seats" />
     </section>
 
     <section v-if="activeTab === 'showtimes'" class="space-y-4">
-      <AdminShowtimes />
+      <AdminShowtimes :key="tabRenderKeys.showtimes" />
+    </section>
+
+    <section v-if="activeTab === 'bookings'" class="space-y-4">
+      <AdminBookings :key="tabRenderKeys.bookings" />
+    </section>
+
+    <section v-if="activeTab === 'payments'" class="space-y-4">
+      <AdminPayments :key="tabRenderKeys.payments" />
+    </section>
+
+    <section v-if="activeTab === 'reports'" class="space-y-4">
+      <AdminReports :key="tabRenderKeys.reports" />
     </section>
   </div>
 </template>

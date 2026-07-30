@@ -12,7 +12,12 @@ router = APIRouter()
 @router.get("", response_model=list[BranchRead])
 async def read_branches(db: AsyncSession = Depends(get_db)) -> list[BranchRead]:
     """Public endpoint để lấy danh sách rạp chiếu."""
-    result = await db.execute(text("SELECT id, code, name, city FROM branches ORDER BY name ASC"))
+    result = await db.execute(text("""
+        SELECT id, code, name, city
+        FROM branches
+        WHERE is_active = TRUE
+        ORDER BY name ASC
+    """))
     return [BranchRead(id=row.id, code=row.code, name=row.name, city=row.city) for row in result]
 
 
@@ -23,7 +28,7 @@ async def read_branch(branch_id: UUID, db: AsyncSession = Depends(get_db)) -> Br
         FROM branches WHERE id = :id AND is_active = TRUE
     """), {"id": str(branch_id)})).mappings().first()
     if branch is None:
-        raise HTTPException(status_code=404, detail="Branch not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy chi nhánh hoặc chi nhánh đã ngừng hoạt động")
     rows = (await db.execute(text("""
         SELECT s.id, s.movie_id, s.auditorium_id, s.starts_at, s.ends_at,
                s.status, s.booking_closes_at, s.base_price,

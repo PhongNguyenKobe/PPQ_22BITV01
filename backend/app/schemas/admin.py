@@ -4,7 +4,7 @@ from typing import Literal
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.user import UserRead
 
@@ -113,23 +113,47 @@ class BranchManageRead(BaseModel):
 
 class BranchManageCreate(BaseModel):
     vendor_id: UUID | None = None
-    code: str = Field(min_length=1, max_length=50)
-    name: str = Field(min_length=1, max_length=200)
-    address_line: str = Field(min_length=1, max_length=300)
-    city: str = Field(min_length=1, max_length=100)
-    district: str | None = Field(default=None, max_length=100)
+    code: str = Field(min_length=3, max_length=20, pattern=r"^[A-Z0-9_-]+$")
+    name: str = Field(min_length=5, max_length=200)
+    address_line: str = Field(min_length=8, max_length=300)
+    city: str = Field(min_length=3, max_length=100)
+    district: str | None = Field(default=None, min_length=3, max_length=100)
     phone: str | None = Field(default=None, max_length=20)
     is_active: bool = True
 
+    @field_validator("code", "name", "address_line", "city", "district", "phone", mode="before")
+    @classmethod
+    def trim_branch_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("phone")
+    @classmethod
+    def validate_branch_phone(cls, value: str | None) -> str | None:
+        if value and not __import__("re").fullmatch(r"0\d{9}", value):
+            raise ValueError("Số điện thoại chi nhánh phải gồm 10 chữ số và bắt đầu bằng 0")
+        return value
+
 
 class BranchManageUpdate(BaseModel):
-    code: str | None = Field(default=None, min_length=1, max_length=50)
-    name: str | None = Field(default=None, min_length=1, max_length=200)
-    address_line: str | None = Field(default=None, min_length=1, max_length=300)
-    city: str | None = Field(default=None, min_length=1, max_length=100)
-    district: str | None = Field(default=None, max_length=100)
+    code: str | None = Field(default=None, min_length=3, max_length=20, pattern=r"^[A-Z0-9_-]+$")
+    name: str | None = Field(default=None, min_length=5, max_length=200)
+    address_line: str | None = Field(default=None, min_length=8, max_length=300)
+    city: str | None = Field(default=None, min_length=3, max_length=100)
+    district: str | None = Field(default=None, min_length=3, max_length=100)
     phone: str | None = Field(default=None, max_length=20)
     is_active: bool | None = None
+
+    @field_validator("code", "name", "address_line", "city", "district", "phone", mode="before")
+    @classmethod
+    def trim_branch_update_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("phone")
+    @classmethod
+    def validate_branch_update_phone(cls, value: str | None) -> str | None:
+        if value and not __import__("re").fullmatch(r"0\d{9}", value):
+            raise ValueError("Số điện thoại chi nhánh phải gồm 10 chữ số và bắt đầu bằng 0")
+        return value
 
 
 class AuditoriumRead(BaseModel):

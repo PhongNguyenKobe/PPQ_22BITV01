@@ -4,7 +4,7 @@ import unicodedata
 from uuid import UUID
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,9 @@ from app.crud.user import create_user, get_user_by_id, update_user
 from app.crud.showtime import effective_showtime_status
 from app.db.session import get_db
 from app.models.catalog import Auditorium, Branch, Movie, MovieGenre, Seat, SeatType, Showtime, Vendor
-from app.models.commerce import Booking, BookingSeat, Payment
+from app.core.config import settings
+from app.models.commerce import Booking, BookingSeat, Payment, PaymentStatusHistory
+from app.services.vnpay import query_transaction
 from app.models.user import Role, User
 from app.schemas.admin import (
     AdminStatsResponse,
@@ -670,7 +672,7 @@ async def read_admin_auditoriums(
 async def create_admin_auditorium(
     payload: AuditoriumCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> AuditoriumRead:
     row = await db.execute(select(Branch).where(Branch.id == payload.branch_id))
     branch = row.scalar_one_or_none()
@@ -704,7 +706,7 @@ async def update_admin_auditorium(
     auditorium_id: UUID,
     payload: AuditoriumUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> AuditoriumRead:
     row = await db.execute(select(Auditorium).options(selectinload(Auditorium.branch)).where(Auditorium.id == auditorium_id))
     item = row.scalar_one_or_none()
@@ -738,7 +740,7 @@ async def update_admin_auditorium(
 async def delete_admin_auditorium(
     auditorium_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> None:
     row = await db.execute(select(Auditorium).where(Auditorium.id == auditorium_id))
     item = row.scalar_one_or_none()
@@ -806,7 +808,7 @@ async def read_admin_seats(
 async def create_admin_seat(
     payload: SeatAdminCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> SeatAdminRead:
     await _ensure_default_seat_types(db)
     auditorium_row = await db.execute(select(Auditorium).options(selectinload(Auditorium.branch)).where(Auditorium.id == payload.auditorium_id))
@@ -847,7 +849,7 @@ async def replace_admin_seat_layout(
     auditorium_id: UUID,
     payload: SeatLayoutUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> SeatLayoutRead:
     """Create/update an entire room layout atomically."""
     await _ensure_default_seat_types(db)
@@ -961,7 +963,7 @@ async def update_admin_seat(
     seat_id: UUID,
     payload: SeatAdminUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> SeatAdminRead:
     await _ensure_default_seat_types(db)
     row = await db.execute(
@@ -1008,7 +1010,7 @@ async def update_admin_seat(
 async def delete_admin_seat(
     seat_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> None:
     row = await db.execute(
         select(Seat)
@@ -1087,7 +1089,7 @@ async def read_admin_showtimes(
 async def create_admin_showtime(
     payload: ShowtimeAdminCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> ShowtimeAdminRead:
     if payload.ends_at <= payload.starts_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ends_at must be after starts_at")
@@ -1154,7 +1156,7 @@ async def create_admin_showtime(
 async def create_admin_showtimes_bulk(
     payload: ShowtimeBulkCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> list[ShowtimeAdminRead]:
     movie_ids = {item.movie_id for item in payload.showtimes}
     auditorium_ids = {item.auditorium_id for item in payload.showtimes}
@@ -1237,7 +1239,7 @@ async def create_admin_showtimes_bulk(
 async def publish_admin_showtimes(
     payload: ShowtimeBulkPublish,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> list[ShowtimeAdminRead]:
     result = await db.execute(
         select(Showtime)
@@ -1263,7 +1265,7 @@ async def update_admin_showtime(
     showtime_id: UUID,
     payload: ShowtimeAdminUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> ShowtimeAdminRead:
     row = await db.execute(
         select(Showtime)
@@ -1345,7 +1347,20 @@ async def update_admin_showtime(
         )
         affected_bookings = list(bookings_result.scalars().all())
         for booking in affected_bookings:
+            seat_rows = await db.execute(
+                select(BookingSeat)
+                .options(selectinload(BookingSeat.seat))
+                .where(BookingSeat.booking_id == booking.id)
+            )
+            if not booking.seat_snapshot:
+                booking.seat_snapshot = [
+                    {"id": str(item.seat_id), "row": item.seat.seat_row, "number": item.seat.seat_number}
+                    for item in seat_rows.scalars().all()
+                ]
             booking.status = "CANCELLED"
+            booking.cancellation_reason = str(updates.get("cancellation_reason") or "").strip()
+            booking.cancelled_at = datetime.now(timezone.utc)
+            booking.cancelled_by = current_user.id
         if affected_bookings:
             await db.execute(
                 delete(BookingSeat).where(
@@ -1362,6 +1377,14 @@ async def update_admin_showtime(
         )
         for payment in payment_result.scalars().all():
             payment.status = "REFUND_PENDING"
+            db.add(PaymentStatusHistory(
+                payment_id=payment.id,
+                old_status="SUCCESS",
+                new_status="REFUND_PENDING",
+                source="BRANCH_ADMIN",
+                note=f"Showtime cancelled: {showtime.cancellation_reason or ''}",
+                raw_payload={},
+            ))
 
     db.add(showtime)
     await db.commit()
@@ -1383,7 +1406,7 @@ async def update_admin_showtime(
 async def delete_admin_showtime(
     showtime_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+    current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> None:
     row = await db.execute(
         select(Showtime)
@@ -1440,13 +1463,16 @@ def _booking_admin_dict(booking: Booking) -> dict:
         "branch_name": auditorium.branch.name,
         "auditorium_name": auditorium.name,
         "starts_at": showtime.starts_at,
-        "seats": [
-            {"id": item.seat_id, "row": item.seat.seat_row, "number": item.seat.seat_number}
-            for item in booking.seats
-        ],
-        "quantity": len(booking.seats),
+        "seats": (
+            [{"id": item.seat_id, "row": item.seat.seat_row, "number": item.seat.seat_number} for item in booking.seats]
+            or list(booking.seat_snapshot or [])
+        ),
+        "quantity": len(booking.seats) or len(booking.seat_snapshot or []),
         "total_price": float(booking.total_price),
         "status": booking.status,
+        "cancellation_reason": booking.cancellation_reason,
+        "cancellation_requested_at": booking.cancellation_requested_at,
+        "cancelled_at": booking.cancelled_at,
         "created_at": booking.created_at,
     }
 
@@ -1455,6 +1481,7 @@ async def list_branch_bookings(
     start_date: str | None = None,
     end_date: str | None = None,
     status: str | None = None,
+    branch_id: UUID | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -1465,7 +1492,11 @@ async def list_branch_bookings(
     assigned_branch_id = await _staff_branch_id(db, current_user)
     filters = []
     if assigned_branch_id is not None:
+        if branch_id is not None and branch_id != assigned_branch_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot view another branch")
         filters.append(Auditorium.branch_id == assigned_branch_id)
+    elif branch_id is not None:
+        filters.append(Auditorium.branch_id == branch_id)
     if start is not None:
         filters.append(Booking.created_at >= start)
     if end is not None:
@@ -1489,7 +1520,7 @@ async def list_branch_bookings(
     return {"total": total or 0, "bookings": [_booking_admin_dict(item) for item in rows.scalars().all()]}
 
 
-@router.put("/bookings/{booking_id}/cancel", dependencies=[Depends(require_branch_admin)])
+@router.put("/bookings/{booking_id}/cancel", dependencies=[Depends(require_roles("BRANCH_ADMIN"))])
 async def cancel_booking(
     booking_id: UUID,
     reason: str | None = None,
@@ -1512,33 +1543,63 @@ async def cancel_booking(
     await _ensure_branch_access(db, current_user, booking.showtime.auditorium.branch_id)
     if booking.status == "CANCELLED":
         return _booking_admin_dict(booking)
-    if booking.status not in {"PENDING", "CONFIRMED"}:
+    if booking.status not in {"PENDING", "CONFIRMED", "CANCEL_REQUESTED"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking cannot be cancelled")
+    if not booking.seat_snapshot:
+        booking.seat_snapshot = [
+            {"id": str(item.seat_id), "row": item.seat.seat_row, "number": item.seat.seat_number}
+            for item in booking.seats
+        ]
     booking.status = "CANCELLED"
+    booking.cancellation_reason = reason
+    booking.cancelled_at = datetime.now(timezone.utc)
+    booking.cancelled_by = current_user.id
     await db.execute(delete(BookingSeat).where(BookingSeat.booking_id == booking.id))
     for payment in (await db.execute(select(Payment).where(Payment.booking_id == booking.id))).scalars():
         if payment.status == "SUCCESS":
-            payment.status = "REFUNDED"
+            payment.status = "REFUND_PENDING"
+            db.add(PaymentStatusHistory(
+                payment_id=payment.id,
+                old_status="SUCCESS",
+                new_status="REFUND_PENDING",
+                source="BRANCH_ADMIN",
+                note=reason or "Booking cancelled by branch",
+                raw_payload={},
+            ))
     await db.commit()
     await db.refresh(booking)
     await seat_events.broadcast(booking.showtime_id, "SEATS_UPDATED")
     return {**_booking_admin_dict(booking), "cancel_reason": reason}
 
 
-@router.get("/payments", dependencies=[Depends(require_admin)])
+@router.get("/payments", dependencies=[Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN"))])
 async def list_payments(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    status: str | None = None,
+    payment_status: str | None = Query(None, alias="status"),
+    branch_id: UUID | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    filters = [Payment.status == status.upper()] if status else []
-    total = await db.scalar(select(func.count(Payment.id)).where(*filters))
-    result = await db.execute(
+    filters = [Payment.status == payment_status.upper()] if payment_status else []
+    assigned_branch_id = await _staff_branch_id(db, current_user)
+    if assigned_branch_id is not None:
+        if branch_id is not None and branch_id != assigned_branch_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot view another branch")
+        branch_id = assigned_branch_id
+    if branch_id is not None:
+        filters.append(Auditorium.branch_id == branch_id)
+    base = (
         select(Payment)
+        .join(Booking, Booking.id == Payment.booking_id)
+        .join(Showtime, Showtime.id == Booking.showtime_id)
+        .join(Auditorium, Auditorium.id == Showtime.auditorium_id)
         .options(selectinload(Payment.booking))
         .where(*filters)
+    )
+    total = await db.scalar(select(func.count()).select_from(base.subquery()))
+    result = await db.execute(
+        base
         .order_by(Payment.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -1552,6 +1613,16 @@ async def list_payments(
             "payment_method": item.payment_method,
             "status": item.status,
             "transaction_id": item.transaction_id,
+            "provider_ref": item.provider_ref,
+            "provider_transaction_no": item.provider_transaction_no,
+            "bank_transaction_no": item.bank_transaction_no,
+            "bank_code": item.bank_code,
+            "card_type": item.card_type,
+            "response_code": item.response_code,
+            "provider_status": item.provider_status,
+            "signature_valid": item.signature_valid,
+            "provider_paid_at": item.provider_paid_at,
+            "last_verified_at": item.last_verified_at,
             "paid_at": item.paid_at,
             "created_at": item.created_at,
         }
@@ -1560,7 +1631,100 @@ async def list_payments(
     return {"total": total or 0, "payments": payments}
 
 
-@router.post("/payments/{payment_id}/refund", dependencies=[Depends(require_admin)])
+@router.get("/payments/{payment_id}/history", dependencies=[Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN"))])
+async def payment_history(
+    payment_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    payment = await db.get(Payment, payment_id)
+    if payment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+    booking = await db.get(Booking, payment.booking_id)
+    showtime = await db.get(Showtime, booking.showtime_id)
+    auditorium = await db.get(Auditorium, showtime.auditorium_id)
+    await _ensure_branch_access(db, current_user, auditorium.branch_id)
+    result = await db.execute(
+        select(PaymentStatusHistory)
+        .where(PaymentStatusHistory.payment_id == payment_id)
+        .order_by(PaymentStatusHistory.created_at.desc())
+    )
+    return [
+        {
+            "id": item.id,
+            "old_status": item.old_status,
+            "new_status": item.new_status,
+            "source": item.source,
+            "response_code": item.response_code,
+            "provider_status": item.provider_status,
+            "signature_valid": item.signature_valid,
+            "note": item.note,
+            "raw_payload": item.raw_payload,
+            "created_at": item.created_at,
+        }
+        for item in result.scalars().all()
+    ]
+
+
+@router.post("/payments/{payment_id}/reconcile", dependencies=[Depends(require_roles("BRANCH_ADMIN"))])
+async def reconcile_payment(
+    payment_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    payment = await db.get(Payment, payment_id)
+    if payment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+    if payment.payment_method != "VNPAY" or not payment.provider_ref:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This is not a VNPAY transaction")
+    booking = await db.get(Booking, payment.booking_id)
+    showtime = await db.get(Showtime, booking.showtime_id)
+    auditorium = await db.get(Auditorium, showtime.auditorium_id)
+    await _ensure_branch_access(db, current_user, auditorium.branch_id)
+    if not settings.vnpay_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="VNPAY Sandbox is not configured")
+    ip_address = request.client.host if request.client else "127.0.0.1"
+    response = await query_transaction(
+        request_id=uuid.uuid4().hex,
+        txn_ref=payment.provider_ref,
+        transaction_date=payment.created_at,
+        ip_address=ip_address,
+    )
+    provider_status = str(response.get("vnp_TransactionStatus", ""))
+    response_code = str(response.get("vnp_ResponseCode", ""))
+    provider_amount = float(response.get("vnp_Amount", 0) or 0) / 100
+    amount_matches = provider_amount == float(payment.amount)
+    status_matches = (
+        (payment.status == "SUCCESS" and provider_status == "00")
+        or (payment.status != "SUCCESS" and provider_status != "00")
+    )
+    payment.last_verified_at = datetime.now(timezone.utc)
+    db.add(PaymentStatusHistory(
+        payment_id=payment.id,
+        old_status=payment.status,
+        new_status=payment.status,
+        source="QUERY_DR",
+        response_code=response_code or None,
+        provider_status=provider_status or None,
+        signature_valid=None,
+        note="Matched" if amount_matches and status_matches else "Reconciliation mismatch",
+        raw_payload={str(key): str(value) for key, value in response.items()},
+    ))
+    await db.commit()
+    return {
+        "matched": amount_matches and status_matches and response_code == "00",
+        "amount_matches": amount_matches,
+        "status_matches": status_matches,
+        "local_status": payment.status,
+        "provider_status": provider_status,
+        "provider_transaction_no": response.get("vnp_TransactionNo"),
+        "provider_amount": provider_amount,
+        "response": response,
+    }
+
+
+@router.post("/payments/{payment_id}/refund", dependencies=[Depends(require_roles("BRANCH_ADMIN"))])
 async def refund_payment(
     payment_id: UUID,
     reason: str | None = None,
@@ -1570,14 +1734,40 @@ async def refund_payment(
     payment = await db.get(Payment, payment_id)
     if payment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
-    if payment.status == "REFUNDED":
+    booking = await db.get(Booking, payment.booking_id)
+    showtime = await db.get(Showtime, booking.showtime_id)
+    auditorium = await db.get(Auditorium, showtime.auditorium_id)
+    await _ensure_branch_access(db, current_user, auditorium.branch_id)
+    if payment.status in {"REFUND_PENDING", "REFUNDED"}:
         return {"id": payment.id, "status": payment.status, "reason": reason}
     if payment.status != "SUCCESS":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only successful payments can be refunded")
-    payment.status = "REFUNDED"
-    booking = await db.get(Booking, payment.booking_id)
+    payment.status = "REFUND_PENDING"
     if booking is not None:
+        seat_rows = await db.execute(
+            select(BookingSeat)
+            .options(selectinload(BookingSeat.seat))
+            .where(BookingSeat.booking_id == booking.id)
+        )
+        booked_seats = list(seat_rows.scalars().all())
+        if not booking.seat_snapshot:
+            booking.seat_snapshot = [
+                {"id": str(item.seat_id), "row": item.seat.seat_row, "number": item.seat.seat_number}
+                for item in booked_seats
+            ]
+        await db.execute(delete(BookingSeat).where(BookingSeat.booking_id == booking.id))
         booking.status = "CANCELLED"
+        booking.cancellation_reason = reason
+        booking.cancelled_at = datetime.now(timezone.utc)
+        booking.cancelled_by = current_user.id
+    db.add(PaymentStatusHistory(
+        payment_id=payment.id,
+        old_status="SUCCESS",
+        new_status="REFUND_PENDING",
+        source="BRANCH_ADMIN",
+        note=reason or "Refund requested by branch",
+        raw_payload={},
+    ))
     await db.commit()
     return {"id": payment.id, "booking_id": payment.booking_id, "status": payment.status, "reason": reason}
 
@@ -1587,6 +1777,7 @@ async def get_revenue_report(
     start_date: str,
     end_date: str,
     group_by: str = Query("day", pattern="day|week|month"),
+    branch_id: UUID | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1600,9 +1791,15 @@ async def get_revenue_report(
         bucket = func.date_trunc("week", Payment.paid_at)
     else:
         bucket = func.date_trunc("day", Payment.paid_at)
+    filters = [Payment.status == "SUCCESS", Payment.paid_at >= start, Payment.paid_at <= end]
+    if branch_id is not None:
+        filters.append(Auditorium.branch_id == branch_id)
     result = await db.execute(
         select(bucket.label("bucket"), func.coalesce(func.sum(Payment.amount), 0).label("revenue"))
-        .where(Payment.status == "SUCCESS", Payment.paid_at >= start, Payment.paid_at <= end)
+        .join(Booking, Booking.id == Payment.booking_id)
+        .join(Showtime, Showtime.id == Booking.showtime_id)
+        .join(Auditorium, Auditorium.id == Showtime.auditorium_id)
+        .where(*filters)
         .group_by(bucket)
         .order_by(bucket)
     )
@@ -1652,11 +1849,15 @@ async def get_top_movies(
     start_date: str,
     end_date: str,
     limit: int = Query(10, ge=1, le=50),
+    branch_id: UUID | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     start = _parse_date_boundary(start_date)
     end = _parse_date_boundary(end_date, end=True)
+    filters = [Booking.status == "CONFIRMED", Booking.created_at >= start, Booking.created_at <= end]
+    if branch_id is not None:
+        filters.append(Auditorium.branch_id == branch_id)
     result = await db.execute(
         select(
             Movie.id,
@@ -1666,9 +1867,10 @@ async def get_top_movies(
         )
         .select_from(Movie)
         .join(Showtime, Showtime.movie_id == Movie.id)
+        .join(Auditorium, Auditorium.id == Showtime.auditorium_id)
         .join(Booking, Booking.showtime_id == Showtime.id)
         .join(BookingSeat, BookingSeat.booking_id == Booking.id)
-        .where(Booking.status == "CONFIRMED", Booking.created_at >= start, Booking.created_at <= end)
+        .where(*filters)
         .group_by(Movie.id, Movie.title)
         .order_by(func.count(BookingSeat.id).desc())
         .limit(limit)
@@ -1677,3 +1879,7 @@ async def get_top_movies(
         {"movie_id": row.id, "title": row.title, "tickets_sold": row.tickets_sold, "revenue": float(row.revenue)}
         for row in result
     ]
+    booking = await db.get(Booking, payment.booking_id)
+    showtime = await db.get(Showtime, booking.showtime_id)
+    auditorium = await db.get(Auditorium, showtime.auditorium_id)
+    await _ensure_branch_access(db, current_user, auditorium.branch_id)

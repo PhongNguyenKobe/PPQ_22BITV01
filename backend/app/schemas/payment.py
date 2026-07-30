@@ -24,6 +24,16 @@ class PaymentRead(BaseModel):
     payment_method: str
     status: str  # 'PENDING', 'SUCCESS', 'FAILED', 'REFUNDED'
     transaction_id: str | None = None
+    provider_ref: str | None = None
+    provider_transaction_no: str | None = None
+    bank_transaction_no: str | None = None
+    bank_code: str | None = None
+    card_type: str | None = None
+    response_code: str | None = None
+    provider_status: str | None = None
+    signature_valid: bool | None = None
+    provider_paid_at: datetime | None = None
+    last_verified_at: datetime | None = None
     paid_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -48,3 +58,4 @@ class CheckoutResponse(BaseModel):
     qr_code: str | None = None
     confirmation_number: str
     message: str
+    payment_url: str | None = None

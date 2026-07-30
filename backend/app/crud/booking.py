@@ -9,8 +9,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.catalog import Seat, Showtime
-from app.models.commerce import Booking, BookingSeat, SeatHold
+from app.models.catalog import Auditorium, Seat, Showtime
+from app.models.commerce import Booking, BookingSeat, Payment, SeatHold
 
 HOLD_MINUTES = 5
 
@@ -28,9 +28,28 @@ async def cleanup_expired_reservations(db: AsyncSession) -> None:
     expired = list(expired_result.scalars().all())
     if expired:
         ids = [item.id for item in expired]
+        seat_rows = await db.execute(
+            select(BookingSeat)
+            .options(selectinload(BookingSeat.seat))
+            .where(BookingSeat.booking_id.in_(ids))
+        )
+        seats_by_booking: dict[UUID, list[dict]] = {}
+        for item in seat_rows.scalars().all():
+            seats_by_booking.setdefault(item.booking_id, []).append({
+                "id": str(item.seat_id),
+                "row": item.seat.seat_row,
+                "number": item.seat.seat_number,
+            })
         await db.execute(delete(BookingSeat).where(BookingSeat.booking_id.in_(ids)))
         for booking in expired:
-            booking.status = "CANCELLED"
+            if not booking.seat_snapshot:
+                booking.seat_snapshot = seats_by_booking.get(booking.id, [])
+            booking.status = "EXPIRED"
+        pending_payments = await db.execute(
+            select(Payment).where(Payment.booking_id.in_(ids), Payment.status == "PENDING")
+        )
+        for payment in pending_payments.scalars().all():
+            payment.status = "EXPIRED"
     await db.flush()
 
 
@@ -182,19 +201,38 @@ async def release_showtime_holds(db: AsyncSession, showtime_id: UUID, user_id: U
 
 
 def booking_to_dict(booking: Booking) -> dict:
+    showtime = booking.showtime
+    movie = showtime.movie
+    auditorium = showtime.auditorium
+    successful_payment = next(
+        (payment for payment in booking.payments if payment.status == "SUCCESS"),
+        None,
+    )
     return {
         "id": booking.id,
         "user_id": booking.user_id,
         "showtime_id": booking.showtime_id,
-        "movie_id": booking.showtime.movie_id,
+        "movie_id": showtime.movie_id,
+        "movie_title": movie.title,
+        "poster_url": movie.poster_url,
+        "branch_name": auditorium.branch.name,
+        "auditorium_name": auditorium.name,
+        "starts_at": showtime.starts_at,
         "booking_date": booking.created_at,
-        "seats": [{"row": item.seat.seat_row, "number": item.seat.seat_number} for item in booking.seats],
-        "quantity": len(booking.seats),
+        "seats": (
+            [{"row": item.seat.seat_row, "number": item.seat.seat_number} for item in booking.seats]
+            or list(booking.seat_snapshot or [])
+        ),
+        "quantity": len(booking.seats) or len(booking.seat_snapshot or []),
         "total_price": booking.total_price,
         "subtotal_price": booking.subtotal_price,
         "discount_amount": booking.discount_amount,
         "promotion_code": booking.promotion.code if booking.promotion else None,
         "status": booking.status,
+        "cancellation_reason": booking.cancellation_reason,
+        "cancellation_requested_at": booking.cancellation_requested_at,
+        "cancelled_at": booking.cancelled_at,
+        "payment_method": successful_payment.payment_method if successful_payment else None,
         "created_at": booking.created_at,
     }
 
@@ -203,8 +241,10 @@ async def get_user_booking(db: AsyncSession, booking_id: UUID, user_id: UUID) ->
     result = await db.execute(
         select(Booking)
         .options(
-            selectinload(Booking.showtime),
+            selectinload(Booking.showtime).selectinload(Showtime.movie),
+            selectinload(Booking.showtime).selectinload(Showtime.auditorium).selectinload(Auditorium.branch),
             selectinload(Booking.seats).selectinload(BookingSeat.seat),
+            selectinload(Booking.payments),
             selectinload(Booking.promotion),
         )
         .where(Booking.id == booking_id, Booking.user_id == user_id)
@@ -275,7 +315,13 @@ async def list_user_booking_rows(db: AsyncSession, user_id: UUID, skip: int, lim
     total_result = await db.execute(select(func.count(Booking.id)).where(Booking.user_id == user_id))
     result = await db.execute(
         select(Booking)
-        .options(selectinload(Booking.showtime), selectinload(Booking.seats).selectinload(BookingSeat.seat))
+        .options(
+            selectinload(Booking.showtime).selectinload(Showtime.movie),
+            selectinload(Booking.showtime).selectinload(Showtime.auditorium).selectinload(Auditorium.branch),
+            selectinload(Booking.seats).selectinload(BookingSeat.seat),
+            selectinload(Booking.payments),
+            selectinload(Booking.promotion),
+        )
         .where(Booking.user_id == user_id)
         .order_by(Booking.created_at.desc())
         .offset(skip)

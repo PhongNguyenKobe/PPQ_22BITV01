@@ -18,6 +18,9 @@ const props = defineProps<{
   genres?: string[]
   status?: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'
   adminPreview?: boolean
+  branchNames?: string[]
+  selectedBranchName?: string
+  selectedBranchId?: string
 }>()
 
 const router = useRouter()
@@ -41,6 +44,10 @@ const trailerHref = computed(() =>
 const genreLabel = computed(() =>
   props.genres?.length ? props.genres.slice(0, 2).join(' · ') : props.category
 )
+const detailQuery = computed(() => ({
+  ...(props.adminPreview ? { preview: 'admin' } : {}),
+  ...(props.selectedBranchId ? { branch_id: props.selectedBranchId } : {}),
+}))
 
 function startBooking() {
   ticketsStore.selectMovie({
@@ -54,6 +61,7 @@ function startBooking() {
     description: props.description,
     trailerUrl: props.trailerUrl || null,
   })
+  if (props.selectedBranchName) ticketsStore.selectCinema(props.selectedBranchName)
 
   if (!userStore.isAuthenticated) {
     router.push({
@@ -63,7 +71,7 @@ function startBooking() {
     return
   }
 
-  router.push('/checkout/cinema')
+  router.push(props.selectedBranchName ? '/checkout/showtime' : '/checkout/cinema')
 }
 </script>
 
@@ -101,7 +109,7 @@ function startBooking() {
             </NuxtLink>
             <NuxtLink
               v-else-if="status === 'UPCOMING'"
-              :to="{ path: `/products/${id}`, query: adminPreview ? { preview: 'admin' } : {} }"
+              :to="{ path: `/products/${id}`, query: detailQuery }"
               class="overlay-btn overlay-btn-primary"
             >
               Xem thông tin
@@ -112,7 +120,7 @@ function startBooking() {
 
             <div class="grid grid-cols-2 gap-2">
               <NuxtLink
-                :to="{ path: `/products/${id}`, query: adminPreview ? { preview: 'admin' } : {} }"
+                :to="{ path: `/products/${id}`, query: detailQuery }"
                 class="overlay-btn overlay-btn-secondary"
               >
                 Xem chi tiết
@@ -171,6 +179,10 @@ function startBooking() {
         </h3>
         <p class="text-xs text-on-surface-variant line-clamp-1">
           {{ status === 'UPCOMING' ? 'Ngày phát hành sẽ được cập nhật' : `Giá: ${formattedPrice}₫` }}
+        </p>
+        <p v-if="branchNames?.length" class="mt-2 line-clamp-2 text-[11px] font-semibold text-sky-300">
+          <span class="material-symbols-outlined mr-1 align-middle text-[13px]">location_on</span>
+          {{ selectedBranchName || (branchNames.length === 1 ? branchNames[0] : `Đang chiếu tại ${branchNames.length} chi nhánh`) }}
         </p>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useProductsStore } from '~/store/products'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
-import { youtubeTrailerLink } from '~/services/api'
+import { branchesService, youtubeTrailerLink, type BranchDetail } from '~/services/api'
 
 definePageMeta({
   layout: 'default'
@@ -19,6 +19,9 @@ const userStore = useUserStore()
 const { products } = storeToRefs(productsStore)
 const { currentUser } = storeToRefs(userStore)
 const loading = ref(true)
+const selectedBranchCatalog = ref<BranchDetail | null>(null)
+const selectedBranchId = computed(() => String(route.query.branch_id || ''))
+const selectedBranchName = computed(() => selectedBranchCatalog.value?.name || '')
 const isAdminPreview = computed(() =>
   route.query.preview === 'admin'
   && ['admin', 'branch-admin'].includes(currentUser.value?.role || '')
@@ -28,6 +31,10 @@ const adminReturnPath = computed(() =>
     ? '/branch-admin/dashboard'
     : '/admin/dashboard'
 )
+const listQuery = computed(() => ({
+  ...(isAdminPreview.value ? { preview: 'admin' } : {}),
+  ...(selectedBranchId.value ? { branch_id: selectedBranchId.value } : {}),
+}))
 
 // State bình luận
 const newComment = ref('')
@@ -73,6 +80,9 @@ onMounted(async () => {
   try {
     if (products.value.length === 0) {
       await productsStore.fetchProducts()
+    }
+    if (selectedBranchId.value) {
+      selectedBranchCatalog.value = await branchesService.getById(selectedBranchId.value)
     }
   } catch (error) {
     console.error('Lỗi tải sản phẩm:', error)
@@ -120,15 +130,18 @@ function startBooking() {
     description: currentProduct.value.description,
     trailerUrl: currentProduct.value.trailerUrl || null,
   })
+  if (selectedBranchName.value) {
+    ticketsStore.selectCinema(selectedBranchName.value)
+  }
 
   if (!userStore.isAuthenticated) {
     return router.push({
       path: '/login',
-      query: { redirect: '/checkout/cinema' },
+      query: { redirect: selectedBranchName.value ? '/checkout/showtime' : '/checkout/cinema' },
     })
   }
 
-  router.push('/checkout/cinema')
+  router.push(selectedBranchName.value ? '/checkout/showtime' : '/checkout/cinema')
 }
 
 // Thêm bình luận
@@ -176,7 +189,9 @@ function toggleLike(comment: typeof comments.value[0]) {
       <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
         <div>
           <p class="text-sm font-bold text-amber-200">Đang xem trước trang chi tiết phim</p>
-          <p class="text-xs text-amber-100/70">Đây là nội dung khách hàng nhìn thấy; thao tác đặt vé đã được khóa.</p>
+          <p class="text-xs text-amber-100/70">
+            {{ selectedBranchName ? `Phạm vi: ${selectedBranchName}. ` : '' }}Đây là nội dung khách hàng nhìn thấy; thao tác đặt vé đã được khóa.
+          </p>
         </div>
         <NuxtLink :to="adminReturnPath" class="rounded-lg bg-amber-300 px-4 py-2 text-xs font-bold text-black">
           Quay lại quản trị
@@ -195,7 +210,7 @@ function toggleLike(comment: typeof comments.value[0]) {
       <span class="material-symbols-outlined text-6xl text-gray-600 mb-4">movie_off</span>
       <h2 class="text-2xl font-bold text-white mb-2">Không tìm thấy tác phẩm</h2>
       <p class="text-gray-400 text-sm mb-6">Bộ phim bạn tìm kiếm không tồn tại hoặc đã ngừng chiếu.</p>
-      <NuxtLink to="/products"
+      <NuxtLink :to="{ path: '/products', query: listQuery }"
         class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-red-600/30">
         <span class="material-symbols-outlined text-sm">arrow_back</span>
         Quay lại danh sách phim
@@ -226,7 +241,7 @@ function toggleLike(comment: typeof comments.value[0]) {
 
           <!-- Back Button -->
           <div class="mb-8">
-            <NuxtLink :to="{ path: '/products', query: isAdminPreview ? { preview: 'admin' } : {} }"
+            <NuxtLink :to="{ path: '/products', query: listQuery }"
               class="inline-flex items-center gap-2 text-xs font-bold text-gray-300 hover:text-red-400 transition-colors uppercase tracking-wider bg-black/50 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/10 shadow-lg">
               <span class="material-symbols-outlined text-sm">arrow_back</span>
               Quay lại danh sách phim
@@ -259,6 +274,11 @@ function toggleLike(comment: typeof comments.value[0]) {
                   class="text-xs text-gray-300 font-medium flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
                   <span class="material-symbols-outlined text-sm text-gray-400">schedule</span>
                   {{ currentProduct.duration }} Phút
+                </span>
+                <span v-if="selectedBranchName"
+                  class="text-xs text-sky-200 font-bold flex items-center gap-1 bg-sky-500/10 px-3 py-1 rounded-lg border border-sky-400/25">
+                  <span class="material-symbols-outlined text-sm">location_on</span>
+                  {{ selectedBranchName }}
                 </span>
               </div>
 

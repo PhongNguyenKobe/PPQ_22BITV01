@@ -6,6 +6,12 @@ const users = ref<UserProfile[]>([])
 const branches = ref<AdminBranchManage[]>([])
 const loading = ref(false)
 const error = ref('')
+const accountGroup = ref<'ADMIN' | 'CUSTOMER'>('ADMIN')
+const adminUsers = computed(() => users.value.filter(user => user.role !== 'customer'))
+const customerUsers = computed(() => users.value.filter(user => user.role === 'customer'))
+const filteredUsers = computed(() =>
+  accountGroup.value === 'ADMIN' ? adminUsers.value : customerUsers.value,
+)
 
 const showCreateForm = ref(false)
 const creating = ref(false)
@@ -155,7 +161,9 @@ onMounted(() => {
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-xl font-bold text-on-surface">Quản lý Tài khoản</h2>
-        <p class="text-sm text-on-surface-variant mt-1">Tổng số: {{ users.length }} người dùng</p>
+        <p class="text-sm text-on-surface-variant mt-1">
+          {{ adminUsers.length }} tài khoản quản trị · {{ customerUsers.length }} khách hàng
+        </p>
       </div>
       <button 
         @click="showCreateForm = !showCreateForm" 
@@ -170,6 +178,23 @@ onMounted(() => {
     <p v-if="error" class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-400">
       {{ error }}
     </p>
+
+    <div class="inline-flex rounded-xl border border-white/10 bg-black/20 p-1">
+      <button
+        class="rounded-lg px-5 py-2.5 text-sm font-bold transition"
+        :class="accountGroup === 'ADMIN' ? 'bg-violet-600 text-white' : 'text-on-surface-variant hover:text-white'"
+        @click="accountGroup = 'ADMIN'"
+      >
+        Quản trị viên ({{ adminUsers.length }})
+      </button>
+      <button
+        class="rounded-lg px-5 py-2.5 text-sm font-bold transition"
+        :class="accountGroup === 'CUSTOMER' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:text-white'"
+        @click="accountGroup = 'CUSTOMER'"
+      >
+        Khách hàng ({{ customerUsers.length }})
+      </button>
+    </div>
 
     <!-- Create Form (Toggle) -->
     <div v-if="showCreateForm" class="panel p-6 border-primary/30 shadow-[0_0_30px_rgba(229,9,20,0.1)] animate-fade-in">
@@ -240,7 +265,7 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
-            <tr v-for="u in users" :key="u.id" class="group hover:bg-white/[0.02] transition-colors">
+            <tr v-for="u in filteredUsers" :key="u.id" class="group hover:bg-white/[0.02] transition-colors">
               <td class="px-5 py-3">
                 <div class="font-bold text-on-surface">{{ u.name }}</div>
                 <div class="text-xs text-on-surface-variant">{{ u.email }}</div>
@@ -275,6 +300,9 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
+        <p v-if="!filteredUsers.length" class="p-10 text-center text-sm text-on-surface-variant">
+          Chưa có tài khoản trong nhóm này.
+        </p>
       </div>
     </div>
 

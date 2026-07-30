@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -24,6 +25,29 @@ from app.schemas.booking import (
 from app.models.user import User
 
 router = APIRouter()
+
+
+@router.put("/{booking_id}/cancel-request")
+async def request_booking_cancellation(
+    booking_id: UUID,
+    reason: str = Query(min_length=5, max_length=500),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    booking = await get_user_booking(db, booking_id, current_user.id)
+    if booking is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+    if booking.status == "CANCEL_REQUESTED":
+        return {"id": booking.id, "status": booking.status, "reason": booking.cancellation_reason}
+    if booking.status != "CONFIRMED":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a confirmed booking can request cancellation")
+    if booking.showtime.starts_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The showtime has started and cannot be cancelled")
+    booking.status = "CANCEL_REQUESTED"
+    booking.cancellation_reason = reason.strip()
+    booking.cancellation_requested_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"id": booking.id, "status": booking.status, "reason": booking.cancellation_reason}
 
 
 @router.post("/seats", response_model=list[SeatBookResponse])

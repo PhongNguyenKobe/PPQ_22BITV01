@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { checkoutService, movieService, type Showtime, type Seat, type UserTicket } from '~/services/api'
+import { checkoutService, movieService, usersApi, type Showtime, type Seat, type UserTicket } from '~/services/api'
 import { isShowtimeExpired } from '~/utils/showtime'
 
 export const useTicketsStore = defineStore('tickets', () => {
@@ -13,6 +13,8 @@ export const useTicketsStore = defineStore('tickets', () => {
   const purchaseError = ref('')
   const holdExpiresAt = ref<string | null>(null)
   const holdError = ref('')
+  const historyLoading = ref(false)
+  const historyError = ref('')
 
   // Initialize from client-side localStorage if available
   if (process.client) {
@@ -53,6 +55,26 @@ export const useTicketsStore = defineStore('tickets', () => {
   const totalAmount = computed(() => {
     return selectedSeats.value.reduce((sum, seat) => sum + seat.price, 0)
   })
+
+  async function loadTicketHistory() {
+    historyLoading.value = true
+    historyError.value = ''
+    try {
+      ticketHistory.value = await usersApi.getMyTickets()
+      if (process.client) {
+        localStorage.setItem('cineai_ticket_history', JSON.stringify(ticketHistory.value))
+      }
+    } catch (e: any) {
+      historyError.value = e?.message || 'Không thể tải lịch sử vé.'
+    } finally {
+      historyLoading.value = false
+    }
+  }
+
+  async function requestCancellation(bookingId: string, reason: string) {
+    await usersApi.requestTicketCancellation(bookingId, reason)
+    await loadTicketHistory()
+  }
 
   function selectShowtime(showtime: Showtime) {
     selectedShowtime.value = showtime
@@ -138,6 +160,12 @@ export const useTicketsStore = defineStore('tickets', () => {
         showtimeId: selectedShowtime.value.id,
         seats: selectedSeats.value.map(s => s.id),
         seatLabels: selectedSeats.value.map(s => `${s.row}${s.number}`),
+        movieTitle: selectedMovie.value?.title,
+        poster: selectedMovie.value?.poster,
+        branchName: selectedShowtime.value.branchName,
+        screenName: selectedShowtime.value.screenName,
+        date: selectedShowtime.value.date,
+        time: selectedShowtime.value.time,
         paymentMethod,
         totalAmount: payableAmount ?? totalAmount.value,
         promotionCode,
@@ -176,12 +204,16 @@ export const useTicketsStore = defineStore('tickets', () => {
     purchaseError,
     holdExpiresAt,
     holdError,
+    historyLoading,
+    historyError,
     totalAmount,
     selectMovie,
     selectCinema,
     selectShowtime,
     toggleSeat,
     clearSelection,
-    purchaseTickets
+    purchaseTickets,
+    loadTicketHistory,
+    requestCancellation,
   }
 })

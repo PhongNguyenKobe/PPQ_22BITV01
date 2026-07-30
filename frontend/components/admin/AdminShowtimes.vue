@@ -138,6 +138,10 @@ const scheduleBranchOptions = computed(() =>
 )
 
 const draftShowtimes = computed(() => showtimes.value.filter((item) => item.stored_status === 'DRAFT'))
+const publishableDraftShowtimes = computed(() =>
+  draftShowtimes.value.filter(item => new Date(item.booking_closes_at).getTime() > Date.now()),
+)
+const expiredDraftCount = computed(() => draftShowtimes.value.length - publishableDraftShowtimes.value.length)
 const bulkConflictIndexes = computed(() => {
   const conflicts = new Set<number>()
 
@@ -386,6 +390,7 @@ async function saveBulkDraftSchedule() {
   bulkPublishing.value = true
   error.value = ''
   try {
+    const savedCount = bulkPreview.value.length
     await adminBackendService.createShowtimesBulk(
       bulkPreview.value.map(({ movie_title, auditorium_name, ...item }) => ({
         ...item,
@@ -397,7 +402,7 @@ async function saveBulkDraftSchedule() {
     scheduleDate.value = bulkForm.value.startDate
     bulkPreview.value = []
     showtimeMode.value = 'bulk'
-    alert(`Đã lưu ${bulkPreview.value.length} suất chiếu nháp.`)
+    alert(`Đã lưu ${savedCount} suất chiếu nháp.`)
   } catch (e: any) {
     error.value = e?.message || 'Không thể xuất bản lịch chiếu.'
   } finally {
@@ -406,11 +411,14 @@ async function saveBulkDraftSchedule() {
 }
 
 async function publishDraftShowtimes() {
-  if (!draftShowtimes.value.length) return
+  if (!publishableDraftShowtimes.value.length) {
+    error.value = 'Không có suất nháp hợp lệ để mở bán. Các suất đã qua giờ đóng bán cần được tạo lại vào thời gian tương lai.'
+    return
+  }
   bulkPublishing.value = true
   error.value = ''
   try {
-    await adminBackendService.publishShowtimes(draftShowtimes.value.map((item) => item.id))
+    await adminBackendService.publishShowtimes(publishableDraftShowtimes.value.map((item) => item.id))
     showtimes.value = await adminBackendService.getShowtimes()
     alert('Đã mở bán thành công!')
   } catch (e: any) {
@@ -436,6 +444,10 @@ async function editShowtime(item: AdminShowtime) {
   if (!statusRaw) return
   if (!['DRAFT', 'OPEN', 'CANCELLED'].includes(statusRaw)) {
     error.value = 'Trạng thái không hợp lệ.'
+    return
+  }
+  if (statusRaw === 'OPEN' && new Date(item.booking_closes_at).getTime() <= Date.now()) {
+    error.value = 'Không thể mở bán vì suất này đã qua giờ đóng bán. Hãy tạo một suất mới trong tương lai.'
     return
   }
   let cancellationReason: string | undefined
@@ -769,12 +781,15 @@ onMounted(() => {
           <button
             v-if="draftShowtimes.length"
             class="action-primary !w-auto text-sm px-6 shadow-lg ml-auto"
-            :disabled="bulkPublishing"
+            :disabled="bulkPublishing || !publishableDraftShowtimes.length"
             @click="publishDraftShowtimes"
           >
-            {{ bulkPublishing ? 'Đang mở bán...' : `Mở bán ${draftShowtimes.length} suất nháp` }}
+            {{ bulkPublishing ? 'Đang mở bán...' : `Mở bán ${publishableDraftShowtimes.length} suất nháp hợp lệ` }}
           </button>
         </div>
+        <p v-if="expiredDraftCount" class="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          Có {{ expiredDraftCount }} suất nháp đã qua giờ đóng bán nên hệ thống tự bỏ qua. Bạn cần tạo lại các suất này ở thời gian tương lai.
+        </p>
       </div>
       
       <!-- Date Scroller -->

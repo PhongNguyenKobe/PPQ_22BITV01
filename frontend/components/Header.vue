@@ -170,10 +170,10 @@ onUnmounted(() => {
                   Vé của tôi
                 </NuxtLink>
 
-                <NuxtLink v-if="currentUser.role === 'customer'" to="/profile/settings"
+                <NuxtLink v-if="currentUser.role === 'customer'" to="/profile"
                   @click="showProfileDropdown = false"
                   class="block px-4 py-2.5 rounded-xl text-xs text-on-surface-variant hover:bg-white/5 transition-colors">
-                  Tài khoản & Ưu đãi
+                  Thông tin cá nhân
                 </NuxtLink>
 
                 <NuxtLink v-if="currentUser.role === 'admin'" to="/admin/dashboard" @click="showProfileDropdown = false"

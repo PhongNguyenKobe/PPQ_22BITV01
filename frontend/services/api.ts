@@ -65,7 +65,9 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     const normalized = handleApiError(error)
-    notify(normalized.message, 'error')
+    if (error.config?.headers?.['X-Suppress-Error-Toast'] !== 'true') {
+      notify(normalized.message, 'error')
+    }
     return Promise.reject(normalized)
   }
 )
@@ -141,6 +143,23 @@ export interface UserTicket {
   paymentMethod: string
   qrCode: string
   bookingDate: string
+  status: string
+  cancellationReason?: string | null
+}
+
+interface BackendUserTicket {
+  id: string
+  movie_title: string
+  poster_url?: string | null
+  branch_name: string
+  auditorium_name: string
+  starts_at: string
+  seats?: Array<{ row: string; number: number }>
+  total_price: number | string
+  payment_method?: string | null
+  booking_date: string
+  status: string
+  cancellation_reason?: string | null
 }
 
 export interface UserProfile {
@@ -314,6 +333,41 @@ export interface AdminShowtime {
   booking_count: number
   sold_seats: number
   revenue: number
+}
+
+export interface AdminBooking {
+  id: string
+  movie_title: string
+  branch_name: string
+  auditorium_name: string
+  starts_at: string
+  seats: Array<{ id: string; row: string; number: number }>
+  quantity: number
+  total_price: number
+  status: string
+  created_at: string
+}
+
+export interface AdminPayment {
+  id: string
+  booking_id: string
+  user_id: string
+  amount: number
+  payment_method: string
+  status: string
+  transaction_id: string | null
+  provider_ref: string | null
+  provider_transaction_no: string | null
+  bank_transaction_no: string | null
+  bank_code: string | null
+  card_type: string | null
+  response_code: string | null
+  provider_status: string | null
+  signature_valid: boolean | null
+  provider_paid_at: string | null
+  last_verified_at: string | null
+  paid_at: string | null
+  created_at: string
 }
 
 export interface BranchAdminSalesPoint {
@@ -534,7 +588,7 @@ export interface AuthCredentials {
 
 export interface RegisterPayload {
   email: string
-  phone?: string | null
+  phone: string
   full_name: string
   date_of_birth?: string | null
   gender?: string | null
@@ -642,9 +696,43 @@ export const usersApi = {
     return mapBackendUserToProfile(res.data)
   },
 
-  async getMyTickets(): Promise<any[]> {
-    const res = await apiClient.get<any[]>('/users/me/tickets')
+  async changePassword(payload: { current_password: string; new_password: string }): Promise<void> {
+    await apiClient.patch('/users/me/password', payload)
+  },
+
+  async getMyTickets(): Promise<UserTicket[]> {
+    const res = await apiClient.get<BackendUserTicket[]>('/users/me/tickets')
+    const invalidTicket = res.data.find(ticket =>
+      !ticket.movie_title ||
+      !ticket.branch_name ||
+      !ticket.auditorium_name ||
+      !ticket.starts_at
+    )
+    if (invalidTicket) {
+      throw new Error('Backend đang chạy phiên bản cũ. Hãy khởi động lại backend để tải đầy đủ thông tin vé.')
+    }
     return res.data
+      .filter(ticket => ['CONFIRMED', 'CANCEL_REQUESTED', 'CANCELLED'].includes(ticket.status))
+      .map(ticket => ({
+        id: ticket.id,
+        movieTitle: ticket.movie_title,
+        poster: ticket.poster_url || '/images/movie-placeholder.svg',
+        branchName: ticket.branch_name,
+        screenName: ticket.auditorium_name,
+        date: ticket.starts_at.slice(0, 10),
+        time: ticket.starts_at.slice(11, 16),
+        seats: (ticket.seats || []).map(seat => `${seat.row}${seat.number}`),
+        totalAmount: Number(ticket.total_price),
+        paymentMethod: ticket.payment_method || 'Không xác định',
+        qrCode: `CINEAI_E_TICKET_${ticket.id}`,
+        bookingDate: ticket.booking_date.replace('T', ' ').slice(0, 16),
+        status: ticket.status,
+        cancellationReason: ticket.cancellation_reason,
+      }))
+  },
+
+  async requestTicketCancellation(bookingId: string, reason: string): Promise<void> {
+    await apiClient.put(`/bookings/${bookingId}/cancel-request`, null, { params: { reason } })
   },
 
 }
@@ -662,8 +750,10 @@ export const branchesService = {
     const res = await apiClient.get<BackendBranch[]>('/branches')
     return res.data
   },
-  async getById(id: string): Promise<BranchDetail> {
-    const res = await apiClient.get<any>(`/branches/${id}`)
+  async getById(id: string, suppressErrorToast = false): Promise<BranchDetail> {
+    const res = await apiClient.get<any>(`/branches/${id}`, {
+      headers: suppressErrorToast ? { 'X-Suppress-Error-Toast': 'true' } : undefined,
+    })
     return {
       ...res.data,
       movies: (res.data.movies || []).map(mapBackendMovieToFrontend),
@@ -875,6 +965,45 @@ export const adminBackendService = {
 
   async deleteShowtime(showtimeId: string): Promise<void> {
     await apiClient.delete(`/admin/showtimes/${showtimeId}`)
+  },
+
+  async getBookings(params: Record<string, string | number | undefined> = {}): Promise<{ total: number; bookings: AdminBooking[] }> {
+    const res = await apiClient.get('/admin/bookings', { params })
+    return res.data
+  },
+
+  async cancelBooking(bookingId: string, reason: string): Promise<AdminBooking> {
+    const res = await apiClient.put(`/admin/bookings/${bookingId}/cancel`, null, { params: { reason } })
+    return res.data
+  },
+
+  async getPayments(params: Record<string, string | number | undefined> = {}): Promise<{ total: number; payments: AdminPayment[] }> {
+    const res = await apiClient.get('/admin/payments', { params })
+    return res.data
+  },
+
+  async refundPayment(paymentId: string, reason: string): Promise<void> {
+    await apiClient.post(`/admin/payments/${paymentId}/refund`, null, { params: { reason } })
+  },
+
+  async reconcilePayment(paymentId: string): Promise<any> {
+    return (await apiClient.post(`/admin/payments/${paymentId}/reconcile`)).data
+  },
+
+  async getPaymentHistory(paymentId: string): Promise<any[]> {
+    return (await apiClient.get(`/admin/payments/${paymentId}/history`)).data
+  },
+
+  async getRevenueReport(start_date: string, end_date: string, group_by = 'day', branch_id?: string) {
+    return (await apiClient.get('/admin/reports/revenue', { params: { start_date, end_date, group_by, branch_id } })).data
+  },
+
+  async getOccupancyReport(start_date: string, end_date: string, branch_id?: string) {
+    return (await apiClient.get('/admin/reports/occupancy', { params: { start_date, end_date, branch_id } })).data
+  },
+
+  async getTopMoviesReport(start_date: string, end_date: string, branch_id?: string) {
+    return (await apiClient.get('/admin/reports/top-movies', { params: { start_date, end_date, branch_id } })).data
   },
 
   async importTmdbMovie(payload: AdminImportTmdbMoviePayload): Promise<AdminImportTmdbMovieResult> {
@@ -1408,6 +1537,12 @@ export const checkoutService = {
     showtimeId: string
     seats: string[]
     seatLabels?: string[]
+    movieTitle?: string
+    poster?: string
+    branchName?: string
+    screenName?: string
+    date?: string
+    time?: string
     paymentMethod: string
     totalAmount: number
     promotionCode?: string
@@ -1448,18 +1583,18 @@ export const checkoutService = {
       promotion_code: bookingDetails.promotionCode || null,
     })
     const payment = paymentRes.data
-    const showtime = await apiClient.get<any>(`/movies/${booking.movie_id}/showtimes`)
-      .then((response) => response.data.find((item: any) => item.id === bookingDetails.showtimeId))
-      .catch(() => null)
-
+    if (payment.payment_url && process.client) {
+      window.location.assign(payment.payment_url)
+      return await new Promise<UserTicket>(() => {})
+    }
     return {
       id: booking.id,
-      movieTitle: showtime?.movie_title || selectedMovieTitle(booking.movie_id),
-      poster: showtime?.poster_url || '/images/movie-placeholder.svg',
-      branchName: showtime?.branch_name || 'CineAI',
-      screenName: showtime?.auditorium_name || 'Phòng chiếu',
-      date: String(showtime?.starts_at || booking.booking_date).slice(0, 10),
-      time: String(showtime?.starts_at || booking.booking_date).slice(11, 16),
+      movieTitle: bookingDetails.movieTitle || selectedMovieTitle(booking.movie_id),
+      poster: bookingDetails.poster || '/images/movie-placeholder.svg',
+      branchName: bookingDetails.branchName || 'CineAI',
+      screenName: bookingDetails.screenName || 'Phòng chiếu',
+      date: bookingDetails.date || String(booking.booking_date).slice(0, 10),
+      time: bookingDetails.time || String(booking.booking_date).slice(11, 16),
       seats: bookingDetails.seatLabels || booking.seats.map((seat: any) => `${seat.row}${seat.number}`),
       totalAmount: Number(payment.total_amount),
       paymentMethod: bookingDetails.paymentMethod,
