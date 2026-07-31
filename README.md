@@ -1,6 +1,6 @@
-# Thông tin thành viên trong nhóm, nội dung các buổi học trong file ABOUT.MD
+# Thông tin thành viên trong nhóm, nội dung các buổi học trong file ABOUT.md
 
-# Hệ thống đặt vé xem phim Full Stack với AI, 
+# Hệ thống đặt vé xem phim Full Stack với AI
 # Vue 3 + TypeScript + Vite + Nuxtjs + Axios
 
 ## Backend FastAPI
