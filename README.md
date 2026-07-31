@@ -1,4 +1,4 @@
-# Hệ thống đặt vé xem phim Full Stack với AI
+# Hệ thống đặt vé xem phim Full Stack với AI, 
 # Vue 3 + TypeScript + Vite + Nuxtjs + Axios
 
 ## Backend FastAPI
@@ -59,7 +59,16 @@ docker compose down
 - **Quản lý người dùng**: theo dõi hoạt động, phân quyền, hỗ trợ khách hàng.  
 - **Thống kê**: doanh thu, báo cáo vé bán ra.  
 - **Khuyến mãi**: tạo mã giảm giá toàn hệ thống.  
-- **Quản lý AI**: tinh chỉnh thuật toán gợi ý, chatbot.  
+- **Quản lý AI**: tinh chỉnh thuật toán gợi ý, chatbot.
+- 
+## 🛠️ Admin (Quản chi nhánh)
+- **Quản lý phim**: thêm/sửa/xóa phim, duyệt nội dung.  
+- **Quản lý suất chiếu**: tạo lịch chiếu, cấu hình phòng chiếu, số ghế.  
+- **Quản lý phòng chiếu**: CRUD phim, thông tin của phòng chiếu.
+- **Thống kê**: doanh thu, báo cáo vé bán ra.  
+- **Quản lý AI**: tinh chỉnh thuật toán gợi ý, chatbot.
+- **Quản lý ghế ngồi**: setup ghế ngồi, các loại ghế trong rạp.  
+
 
 ---
 
