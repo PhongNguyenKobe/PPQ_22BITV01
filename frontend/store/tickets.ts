@@ -16,9 +16,11 @@ export const useTicketsStore = defineStore('tickets', () => {
   const historyLoading = ref(false)
   const historyError = ref('')
 
-  // Initialize from client-side localStorage if available
+  // Dữ liệu checkout cũng tách theo từng tab để hai tài khoản không dùng chung đơn.
   if (process.client) {
-    const savedSelection = localStorage.getItem('cineai_checkout_selection')
+    localStorage.removeItem('cineai_checkout_selection')
+    localStorage.removeItem('cineai_ticket_history')
+    const savedSelection = sessionStorage.getItem('cineai_checkout_selection')
     if (savedSelection) {
       try {
         const parsed = JSON.parse(savedSelection)
@@ -28,20 +30,20 @@ export const useTicketsStore = defineStore('tickets', () => {
         selectedSeats.value = Array.isArray(parsed.selectedSeats) ? parsed.selectedSeats : []
         holdExpiresAt.value = parsed.holdExpiresAt || null
       } catch {
-        localStorage.removeItem('cineai_checkout_selection')
+        sessionStorage.removeItem('cineai_checkout_selection')
       }
     }
-    const savedHistory = localStorage.getItem('cineai_ticket_history')
+    const savedHistory = sessionStorage.getItem('cineai_ticket_history')
     if (savedHistory) {
       try {
         ticketHistory.value = JSON.parse(savedHistory)
       } catch (e) {
-        localStorage.removeItem('cineai_ticket_history')
+        sessionStorage.removeItem('cineai_ticket_history')
       }
     }
     watch(
       [selectedMovie, selectedCinema, selectedShowtime, selectedSeats, holdExpiresAt],
-      () => localStorage.setItem('cineai_checkout_selection', JSON.stringify({
+      () => sessionStorage.setItem('cineai_checkout_selection', JSON.stringify({
         selectedMovie: selectedMovie.value,
         selectedCinema: selectedCinema.value,
         selectedShowtime: selectedShowtime.value,
@@ -62,7 +64,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     try {
       ticketHistory.value = await usersApi.getMyTickets()
       if (process.client) {
-        localStorage.setItem('cineai_ticket_history', JSON.stringify(ticketHistory.value))
+        sessionStorage.setItem('cineai_ticket_history', JSON.stringify(ticketHistory.value))
       }
     } catch (e: any) {
       historyError.value = e?.message || 'Không thể tải lịch sử vé.'
@@ -117,6 +119,16 @@ export const useTicketsStore = defineStore('tickets', () => {
       holdError.value = e?.message || 'Không thể giữ ghế. Ghế có thể vừa được khách khác chọn.'
       return false
     }
+  }
+
+  async function releaseCurrentSeatHolds() {
+    const showtimeId = selectedShowtime.value?.id
+    if (showtimeId && (selectedSeats.value.length > 0 || holdExpiresAt.value)) {
+      await movieService.releaseSeatHolds(showtimeId).catch(() => undefined)
+    }
+    selectedSeats.value = []
+    holdExpiresAt.value = null
+    holdError.value = ''
   }
 
   function selectMovie(movie: any) {
@@ -175,7 +187,7 @@ export const useTicketsStore = defineStore('tickets', () => {
       ticketHistory.value.unshift(ticket)
       
       if (process.client) {
-        localStorage.setItem('cineai_ticket_history', JSON.stringify(ticketHistory.value))
+        sessionStorage.setItem('cineai_ticket_history', JSON.stringify(ticketHistory.value))
       }
 
       // Clear the selections
@@ -194,8 +206,12 @@ export const useTicketsStore = defineStore('tickets', () => {
     }
   }
 
-  async function startVnpayPayment(promotionCode?: string, payableAmount?: number): Promise<string | null> {
+  async function startVnpayPayment(
+    promotionCode?: string,
+    payableAmount?: number,
+  ): Promise<{ paymentUrl: string; transactionRef: string } | null> {
     if (!selectedShowtime.value || selectedSeats.value.length === 0) {
+      purchaseError.value = 'Vui lòng chọn suất chiếu và ghế trước khi thanh toán.'
       return null
     }
     if (isShowtimeExpired(selectedShowtime.value)) {
@@ -206,15 +222,18 @@ export const useTicketsStore = defineStore('tickets', () => {
     loading.value = true
     purchaseError.value = ''
     try {
-      const res = await checkoutService.createVnpayPayment({
+      const payment = await checkoutService.createVnpayPayment({
         showtimeId: selectedShowtime.value.id,
-        seats: selectedSeats.value.map(s => s.id),
+        seats: selectedSeats.value.map((seat) => seat.id),
         totalAmount: payableAmount ?? totalAmount.value,
         promotionCode,
       })
-      return res.paymentUrl
+      return payment
     } catch (e: any) {
-      purchaseError.value = e?.message || 'Không thể khởi tạo thanh toán VNPAY.'
+      purchaseError.value =
+        e?.status === 404 || e?.status === 409
+          ? 'Suất chiếu đã hết hạn hoặc ngừng bán vé. Vui lòng chọn suất khác.'
+          : e?.message || 'Không thể khởi tạo thanh toán VNPAY. Vui lòng thử lại.'
       console.error('VNPAY payment initialization failed:', e)
       return null
     } finally {
@@ -239,6 +258,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     selectCinema,
     selectShowtime,
     toggleSeat,
+    releaseCurrentSeatHolds,
     clearSelection,
     purchaseTickets,
     startVnpayPayment,

@@ -135,7 +135,7 @@ watch(selectedChain, () => {
               >
                 <div class="flex justify-between items-start mb-1">
                   <h4 class="font-headline-md text-[16px] text-on-surface">{{ cinema.name }}</h4>
-                  <span class="bg-primary-container/20 text-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Mở cửa</span>
+                  <span class="bg-primary-container/20 text-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Thông tin rạp</span>
                 </div>
                 <p class="text-on-surface-variant text-label-md mb-3 truncate">{{ cinema.address }}</p>
                 <div class="flex items-center gap-4 text-on-surface-variant text-label-sm">
@@ -156,18 +156,7 @@ watch(selectedChain, () => {
                 <div class="absolute bottom-6 left-8 right-8 flex justify-between items-end">
                   <div>
                     <h2 class="font-headline-xl text-headline-xl text-white drop-shadow-lg">{{ cinemaList[activeCinema]?.name || 'Chọn rạp' }}</h2>
-                    <div class="flex items-center gap-3 mt-2">
-                      <span class="bg-primary-container px-3 py-1 rounded text-white font-bold text-label-sm">IMAX</span>
-                      <span class="px-3 py-1 rounded text-white font-bold text-label-sm border" style="background:rgba(138,43,226,0.3);border-color:rgba(138,43,226,0.5)">4DX + AI ENHANCED</span>
-                    </div>
-                  </div>
-                  <div class="flex gap-2">
-                    <button class="p-3 rounded-full transition-colors border" style="background:rgba(255,255,255,0.1);backdrop-filter:blur(8px);border-color:rgba(255,255,255,0.1)">
-                      <span class="material-symbols-outlined">share</span>
-                    </button>
-                    <button class="p-3 rounded-full transition-colors border" style="background:rgba(255,255,255,0.1);backdrop-filter:blur(8px);border-color:rgba(255,255,255,0.1)">
-                      <span class="material-symbols-outlined">favorite</span>
-                    </button>
+                    <div class="mt-2 text-xs text-on-surface-variant">Thông tin tiện ích rạp sẽ được cập nhật sau</div>
                   </div>
                 </div>
               </div>
@@ -177,19 +166,15 @@ watch(selectedChain, () => {
                     <h5 class="text-on-surface-variant font-label-md text-label-md uppercase tracking-widest mb-1">Địa chỉ</h5>
                     <p class="font-body-lg text-body-lg text-on-surface">{{ cinemaList[activeCinema]?.address || 'Đang cập nhật' }}</p>
                   </div>
-                  <div class="flex gap-4">
-                    <button class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-on-surface">
-                      <span class="material-symbols-outlined">call</span> Gọi rạp
-                    </button>
-                    <button class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 py-3 rounded-xl flex items-center justify-center gap-2 transition-all text-on-surface">
-                      <span class="material-symbols-outlined">directions</span> Chỉ đường
-                    </button>
-                  </div>
+                  <p class="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm text-amber-200">
+                    Gọi rạp và chỉ đường: tạm thời chưa phát triển.
+                  </p>
                 </div>
                 <div class="rounded-2xl overflow-hidden h-40 border border-white/10 opacity-80 hover:opacity-100 transition-all duration-500" style="filter:grayscale(0.5) contrast(1.2)">
                   <div class="w-full h-full bg-surface-container-high flex items-center justify-center relative">
                     <div class="w-8 h-8 bg-primary-container rounded-full animate-ping absolute"></div>
                     <span class="material-symbols-outlined text-primary-container text-4xl relative z-10" style="font-variation-settings:'FILL' 1">location_on</span>
+                    <span class="absolute bottom-3 text-xs text-on-surface-variant">Bản đồ sẽ phát triển sau</span>
                   </div>
                 </div>
               </div>
@@ -240,7 +225,7 @@ watch(selectedChain, () => {
                 <h3 class="font-headline-lg text-headline-lg mb-4 text-on-surface">Trợ lý CineAI giúp bạn chọn phim?</h3>
                 <p class="text-on-surface-variant font-body-md text-body-md mb-6">Bạn đang ở rạp nhưng chưa biết xem phim gì? Hãy để trí tuệ nhân tạo của chúng tôi gợi ý phim phù hợp.</p>
                 <NuxtLink to="/ai-discovery" class="bg-[#8a2be2] text-white px-8 py-3 rounded-full font-bold hover:scale-105 transition-all flex items-center gap-2 group w-fit">
-                  <span class="material-symbols-outlined">auto_awesome</span> Khám phá ngay
+                  <span class="material-symbols-outlined">auto_awesome</span> Sẽ phát triển sau
                   <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
                 </NuxtLink>
               </div>

@@ -97,15 +97,11 @@ async def _apply_vnpay_result(
         return None, "01", "Order not found"
 
     old_status = payment.status
-    payment.signature_valid = signature_valid
-    payment.response_code = str(payload.get("vnp_ResponseCode", "")) or None
-    payment.provider_status = str(payload.get("vnp_TransactionStatus", "")) or None
-    payment.provider_transaction_no = str(payload.get("vnp_TransactionNo", "")) or None
-    payment.transaction_id = payment.provider_transaction_no or payment.transaction_id
-    payment.bank_transaction_no = str(payload.get("vnp_BankTranNo", "")) or None
-    payment.bank_code = str(payload.get("vnp_BankCode", "")) or None
-    payment.card_type = str(payload.get("vnp_CardType", "")) or None
-    payment.provider_paid_at = _provider_paid_at(payload.get("vnp_PayDate"))
+    if old_status == "CANCELLED":
+        await _history(db, payment, old_status, source, payload, signature_valid, "Payment request was cancelled by customer")
+        await db.commit()
+        return payment, "02", "Order already cancelled"
+
     try:
         amount_matches = Decimal(str(payload.get("vnp_Amount", "0"))) / Decimal("100") == payment.amount
     except Exception:
@@ -119,6 +115,16 @@ async def _apply_vnpay_result(
         await _history(db, payment, old_status, source, payload, True, "Amount mismatch")
         await db.commit()
         return payment, "04", "Invalid amount"
+
+    payment.signature_valid = True
+    payment.response_code = str(payload.get("vnp_ResponseCode", "")) or None
+    payment.provider_status = str(payload.get("vnp_TransactionStatus", "")) or None
+    payment.provider_transaction_no = str(payload.get("vnp_TransactionNo", "")) or None
+    payment.transaction_id = payment.provider_transaction_no or payment.transaction_id
+    payment.bank_transaction_no = str(payload.get("vnp_BankTranNo", "")) or None
+    payment.bank_code = str(payload.get("vnp_BankCode", "")) or None
+    payment.card_type = str(payload.get("vnp_CardType", "")) or None
+    payment.provider_paid_at = _provider_paid_at(payload.get("vnp_PayDate"))
 
     success = payment.response_code == "00" and payment.provider_status == "00"
     if success and old_status not in {"SUCCESS", "REFUNDED"}:
@@ -209,7 +215,7 @@ async def checkout(
         payment_method="VNPAY" if vnpay else payload.payment_method,
         status="PENDING" if vnpay else "SUCCESS",
         paid_at=None if vnpay else datetime.now(timezone.utc),
-        provider_ref=str(payment_id) if vnpay else None,
+        provider_ref=payment_id.hex if vnpay else None,
     )
     if not vnpay:
         booking.status = "CONFIRMED"
@@ -262,13 +268,12 @@ async def vnpay_ipn(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/vnpay/callback")
 async def vnpay_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    print("CALLBACK RECEIVED PARAMS:", dict(request.query_params), flush=True)
     payment, response_code, message = await _apply_vnpay_result(db, dict(request.query_params), "CALLBACK")
     success = payment is not None and payment.status == "SUCCESS"
-    print("CALLBACK RESULT:", success, response_code, message, flush=True)
     return {
         "success": success,
         "message": "Payment verified" if success else f"Payment verification failed: {message}",
+        "payment_id": str(payment.id) if payment else None,
         "transaction_ref": str(payment.provider_ref) if payment else None,
         "payment_status": payment.status if payment else None,
     }
@@ -285,4 +290,46 @@ async def get_payment(
     payment = result.scalar_one_or_none()
     if payment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+    return PaymentRead.model_validate(payment)
+
+
+@router.post("/{payment_id}/cancel", response_model=PaymentRead)
+async def cancel_pending_payment(
+    payment_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentRead:
+    result = await db.execute(
+        select(Payment)
+        .options(selectinload(Payment.booking))
+        .where(Payment.id == payment_id, Payment.user_id == current_user.id)
+        .with_for_update()
+    )
+    payment = result.scalar_one_or_none()
+    if payment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+    if payment.status != "PENDING" or payment.booking.status != "PENDING":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only a pending payment request can be cancelled",
+        )
+
+    old_status = payment.status
+    payment.status = "CANCELLED"
+    payment.booking.status = "CANCELLED"
+    payment.booking.cancellation_reason = "Customer cancelled pending VNPAY payment"
+    payment.booking.cancelled_at = datetime.now(timezone.utc)
+    payment.booking.cancelled_by = current_user.id
+    await _history(
+        db,
+        payment,
+        old_status,
+        "CUSTOMER_CANCEL",
+        {},
+        None,
+        "Pending VNPAY payment cancelled before completion",
+    )
+    await db.commit()
+    await db.refresh(payment)
+    await seat_events.broadcast(payment.booking.showtime_id, "SEATS_UPDATED")
     return PaymentRead.model_validate(payment)

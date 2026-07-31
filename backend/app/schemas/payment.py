@@ -34,6 +34,13 @@ class PaymentRead(BaseModel):
     signature_valid: bool | None = None
     provider_paid_at: datetime | None = None
     last_verified_at: datetime | None = None
+    refund_transaction_no: str | None = None
+    refund_response_code: str | None = None
+    refund_provider_status: str | None = None
+    refund_error: str | None = None
+    refund_attempts: int = 0
+    refund_requested_at: datetime | None = None
+    refunded_at: datetime | None = None
     paid_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

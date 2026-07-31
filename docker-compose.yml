@@ -37,6 +37,8 @@ services:
       VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET:-}
       VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:3000/checkout/vnpay-return}
       VNPAY_PAYMENT_URL: ${VNPAY_PAYMENT_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      VNPAY_API_URL: ${VNPAY_API_URL:-https://sandbox.vnpayment.vn/merchant_webapi/api/transaction}
+      CANCELLATION_CUTOFF_MINUTES: ${CANCELLATION_CUTOFF_MINUTES:-120}
       RUN_SEED: ${RUN_SEED:-1}
     command: >
       sh -c "alembic upgrade head &&

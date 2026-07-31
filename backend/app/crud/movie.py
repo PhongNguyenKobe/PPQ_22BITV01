@@ -25,7 +25,9 @@ async def list_movies(
                 (
                     (Movie.status == "NOW_SHOWING")
                     & Movie.showtimes.any(
-                        (Showtime.status == "OPEN") & (Showtime.booking_closes_at > func.now())
+                        (Showtime.status == "OPEN")
+                        & (Showtime.starts_at > func.now())
+                        & (Showtime.booking_closes_at > func.now())
                     )
                 ),
             )
@@ -35,7 +37,9 @@ async def list_movies(
         query = query.where(
             Movie.status == "NOW_SHOWING",
             Movie.showtimes.any(
-                (Showtime.status == "OPEN") & (Showtime.booking_closes_at > func.now())
+                (Showtime.status == "OPEN")
+                & (Showtime.starts_at > func.now())
+                & (Showtime.booking_closes_at > func.now())
             ),
         )
     elif status:
@@ -63,6 +67,7 @@ async def list_movie_showtimes(db: AsyncSession, movie_id: UUID) -> list[Showtim
         .where(
             Showtime.movie_id == movie_id,
             Showtime.status == "OPEN",
+            Showtime.starts_at > func.now(),
             Showtime.booking_closes_at > func.now(),
         )
         .order_by(Showtime.starts_at.asc())
@@ -106,7 +111,9 @@ async def recommended_movies(db: AsyncSession, limit: int = 6) -> list[Movie]:
             | (
                 (Movie.status == "NOW_SHOWING")
                 & Movie.showtimes.any(
-                    (Showtime.status == "OPEN") & (Showtime.booking_closes_at > func.now())
+                    (Showtime.status == "OPEN")
+                    & (Showtime.starts_at > func.now())
+                    & (Showtime.booking_closes_at > func.now())
                 )
             )
         )

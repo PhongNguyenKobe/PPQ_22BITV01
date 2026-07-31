@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field("HS256", validation_alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(10080, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     frontend_url: str = Field("http://localhost:3000", validation_alias="FRONTEND_URL")
+    cancellation_cutoff_minutes: int = Field(120, validation_alias="CANCELLATION_CUTOFF_MINUTES")
     vnpay_tmn_code: str = Field("", validation_alias="VNPAY_TMN_CODE")
     vnpay_hash_secret: str = Field("", validation_alias="VNPAY_HASH_SECRET")
     vnpay_payment_url: str = Field(

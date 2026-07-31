@@ -85,6 +85,7 @@ export function setAuthToken(token: string | null) {
 export interface Movie {
   id: string
   title: string
+  originalTitle?: string
   rating: number
   genre: string[]
   format: string[]
@@ -345,6 +346,10 @@ export interface AdminBooking {
   quantity: number
   total_price: number
   status: string
+  cancellation_reason: string | null
+  cancellation_requested_at: string | null
+  cancellation_review_note: string | null
+  cancellation_reviewed_at: string | null
   created_at: string
 }
 
@@ -366,6 +371,13 @@ export interface AdminPayment {
   signature_valid: boolean | null
   provider_paid_at: string | null
   last_verified_at: string | null
+  refund_transaction_no: string | null
+  refund_response_code: string | null
+  refund_provider_status: string | null
+  refund_error: string | null
+  refund_attempts: number
+  refund_requested_at: string | null
+  refunded_at: string | null
   paid_at: string | null
   created_at: string
 }
@@ -977,6 +989,11 @@ export const adminBackendService = {
     return res.data
   },
 
+  async rejectBookingCancellation(bookingId: string, reason: string): Promise<AdminBooking> {
+    const res = await apiClient.put(`/admin/bookings/${bookingId}/reject-cancellation`, null, { params: { reason } })
+    return res.data
+  },
+
   async getPayments(params: Record<string, string | number | undefined> = {}): Promise<{ total: number; payments: AdminPayment[] }> {
     const res = await apiClient.get('/admin/payments', { params })
     return res.data
@@ -1310,6 +1327,7 @@ export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
   return {
     id: bm.id,
     title: bm.title,
+    originalTitle: bm.original_title || '',
     rating: 0, // backend không có rating, để 0
     genre: normalizeMovieGenres(bm.genres.map(g => g.name)),
     format: [], // backend không có format, để trống
@@ -1465,7 +1483,7 @@ export const movieService = {
   watchSeats(showtimeId: string, onUpdate: () => void): WebSocket {
     const apiUrl = new URL(API_BASE_URL)
     const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-    const token = process.client ? localStorage.getItem('cineai_token') || '' : ''
+    const token = process.client ? sessionStorage.getItem('cineai_token') || '' : ''
     const socket = new WebSocket(`${protocol}//${apiUrl.host}${apiUrl.pathname}/showtimes/${showtimeId}/ws?token=${encodeURIComponent(token)}`)
     socket.onmessage = () => onUpdate()
     return socket
@@ -1558,9 +1576,14 @@ export const checkoutService = {
     }
   },
 
+  async cancelPendingPayment(paymentId: string): Promise<void> {
+    await apiClient.post(`/payments/${paymentId}/cancel`)
+  },
+
   async verifyVnpayCallback(params: Record<string, string | string[]>): Promise<{
     success: boolean
     message: string
+    payment_id?: string
     transaction_ref?: string
     payment_status?: string
   }> {

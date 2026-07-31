@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { adminBackendService, type UserProfile, type AdminBranchManage } from '~/services/api'
 
 const users = ref<UserProfile[]>([])
@@ -7,11 +7,29 @@ const branches = ref<AdminBranchManage[]>([])
 const loading = ref(false)
 const error = ref('')
 const accountGroup = ref<'ADMIN' | 'CUSTOMER'>('ADMIN')
+const userSearch = ref('')
+const statusFilter = ref<'ALL' | 'ACTIVE' | 'LOCKED'>('ALL')
+const roleFilter = ref<'ALL' | 'admin' | 'branch-admin' | 'staff' | 'customer'>('ALL')
 const adminUsers = computed(() => users.value.filter(user => user.role !== 'customer'))
 const customerUsers = computed(() => users.value.filter(user => user.role === 'customer'))
-const filteredUsers = computed(() =>
-  accountGroup.value === 'ADMIN' ? adminUsers.value : customerUsers.value,
-)
+const filteredUsers = computed(() => {
+  let result = accountGroup.value === 'ADMIN' ? adminUsers.value : customerUsers.value
+  const query = userSearch.value.trim().toLocaleLowerCase('vi')
+  if (query) {
+    result = result.filter(user =>
+      user.name.toLocaleLowerCase('vi').includes(query)
+      || user.email.toLocaleLowerCase('vi').includes(query)
+    )
+  }
+  if (statusFilter.value === 'ACTIVE') result = result.filter(user => user.isActive)
+  if (statusFilter.value === 'LOCKED') result = result.filter(user => !user.isActive)
+  if (roleFilter.value !== 'ALL') result = result.filter(user => user.role === roleFilter.value)
+  return result
+})
+
+watch(accountGroup, () => {
+  roleFilter.value = 'ALL'
+})
 
 const showCreateForm = ref(false)
 const creating = ref(false)
@@ -51,6 +69,13 @@ async function loadData() {
 
 async function createUser() {
   error.value = ''
+  if (
+    (userForm.value.roleCode === 'BRANCH_ADMIN' || userForm.value.roleCode === 'STAFF')
+    && !userForm.value.branchId
+  ) {
+    error.value = 'Vui lòng chọn chi nhánh phụ trách.'
+    return
+  }
   creating.value = true
   try {
     await adminBackendService.createUser({
@@ -95,6 +120,13 @@ function closeEditModal() {
 async function saveUserRole() {
   if (!editingUser.value) return
   error.value = ''
+  if (
+    (editForm.value.roleCode === 'BRANCH_ADMIN' || editForm.value.roleCode === 'STAFF')
+    && !editForm.value.branchId
+  ) {
+    error.value = 'Vui lòng chọn chi nhánh phụ trách.'
+    return
+  }
   try {
     const updated = await adminBackendService.updateUserRole(
       editingUser.value.id,
@@ -115,19 +147,6 @@ async function updateUserActive(user: UserProfile) {
     users.value = await adminBackendService.getUsers()
   } catch (e: any) {
     error.value = e?.message || 'Không thể thay đổi trạng thái.'
-  }
-}
-
-const showDeleteConfirm = ref<UserProfile | null>(null)
-
-async function softDeleteUser() {
-  if (!showDeleteConfirm.value) return
-  try {
-    await adminBackendService.deleteUser(showDeleteConfirm.value.id)
-    users.value = await adminBackendService.getUsers()
-    showDeleteConfirm.value = null
-  } catch (e: any) {
-    error.value = e?.message || 'Không thể xoá tài khoản.'
   }
 }
 
@@ -196,6 +215,37 @@ onMounted(() => {
       </button>
     </div>
 
+    <div class="panel grid gap-3 p-4 md:grid-cols-[minmax(260px,1fr)_220px_220px]">
+      <div class="relative">
+        <span class="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+        <input
+          v-model="userSearch"
+          class="field-input search-input"
+          placeholder="Tìm theo tên hoặc email..."
+          aria-label="Tìm người dùng theo tên hoặc email"
+        />
+      </div>
+      <select v-model="statusFilter" class="field-input" aria-label="Lọc trạng thái tài khoản">
+        <option value="ALL">Tất cả trạng thái</option>
+        <option value="ACTIVE">Đang hoạt động</option>
+        <option value="LOCKED">Đã khóa</option>
+      </select>
+      <select v-model="roleFilter" class="field-input" aria-label="Lọc vai trò">
+        <option value="ALL">Tất cả vai trò</option>
+        <option v-if="accountGroup === 'CUSTOMER'" value="customer">Khách hàng</option>
+        <template v-else>
+          <option value="admin">Super Admin</option>
+          <option value="branch-admin">Branch Admin</option>
+          <option value="staff">Nhân viên</option>
+        </template>
+      </select>
+    </div>
+
+    <div class="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-xs text-sky-200">
+      <strong>Khóa tài khoản</strong> sẽ chặn người dùng đăng nhập nhưng vẫn giữ nguyên hồ sơ, vé và lịch sử giao dịch.
+      Muốn đổi khách hàng thành Branch Admin, hãy tìm email, chọn <strong>Đổi quyền</strong>, sau đó chọn chi nhánh phụ trách.
+    </div>
+
     <!-- Create Form (Toggle) -->
     <div v-if="showCreateForm" class="panel p-6 border-primary/30 shadow-[0_0_30px_rgba(229,9,20,0.1)] animate-fade-in">
       <form class="space-y-5" @submit.prevent="createUser">
@@ -232,7 +282,7 @@ onMounted(() => {
           </div>
           <div class="space-y-1" v-if="userForm.roleCode === 'BRANCH_ADMIN' || userForm.roleCode === 'STAFF'">
             <label class="text-xs font-semibold text-on-surface-variant uppercase">Cụm rạp trực thuộc</label>
-            <select v-model="userForm.branchId" class="field-input font-medium">
+            <select v-model="userForm.branchId" required class="field-input font-medium">
               <option value="">-- Chọn cụm rạp --</option>
               <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
             </select>
@@ -285,15 +335,14 @@ onMounted(() => {
               </td>
               <td class="px-5 py-3 text-on-surface-variant">{{ resolveUserBranchName(u.branchId) }}</td>
               <td class="px-5 py-3">
-                <div class="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <button @click="openEditModal(u)" class="p-2 rounded-lg bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition tooltip" title="Đổi quyền">
+                <div class="flex flex-wrap items-center gap-2">
+                  <button @click="openEditModal(u)" class="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-300 transition hover:bg-sky-500/20" title="Đổi vai trò và chi nhánh">
                     <span class="material-symbols-outlined text-[18px]">manage_accounts</span>
+                    Đổi quyền
                   </button>
-                  <button @click="updateUserActive(u)" class="p-2 rounded-lg transition tooltip" :class="u.isActive ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'" :title="u.isActive ? 'Khoá tài khoản' : 'Mở khoá'">
+                  <button @click="updateUserActive(u)" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition" :class="u.isActive ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'" :title="u.isActive ? 'Chặn tài khoản đăng nhập' : 'Cho phép tài khoản đăng nhập lại'">
                     <span class="material-symbols-outlined text-[18px]">{{ u.isActive ? 'lock' : 'lock_open' }}</span>
-                  </button>
-                  <button @click="showDeleteConfirm = u" class="p-2 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition tooltip" title="Xoá mềm">
-                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                    {{ u.isActive ? 'Khóa' : 'Mở khóa' }}
                   </button>
                 </div>
               </td>
@@ -301,7 +350,7 @@ onMounted(() => {
           </tbody>
         </table>
         <p v-if="!filteredUsers.length" class="p-10 text-center text-sm text-on-surface-variant">
-          Chưa có tài khoản trong nhóm này.
+          Không tìm thấy tài khoản phù hợp.
         </p>
       </div>
     </div>
@@ -331,7 +380,7 @@ onMounted(() => {
           </div>
           <div class="space-y-1" v-if="editForm.roleCode === 'BRANCH_ADMIN' || editForm.roleCode === 'STAFF'">
             <label class="text-xs font-semibold text-on-surface-variant uppercase">Cụm rạp trực thuộc</label>
-            <select v-model="editForm.branchId" class="field-input">
+            <select v-model="editForm.branchId" required class="field-input">
               <option value="">-- Chọn cụm rạp --</option>
               <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
             </select>
@@ -344,21 +393,6 @@ onMounted(() => {
       </div>
     </div>
     
-    <!-- Delete Confirm Modal -->
-    <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div class="bg-[#1a1c1c] border border-rose-500/30 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden text-center p-6">
-        <div class="w-16 h-16 bg-rose-500/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span class="material-symbols-outlined text-[32px]">warning</span>
-        </div>
-        <h3 class="text-xl font-bold text-on-surface mb-2">Xác nhận xoá?</h3>
-        <p class="text-sm text-on-surface-variant mb-6">Bạn có chắc chắn muốn xoá mềm tài khoản <strong>{{ showDeleteConfirm.email }}</strong> không? Thao tác này sẽ khoá tài khoản vô thời hạn.</p>
-        
-        <div class="flex gap-3">
-          <button @click="showDeleteConfirm = null" class="flex-1 py-2.5 rounded-xl font-bold border border-white/10 text-on-surface hover:bg-white/5 transition">Hủy bỏ</button>
-          <button @click="softDeleteUser" class="flex-1 py-2.5 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-500 transition shadow-[0_0_20px_rgba(225,29,72,0.4)]">Xoá tài khoản</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -385,6 +419,10 @@ onMounted(() => {
   outline: none;
   border-color: rgba(229, 9, 20, 0.65);
   box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.15);
+}
+
+.field-input.search-input {
+  padding-left: 2.55rem;
 }
 
 .action-primary {

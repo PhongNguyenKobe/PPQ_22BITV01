@@ -17,6 +17,7 @@ const router = useRouter()
 const ticketsStore = useTicketsStore()
 const userStore = useUserStore()
 const movieShowtimes = ref<Record<string, Showtime[]>>({})
+const showtimesLoaded = ref(false)
 
 // Gọi fetchProducts không cần await top-level để tránh block render SSR/Client
 onMounted(() => {
@@ -26,6 +27,7 @@ onMounted(() => {
 })
 
 watch(products, async (items) => {
+  showtimesLoaded.value = false
   const nowShowing = items.filter((movie) => movie.status === 'NOW_SHOWING' && movie.backendMovieId)
   const entries = await Promise.all(
     nowShowing.map(async (movie) => [
@@ -33,29 +35,45 @@ watch(products, async (items) => {
       await movieService.getShowtimes(String(movie.backendMovieId)).catch(() => []),
     ] as const),
   )
-  movieShowtimes.value = Object.fromEntries(entries)
+  const now = Date.now()
+  movieShowtimes.value = Object.fromEntries(
+    entries.map(([movieId, showtimes]) => [
+      movieId,
+      showtimes.filter((showtime) => {
+        const startsAt = new Date(`${showtime.date}T${showtime.time}:00`).getTime()
+        const closesAt = showtime.bookingClosesAt ? new Date(showtime.bookingClosesAt).getTime() : startsAt
+        return startsAt > now && closesAt > now
+      }),
+    ]),
+  )
+  showtimesLoaded.value = true
 }, { immediate: true })
 
 // =========================================================================
 // HERO SECTION LOGIC & AUTOPLAY
 // =========================================================================
 const activeHeroIndex = ref(0)
-const AUTOPLAY_INTERVAL = 3000
+const AUTOPLAY_INTERVAL = 5000
 let heroTimer: ReturnType<typeof setInterval> | null = null
 
 const heroMovies = computed(() => {
   if (!products.value || !Array.isArray(products.value)) return []
   const clean = products.value.filter((movie) =>
-    movie.status === 'NOW_SHOWING'
+    showtimesLoaded.value
+    && movie.status === 'NOW_SHOWING'
     && movie.name.trim().length >= 3
     && movie.imageUrl
-    && !movie.imageUrl.includes('movie-placeholder'),
+    && !movie.imageUrl.includes('movie-placeholder')
+    && (movieShowtimes.value[String(movie.id)]?.length || 0) > 0
   )
   
   const sorted = [...clean].sort((a, b) => {
     const countA = movieShowtimes.value[String(a.id)]?.length || 0
     const countB = movieShowtimes.value[String(b.id)]?.length || 0
-    return countB - countA
+    if (countA !== countB) return countB - countA
+    const nearestA = new Date(`${movieShowtimes.value[String(a.id)]![0]!.date}T${movieShowtimes.value[String(a.id)]![0]!.time}:00`).getTime()
+    const nearestB = new Date(`${movieShowtimes.value[String(b.id)]![0]!.date}T${movieShowtimes.value[String(b.id)]![0]!.time}:00`).getTime()
+    return nearestA - nearestB
   })
 
   return sorted.slice(0, 5)
@@ -64,6 +82,15 @@ const heroMovies = computed(() => {
 const currentHeroMovie = computed(() => {
   if (!heroMovies.value.length) return null
   return heroMovies.value[activeHeroIndex.value] || heroMovies.value[0]
+})
+
+const currentHeroShowtimes = computed(() =>
+  currentHeroMovie.value ? movieShowtimes.value[String(currentHeroMovie.value.id)] || [] : [],
+)
+
+const nearestHeroShowtimeLabel = computed(() => {
+  const nearest = currentHeroShowtimes.value[0]
+  return nearest ? showtimeLabel(nearest) : ''
 })
 
 const upcomingMovies = computed(() => {
@@ -100,6 +127,9 @@ function restartHeroAutoplay() {
 }
 
 watch(heroMovies, (newVal) => {
+  if (activeHeroIndex.value >= newVal.length) {
+    activeHeroIndex.value = 0
+  }
   if (newVal.length > 1 && !heroTimer) {
     startHeroAutoplay()
   }
@@ -352,14 +382,14 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
       </div>
 
       <div class="relative z-10 w-full max-w-[1280px] mx-auto px-6 md:px-[48px] py-12">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        <div v-if="currentHeroMovie" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
 
-          <div class="lg:col-span-7 space-y-6 text-left reveal">
+          <div class="lg:col-span-7 space-y-6 text-left">
             <div
               class="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#1e2020]/90 border border-[#5e3f3b]/60 shadow-[0_0_20px_rgba(229,9,20,0.3)] backdrop-blur-md">
               <span class="w-2.5 h-2.5 rounded-full bg-[#e50914] animate-ping"></span>
               <span class="text-[12px] font-bold tracking-widest uppercase text-[#ffb4aa] font-sans">
-                ĐANG CHIẾU TẠI RẠP
+                PHIM ĐANG MỞ BÁN
               </span>
             </div>
 
@@ -376,13 +406,17 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
               </div>
             </Transition>
 
-            <div class="flex items-center gap-4 text-xs font-semibold text-[#ffb4aa]">
-              <span class="px-2.5 py-1 rounded bg-[#e50914] text-white font-bold">IMAX 3D</span>
-              <span class="flex items-center gap-1">
-                <span class="material-symbols-outlined text-sm">schedule</span> 120 Phút
+            <div class="flex flex-wrap items-center gap-4 text-xs font-semibold text-[#ffb4aa]">
+              <span class="px-2.5 py-1 rounded bg-[#e50914] text-white font-bold">
+                Còn {{ currentHeroShowtimes.length }} suất
               </span>
               <span class="flex items-center gap-1">
-                <span class="material-symbols-outlined text-sm text-yellow-500">star</span> 9.8 / 10
+                <span class="material-symbols-outlined text-sm">schedule</span>
+                Gần nhất {{ nearestHeroShowtimeLabel }}
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">movie</span>
+                {{ currentHeroMovie.duration }} phút
               </span>
             </div>
 
@@ -401,7 +435,7 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
             </div>
           </div>
 
-          <div class="lg:col-span-5 flex flex-col items-center justify-center reveal">
+          <div class="lg:col-span-5 flex flex-col items-center justify-center">
             <div
               class="relative w-[260px] sm:w-[300px] h-[380px] sm:h-[430px] rounded-2xl overflow-hidden border-2 border-[#e50914] shadow-[0_0_35px_rgba(229,9,20,0.45)] group transition-all duration-500">
               <Transition name="fade-poster" mode="out-in">
@@ -415,7 +449,7 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
               <div class="absolute bottom-4 left-4 right-4 text-center">
                 <span
                   class="text-[11px] font-bold text-[#ffb4aa] tracking-widest uppercase bg-[#121414]/80 px-3 py-1 rounded-full border border-[#5e3f3b]">
-                  Phim Đang Chiếu
+                  Phim đang mở bán
                 </span>
               </div>
             </div>
@@ -429,6 +463,14 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
             </div>
           </div>
 
+        </div>
+        <div v-else class="flex min-h-[420px] items-center justify-center text-center">
+          <div>
+            <span class="material-symbols-outlined text-5xl text-[#737272]">movie_filter</span>
+            <p class="mt-3 font-bold text-white">
+              {{ showtimesLoaded ? 'Hiện chưa có phim nào đang mở bán' : 'Đang kiểm tra lịch chiếu...' }}
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -511,6 +553,13 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
 
     <!-- COMBO BẮP NƯỚC -->
     <section class="py-16 sm:py-24 relative z-10 border-b border-[#1a1c1c] bg-[#1a1c1c]/40">
+      <div class="absolute inset-0 z-50 flex items-center justify-center bg-[#121414]/75 backdrop-blur-[2px]">
+        <div class="rounded-2xl border border-white/10 bg-[#1a1c1c] px-8 py-6 text-center shadow-2xl">
+          <span class="material-symbols-outlined text-4xl text-[#ffb4aa]">fastfood</span>
+          <h3 class="mt-2 text-xl font-bold text-white">Combo bắp nước</h3>
+          <p class="mt-1 text-sm text-[#c8c6c5]">Tạm thời chưa phát triển xong</p>
+        </div>
+      </div>
       <div class="max-w-[1280px] mx-auto px-6 md:px-[48px] reveal">
         <div class="text-center max-w-xl mx-auto mb-10">
           <span class="text-[12px] font-semibold text-[#ffb4aa] uppercase tracking-widest block mb-1">Thưởng Thức Tại
@@ -585,15 +634,23 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
         <div class="p-6 sm:p-8 rounded-2xl bg-[#1a1c1c] border border-[#343535] shadow-2xl mb-12">
           <div
             class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-6 mb-6 border-b border-[#343535]">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-xs font-bold uppercase text-[#ffb4aa] mr-2 flex items-center gap-1">
-                <span class="material-symbols-outlined text-base">location_on</span> Rạp:
-              </span>
-              <button v-for="cName in cinemas" :key="cName" @click="selectedCinema = cName"
-                class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                :class="selectedCinema === cName ? 'bg-[#e50914] text-white shadow-md' : 'bg-[#1e2020] text-[#c8c6c5] border border-[#343535] hover:border-[#ffb4aa]/50'">
-                {{ cName }}
-              </button>
+            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <label for="quick-booking-cinema"
+                class="text-xs font-bold uppercase text-[#ffb4aa] mr-2 flex items-center gap-1 whitespace-nowrap">
+                <span class="material-symbols-outlined text-base">location_on</span> Rạp có suất mở bán:
+              </label>
+              <div class="relative min-w-0 sm:min-w-[240px]">
+                <select id="quick-booking-cinema" v-model="selectedCinema"
+                  class="w-full appearance-none rounded-xl border border-[#5e3f3b]/60 bg-[#1e2020] px-4 py-2.5 pr-10 text-sm font-semibold text-white outline-none transition focus:border-[#ffb4aa]">
+                  <option v-for="cName in cinemas" :key="cName" :value="cName">
+                    {{ cName }}
+                  </option>
+                </select>
+                <span
+                  class="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-base text-[#ffb4aa]">
+                  expand_more
+                </span>
+              </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
@@ -606,6 +663,13 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
                 {{ d.label }}
               </button>
             </div>
+          </div>
+
+          <div class="-mt-2 mb-6 rounded-xl border border-[#343535] bg-[#121414]/70 px-4 py-3 text-xs text-[#aaa8a7]">
+            Chỉ hiển thị chi nhánh có suất chiếu tương lai, đã mở bán và vẫn còn thời gian đặt vé.
+            <span v-if="cinemas.length === 1" class="ml-1 text-[#ffb4aa]">
+              Hiện tại chỉ có {{ cinemas[0] }} đáp ứng điều kiện.
+            </span>
           </div>
 
           <div v-if="quickBookingMovies.length" class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -639,7 +703,10 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="mb-4 rounded-xl border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-center text-sm font-bold text-amber-300">
+          Thành viên CineAI Pass và đổi mã giảm giá tạm thời chưa phát triển xong.
+        </div>
+        <div class="pointer-events-none grid grid-cols-1 md:grid-cols-2 gap-6 opacity-50">
           <div class="p-6 sm:p-8 rounded-xl bg-[#1a1c1c] border border-[#5e3f3b]/40 flex justify-between items-center">
             <div>
               <span class="text-[12px] font-semibold text-[#ffb4aa] uppercase tracking-widest">Đặc Quyền VIP</span>

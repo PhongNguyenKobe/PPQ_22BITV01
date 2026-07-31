@@ -66,6 +66,8 @@ class BookingRead(BaseModel):
     status: str  # 'PENDING', 'CONFIRMED', 'CANCEL_REQUESTED', 'CANCELLED', 'EXPIRED'
     cancellation_reason: str | None = None
     cancellation_requested_at: datetime | None = None
+    cancellation_review_note: str | None = None
+    cancellation_reviewed_at: datetime | None = None
     cancelled_at: datetime | None = None
     payment_method: str | None = None
     created_at: datetime

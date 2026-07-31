@@ -13,9 +13,6 @@ const showProfileDropdown = ref(false)
 const showBranchDropdown = ref(false)
 const showMovieDropdown = ref(false)
 const showMobileMenu = ref(false)
-const showSearchModal = ref(false)
-
-const searchQuery = ref('')
 
 const branches = ref<BackendBranch[]>([])
 
@@ -26,12 +23,6 @@ function handleLogout() {
   navigateTo('/login')
 }
 
-function handleSearch() {
-  if (!searchQuery.value.trim()) return
-  navigateTo(`/movies?search=${encodeURIComponent(searchQuery.value.trim())}`)
-  showSearchModal.value = false
-  searchQuery.value = ''
-}
 
 // Xử lý Click Outside đóng các dropdown
 function clickOutside(event: MouseEvent) {
@@ -133,10 +124,10 @@ onUnmounted(() => {
       <!-- RIGHT ACTIONS (SEARCH, PROFILE, MOBILE MENU BUTTON) -->
       <div class="flex items-center gap-4">
         <!-- Search Button -->
-        <button @click="showSearchModal = true"
+        <button @click="navigateTo('/ai-discovery')"
           class="p-2 text-on-surface-variant hover:text-on-surface transition-colors rounded-full hover:bg-white/5"
-          title="Tìm kiếm phim">
-          <span class="material-symbols-outlined text-xl">search</span>
+          title="Trợ lý AI (đang phát triển)">
+          <span class="material-symbols-outlined text-xl text-primary-container">smart_toy</span>
         </button>
 
         <!-- PROFILE / AUTH -->
@@ -225,12 +216,12 @@ onUnmounted(() => {
             Lịch Chiếu
           </NuxtLink>
 
-          <NuxtLink to="/movies/now-showing" @click="showMobileMenu = false"
+          <NuxtLink :to="{ path: '/products', query: { status: 'NOW_SHOWING' } }" @click="showMobileMenu = false"
             class="text-on-surface py-2 border-b border-glass-stroke/30">
             Phim Đang Chiếu
           </NuxtLink>
 
-          <NuxtLink to="/movies/coming-soon" @click="showMobileMenu = false"
+          <NuxtLink :to="{ path: '/products', query: { status: 'UPCOMING' } }" @click="showMobileMenu = false"
             class="text-on-surface py-2 border-b border-glass-stroke/30">
             Phim Sắp Chiếu
           </NuxtLink>
@@ -264,26 +255,5 @@ onUnmounted(() => {
       </div>
     </transition>
 
-    <!-- SEARCH MODAL -->
-    <transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0 scale-95"
-      enter-to-class="opacity-100 scale-100" leave-active-class="transition duration-100 ease-in"
-      leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
-      <div v-if="showSearchModal"
-        class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-start justify-center pt-20 px-4"
-        @click.self="showSearchModal = false">
-        <div class="bg-surface border border-glass-stroke w-full max-w-xl rounded-2xl p-4 shadow-2xl glass-panel">
-          <form @submit.prevent="handleSearch" class="flex items-center gap-3">
-            <span class="material-symbols-outlined text-on-surface-variant">search</span>
-            <input v-model="searchQuery" type="text" placeholder="Nhập tên phim, đạo diễn, diễn viên..."
-              class="w-full bg-transparent text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none text-sm"
-              autofocus />
-            <button type="button" @click="showSearchModal = false"
-              class="text-xs text-on-surface-variant hover:text-on-surface px-2 py-1">
-              Hủy
-            </button>
-          </form>
-        </div>
-      </div>
-    </transition>
   </header>
 </template>

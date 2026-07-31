@@ -20,7 +20,7 @@ from app.db.session import get_db
 from app.models.catalog import Auditorium, Branch, Movie, MovieGenre, Seat, SeatType, Showtime, Vendor
 from app.core.config import settings
 from app.models.commerce import Booking, BookingSeat, Payment, PaymentStatusHistory
-from app.services.vnpay import query_transaction
+from app.services.vnpay import query_transaction, refund_transaction, verify_refund_response
 from app.models.user import Role, User
 from app.schemas.admin import (
     AdminStatsResponse,
@@ -50,6 +50,104 @@ from app.schemas.admin import (
     ShowtimeAdminUpdate,
     UserRoleUpdate,
 )
+
+
+async def _execute_vnpay_refund(
+    *,
+    payment: Payment,
+    booking: Booking,
+    current_user: User,
+    request: Request,
+    db: AsyncSession,
+    reason: str,
+) -> Payment:
+    old_status = payment.status
+    if payment.status == "REFUNDED":
+        return payment
+    if payment.payment_method != "VNPAY":
+        payment.status = "REFUND_PENDING"
+        payment.refund_error = "Manual refund required for this payment method"
+        db.add(PaymentStatusHistory(
+            payment_id=payment.id, old_status=old_status, new_status=payment.status,
+            source="REFUND", note=payment.refund_error, raw_payload={},
+        ))
+        await db.commit()
+        return payment
+    if payment.signature_valid is not True or not payment.provider_ref or not payment.provider_transaction_no:
+        payment.status = "REFUND_FAILED"
+        payment.refund_error = "VNPAY payment has not been verified or is missing provider transaction data"
+        db.add(PaymentStatusHistory(
+            payment_id=payment.id, old_status=old_status, new_status=payment.status,
+            source="REFUND", note=payment.refund_error, raw_payload={},
+        ))
+        await db.commit()
+        return payment
+    if not settings.vnpay_enabled:
+        payment.status = "REFUND_FAILED"
+        payment.refund_error = "VNPAY is not configured"
+        await db.commit()
+        return payment
+
+    request_id = uuid.uuid4().hex
+    payment.status = "REFUND_PENDING"
+    payment.refund_request_id = request_id
+    payment.refund_attempts += 1
+    payment.refund_requested_at = datetime.now(timezone.utc)
+    payment.refund_error = None
+    await db.commit()
+
+    try:
+        response = await refund_transaction(
+            request_id=request_id,
+            txn_ref=payment.provider_ref,
+            amount=int(payment.amount),
+            transaction_no=payment.provider_transaction_no,
+            transaction_date=payment.created_at,
+            created_by=current_user.id.hex,
+            ip_address=request.client.host if request.client else "127.0.0.1",
+            reason=reason,
+        )
+        signature_valid = verify_refund_response(response)
+        response_code = str(response.get("vnp_ResponseCode", ""))
+        provider_status = str(response.get("vnp_TransactionStatus", ""))
+        payment.refund_response_code = response_code or None
+        payment.refund_provider_status = provider_status or None
+        payment.refund_transaction_no = str(response.get("vnp_TransactionNo", "")) or None
+
+        if not signature_valid:
+            payment.status = "REFUND_FAILED"
+            payment.refund_error = "Invalid VNPAY refund response signature"
+        elif response_code == "00" and provider_status == "00":
+            payment.status = "REFUNDED"
+            payment.refunded_at = datetime.now(timezone.utc)
+        elif response_code in {"00", "94"} or provider_status in {"05", "06"}:
+            payment.status = "REFUND_PENDING"
+            payment.refund_error = str(response.get("vnp_Message", "")) or "VNPAY is processing the refund"
+        else:
+            payment.status = "REFUND_FAILED"
+            payment.refund_error = str(response.get("vnp_Message", "")) or f"VNPAY refund failed ({response_code})"
+
+        db.add(PaymentStatusHistory(
+            payment_id=payment.id,
+            old_status=old_status,
+            new_status=payment.status,
+            source="VNPAY_REFUND",
+            response_code=response_code or None,
+            provider_status=provider_status or None,
+            signature_valid=signature_valid,
+            note=payment.refund_error or reason,
+            raw_payload={str(key): str(value) for key, value in response.items()},
+        ))
+    except Exception as exc:
+        payment.status = "REFUND_FAILED"
+        payment.refund_error = f"Cannot reach VNPAY refund API: {exc}"
+        db.add(PaymentStatusHistory(
+            payment_id=payment.id, old_status=old_status, new_status=payment.status,
+            source="VNPAY_REFUND", signature_valid=None,
+            note=payment.refund_error, raw_payload={},
+        ))
+    await db.commit()
+    return payment
 from app.schemas.movie import MovieRead
 from app.schemas.user import UserCreate, UserUpdate
 
@@ -1091,6 +1189,8 @@ async def create_admin_showtime(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> ShowtimeAdminRead:
+    if payload.starts_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="starts_at must be in the future")
     if payload.ends_at <= payload.starts_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ends_at must be after starts_at")
     booking_closes_at = payload.booking_closes_at or payload.starts_at - timedelta(minutes=15)
@@ -1177,6 +1277,8 @@ async def create_admin_showtimes_bulk(
 
     ordered = sorted(payload.showtimes, key=lambda item: (str(item.auditorium_id), item.starts_at))
     for index, item in enumerate(ordered):
+        if item.starts_at <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All showtimes must start in the future")
         if item.ends_at <= item.starts_at:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Every end time must be after its start time")
         booking_closes_at = item.booking_closes_at or item.starts_at - timedelta(minutes=15)
@@ -1264,6 +1366,7 @@ async def publish_admin_showtimes(
 async def update_admin_showtime(
     showtime_id: UUID,
     payload: ShowtimeAdminUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles("BRANCH_ADMIN")),
 ) -> ShowtimeAdminRead:
@@ -1301,6 +1404,8 @@ async def update_admin_showtime(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A cancellation reason is required")
     new_starts_at = updates.get("starts_at", showtime.starts_at)
     new_ends_at = updates.get("ends_at", showtime.ends_at)
+    if "starts_at" in updates and new_starts_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="starts_at must be in the future")
     if new_ends_at <= new_starts_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ends_at must be after starts_at")
     if new_ends_at > new_starts_at + timedelta(minutes=showtime.movie.duration_min + 60):
@@ -1338,11 +1443,12 @@ async def update_admin_showtime(
     for key, value in updates.items():
         setattr(showtime, key, value)
 
-    if updates.get("status") == "CANCELLED" and confirmed_bookings:
+    payments_to_refund: list[tuple[Payment, Booking]] = []
+    if updates.get("status") == "CANCELLED":
         bookings_result = await db.execute(
             select(Booking).where(
                 Booking.showtime_id == showtime.id,
-                Booking.status == "CONFIRMED",
+                Booking.status.in_(["CONFIRMED", "CANCEL_REQUESTED"]),
             )
         )
         affected_bookings = list(bookings_result.scalars().all())
@@ -1377,6 +1483,9 @@ async def update_admin_showtime(
         )
         for payment in payment_result.scalars().all():
             payment.status = "REFUND_PENDING"
+            related_booking = next((item for item in affected_bookings if item.id == payment.booking_id), None)
+            if related_booking is not None:
+                payments_to_refund.append((payment, related_booking))
             db.add(PaymentStatusHistory(
                 payment_id=payment.id,
                 old_status="SUCCESS",
@@ -1389,6 +1498,15 @@ async def update_admin_showtime(
     db.add(showtime)
     await db.commit()
     await seat_events.broadcast(showtime.id, "SEATS_UPDATED")
+    for payment, booking in payments_to_refund:
+        await _execute_vnpay_refund(
+            payment=payment,
+            booking=booking,
+            current_user=current_user,
+            request=request,
+            db=db,
+            reason=f"Showtime cancelled: {showtime.cancellation_reason or ''}",
+        )
 
     refreshed_row = await db.execute(
         select(Showtime)
@@ -1472,6 +1590,8 @@ def _booking_admin_dict(booking: Booking) -> dict:
         "status": booking.status,
         "cancellation_reason": booking.cancellation_reason,
         "cancellation_requested_at": booking.cancellation_requested_at,
+        "cancellation_review_note": booking.cancellation_review_note,
+        "cancellation_reviewed_at": booking.cancellation_reviewed_at,
         "cancelled_at": booking.cancelled_at,
         "created_at": booking.created_at,
     }
@@ -1523,6 +1643,7 @@ async def list_branch_bookings(
 @router.put("/bookings/{booking_id}/cancel", dependencies=[Depends(require_roles("BRANCH_ADMIN"))])
 async def cancel_booking(
     booking_id: UUID,
+    request: Request,
     reason: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -1554,10 +1675,15 @@ async def cancel_booking(
     booking.cancellation_reason = reason
     booking.cancelled_at = datetime.now(timezone.utc)
     booking.cancelled_by = current_user.id
+    booking.cancellation_review_note = reason
+    booking.cancellation_reviewed_at = datetime.now(timezone.utc)
+    booking.cancellation_reviewed_by = current_user.id
     await db.execute(delete(BookingSeat).where(BookingSeat.booking_id == booking.id))
+    payments_to_refund: list[Payment] = []
     for payment in (await db.execute(select(Payment).where(Payment.booking_id == booking.id))).scalars():
         if payment.status == "SUCCESS":
             payment.status = "REFUND_PENDING"
+            payments_to_refund.append(payment)
             db.add(PaymentStatusHistory(
                 payment_id=payment.id,
                 old_status="SUCCESS",
@@ -1569,7 +1695,39 @@ async def cancel_booking(
     await db.commit()
     await db.refresh(booking)
     await seat_events.broadcast(booking.showtime_id, "SEATS_UPDATED")
+    for payment in payments_to_refund:
+        await _execute_vnpay_refund(
+            payment=payment, booking=booking, current_user=current_user,
+            request=request, db=db, reason=reason or "Booking cancellation approved",
+        )
     return {**_booking_admin_dict(booking), "cancel_reason": reason}
+
+
+@router.put("/bookings/{booking_id}/reject-cancellation", dependencies=[Depends(require_roles("BRANCH_ADMIN"))])
+async def reject_booking_cancellation(
+    booking_id: UUID,
+    reason: str = Query(min_length=5, max_length=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Booking)
+        .options(selectinload(Booking.showtime).selectinload(Showtime.auditorium).selectinload(Auditorium.branch))
+        .where(Booking.id == booking_id)
+    )
+    booking = result.scalar_one_or_none()
+    if booking is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+    await _ensure_branch_access(db, current_user, booking.showtime.auditorium.branch_id)
+    if booking.status != "CANCEL_REQUESTED":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking has no cancellation request")
+    booking.status = "CONFIRMED"
+    booking.cancellation_review_note = reason.strip()
+    booking.cancellation_reviewed_at = datetime.now(timezone.utc)
+    booking.cancellation_reviewed_by = current_user.id
+    booking.cancellation_requested_at = None
+    await db.commit()
+    return _booking_admin_dict(booking)
 
 
 @router.get("/payments", dependencies=[Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN"))])
@@ -1623,6 +1781,13 @@ async def list_payments(
             "signature_valid": item.signature_valid,
             "provider_paid_at": item.provider_paid_at,
             "last_verified_at": item.last_verified_at,
+            "refund_transaction_no": item.refund_transaction_no,
+            "refund_response_code": item.refund_response_code,
+            "refund_provider_status": item.refund_provider_status,
+            "refund_error": item.refund_error,
+            "refund_attempts": item.refund_attempts,
+            "refund_requested_at": item.refund_requested_at,
+            "refunded_at": item.refunded_at,
             "paid_at": item.paid_at,
             "created_at": item.created_at,
         }
@@ -1693,16 +1858,31 @@ async def reconcile_payment(
     )
     provider_status = str(response.get("vnp_TransactionStatus", ""))
     response_code = str(response.get("vnp_ResponseCode", ""))
+    transaction_type = str(response.get("vnp_TransactionType", ""))
     provider_amount = float(response.get("vnp_Amount", 0) or 0) / 100
     amount_matches = provider_amount == float(payment.amount)
-    status_matches = (
-        (payment.status == "SUCCESS" and provider_status == "00")
-        or (payment.status != "SUCCESS" and provider_status != "00")
-    )
+    if payment.status in {"REFUND_PENDING", "REFUND_FAILED", "REFUNDED"}:
+        status_matches = transaction_type in {"02", "03"} and provider_status in {"00", "05", "06", "09"}
+    else:
+        status_matches = (
+            (payment.status == "SUCCESS" and provider_status == "00")
+            or (payment.status != "SUCCESS" and provider_status != "00")
+        )
     payment.last_verified_at = datetime.now(timezone.utc)
+    old_status = payment.status
+    if payment.status in {"REFUND_PENDING", "REFUND_FAILED"} and response_code == "00":
+        if transaction_type in {"02", "03"} and provider_status == "00":
+            payment.status = "REFUNDED"
+            payment.refunded_at = datetime.now(timezone.utc)
+            payment.refund_error = None
+        elif provider_status in {"05", "06"}:
+            payment.status = "REFUND_PENDING"
+        elif provider_status == "09":
+            payment.status = "REFUND_FAILED"
+            payment.refund_error = "VNPAY rejected the refund"
     db.add(PaymentStatusHistory(
         payment_id=payment.id,
-        old_status=payment.status,
+        old_status=old_status,
         new_status=payment.status,
         source="QUERY_DR",
         response_code=response_code or None,
@@ -1727,6 +1907,7 @@ async def reconcile_payment(
 @router.post("/payments/{payment_id}/refund", dependencies=[Depends(require_roles("BRANCH_ADMIN"))])
 async def refund_payment(
     payment_id: UUID,
+    request: Request,
     reason: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -1738,11 +1919,19 @@ async def refund_payment(
     showtime = await db.get(Showtime, booking.showtime_id)
     auditorium = await db.get(Auditorium, showtime.auditorium_id)
     await _ensure_branch_access(db, current_user, auditorium.branch_id)
-    if payment.status in {"REFUND_PENDING", "REFUNDED"}:
+    if payment.status == "REFUNDED":
         return {"id": payment.id, "status": payment.status, "reason": reason}
-    if payment.status != "SUCCESS":
+    if payment.status == "REFUND_PENDING":
+        return {
+            "id": payment.id,
+            "booking_id": payment.booking_id,
+            "status": payment.status,
+            "reason": reason,
+            "refund_error": payment.refund_error,
+            "refund_transaction_no": payment.refund_transaction_no,
+        }
+    if payment.status not in {"SUCCESS", "REFUND_FAILED"}:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only successful payments can be refunded")
-    payment.status = "REFUND_PENDING"
     if booking is not None:
         seat_rows = await db.execute(
             select(BookingSeat)
@@ -1760,16 +1949,16 @@ async def refund_payment(
         booking.cancellation_reason = reason
         booking.cancelled_at = datetime.now(timezone.utc)
         booking.cancelled_by = current_user.id
-    db.add(PaymentStatusHistory(
-        payment_id=payment.id,
-        old_status="SUCCESS",
-        new_status="REFUND_PENDING",
-        source="BRANCH_ADMIN",
-        note=reason or "Refund requested by branch",
-        raw_payload={},
-    ))
     await db.commit()
-    return {"id": payment.id, "booking_id": payment.booking_id, "status": payment.status, "reason": reason}
+    await _execute_vnpay_refund(
+        payment=payment, booking=booking, current_user=current_user,
+        request=request, db=db, reason=reason or "Refund requested by branch",
+    )
+    return {
+        "id": payment.id, "booking_id": payment.booking_id, "status": payment.status,
+        "reason": reason, "refund_error": payment.refund_error,
+        "refund_transaction_no": payment.refund_transaction_no,
+    }
 
 
 @router.get("/reports/revenue", dependencies=[Depends(require_admin)])

@@ -142,11 +142,16 @@ async function handleSeatClick(seat: Seat) {
                 :key="seat.id"
                 @click="handleSeatClick(seat)"
                 :disabled="seat.status === 'occupied' || holdingSeatId === seat.id"
-                :title="`${seat.row}${seat.number} - ${seat.type.toUpperCase()} (${seat.price.toLocaleString()}đ)`"
+                :title="seat.status === 'occupied'
+                  ? `${seat.row}${seat.number} - Ghế đã bán`
+                  : `${seat.row}${seat.number} - ${seat.type.toUpperCase()} (${seat.price.toLocaleString()}đ)`"
+                :aria-label="seat.status === 'occupied'
+                  ? `Ghế ${seat.row}${seat.number} đã bán`
+                  : `Ghế ${seat.row}${seat.number}, ${seat.type}, giá ${seat.price.toLocaleString()} đồng`"
                 class="w-8 h-8 rounded-lg text-[10px] font-bold transition-all relative flex items-center justify-center border"
                 :class="[
                   seat.status === 'occupied'
-                    ? 'bg-neutral-800 border-neutral-700 text-neutral-600 cursor-not-allowed'
+                    ? 'bg-red-950/90 border-red-500/70 text-red-300 cursor-not-allowed opacity-90'
                     : isSeatSelected(seat.id)
                       ? 'bg-primary-container border-primary-container text-white scale-110 shadow-[0_0_12px_rgba(229,9,20,0.5)]'
                       : seat.type === 'vip'
@@ -156,7 +161,8 @@ async function handleSeatClick(seat: Seat) {
                           : 'bg-surface-container-high border-glass-stroke text-on-surface hover:bg-white/10'
                 ]"
               >
-                {{ seat.number }}
+                <span v-if="seat.status === 'occupied'" class="material-symbols-outlined text-sm">close</span>
+                <span v-else>{{ seat.number }}</span>
               </button>
             </div>
             
@@ -185,8 +191,10 @@ async function handleSeatClick(seat: Seat) {
           <span class="text-on-surface-variant font-medium">Đang Chọn</span>
         </div>
         <div class="flex items-center gap-2 text-xs">
-          <div class="w-5 h-5 bg-neutral-800 border border-neutral-700 rounded"></div>
-          <span class="text-on-surface-variant font-medium">Đã Bán</span>
+          <div class="flex w-5 h-5 items-center justify-center bg-red-950/90 border border-red-500/70 text-red-300 rounded">
+            <span class="material-symbols-outlined text-xs">close</span>
+          </div>
+          <span class="font-medium text-red-300">Đã Bán / Không thể chọn</span>
         </div>
       </div>
     </div>

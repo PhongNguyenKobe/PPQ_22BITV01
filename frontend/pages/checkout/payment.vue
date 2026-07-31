@@ -15,9 +15,11 @@ const ticketsStore = useTicketsStore()
 const { selectedMovie, selectedShowtime, selectedSeats, totalAmount, purchaseError } = storeToRefs(ticketsStore)
 const showtimeExpired = computed(() => isShowtimeExpired(selectedShowtime.value))
 
-const selectedPayment = ref('Ví Momo')
+const selectedPayment = ref('Ví VNPAY')
 const processing = ref(false)
 const showQR = ref(false)
+const preparedVnpayPayment = ref<{ transactionRef: string; paymentUrl: string } | null>(null)
+const cancellingPayment = ref(false)
 
 // --- BỔ SUNG STATE VOUCHER ---
 const voucherCode = ref('')
@@ -27,10 +29,10 @@ const voucherError = ref('')
 const voucherSuccessMsg = ref('')
 
 const paymentMethods = [
-  { name: 'Ví Momo', icon: 'payments', desc: 'Thanh toán qua ứng dụng Momo' },
-  { name: 'Ví VNPAY', icon: 'account_balance_wallet', desc: 'Thanh toán qua cổng VNPAY' },
-  { name: 'Thẻ ATM/Tín Dụng', icon: 'credit_card', desc: 'Visa, Mastercard, JCB hoặc thẻ nội địa' },
-  { name: 'Quét Mã QR', icon: 'qr_code_scanner', desc: 'Quét mã QR để chuyển khoản nhanh' }
+  { name: 'Ví Momo', icon: 'payments', desc: 'Tạm thời chưa phát triển', enabled: false },
+  { name: 'Ví VNPAY', icon: 'account_balance_wallet', desc: 'Thanh toán qua cổng VNPAY', enabled: true },
+  { name: 'Thẻ ATM/Tín Dụng', icon: 'credit_card', desc: 'Tạm thời chưa phát triển', enabled: false },
+  { name: 'Quét Mã QR', icon: 'qr_code_scanner', desc: 'Tạm thời chưa phát triển', enabled: false }
 ]
 
 // Tính toán tổng tiền sau khi trừ voucher
@@ -93,36 +95,39 @@ async function handleConfirmPayment() {
     purchaseError.value = 'Đã hết thời gian mua vé cho suất chiếu này. Vui lòng chọn suất khác.'
     return
   }
-  if (selectedPayment.value === 'Quét Mã QR' && !showQR.value) {
-    showQR.value = true
-    return
-  }
-
   processing.value = true
   try {
     if (selectedPayment.value === 'Ví VNPAY') {
-      const paymentUrl = await ticketsStore.startVnpayPayment(
+      const payment = await ticketsStore.startVnpayPayment(
         isVoucherApplied.value ? voucherCode.value : undefined,
         finalTotal.value,
       )
-      if (paymentUrl && process.client) {
-        window.location.assign(paymentUrl)
+      if (payment) {
+        preparedVnpayPayment.value = payment
       }
       return
     }
-    // Truyền thêm mã voucher/số tiền giảm vào hàm mua vé nếu store hỗ trợ
-    const ticket = await ticketsStore.purchaseTickets(
-      selectedPayment.value,
-      isVoucherApplied.value ? voucherCode.value : undefined,
-      finalTotal.value,
-    )
-    if (ticket) {
-      navigateTo('/profile/tickets')
-    }
+    purchaseError.value = 'Phương thức này tạm thời chưa phát triển. Vui lòng chọn VNPAY.'
   } catch (e) {
     console.error('Payment confirmation error', e)
   } finally {
     processing.value = false
+  }
+}
+
+async function cancelPreparedVnpayPayment() {
+  if (!preparedVnpayPayment.value || cancellingPayment.value) return
+  cancellingPayment.value = true
+  purchaseError.value = ''
+  try {
+    await checkoutService.cancelPendingPayment(preparedVnpayPayment.value.transactionRef)
+    preparedVnpayPayment.value = null
+    await ticketsStore.releaseCurrentSeatHolds()
+    await navigateTo('/checkout/seat')
+  } catch (error: any) {
+    purchaseError.value = error?.message || 'Không thể hủy yêu cầu thanh toán. Vui lòng tải lại và thử lại.'
+  } finally {
+    cancellingPayment.value = false
   }
 }
 </script>
@@ -176,8 +181,9 @@ async function handleConfirmPayment() {
 
             <div class="methods-grid">
               <button v-for="method in paymentMethods" :key="method.name"
-                @click="selectedPayment = method.name; showQR = false"
-                :class="['method-card', selectedPayment === method.name ? 'method-active' : '']">
+                :disabled="!method.enabled"
+                @click="selectedPayment = method.name; showQR = false; preparedVnpayPayment = null"
+                :class="['method-card', selectedPayment === method.name ? 'method-active' : '', !method.enabled ? 'cursor-not-allowed opacity-45' : '']">
                 <div class="method-icon">
                   <span class="material-symbols-outlined">{{ method.icon }}</span>
                 </div>
@@ -189,7 +195,39 @@ async function handleConfirmPayment() {
             </div>
 
             <div class="method-note">
-              Bạn sẽ được chuyển tới cổng thanh toán an toàn sau khi bấm xác nhận.
+              Với VNPAY, hệ thống sẽ lưu yêu cầu PENDING trước. Sau đó bạn chủ động mở cổng thanh toán trong tab mới.
+            </div>
+
+            <div v-if="preparedVnpayPayment" class="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
+              <h4 class="font-bold text-amber-300">Đã lưu yêu cầu VNPAY trong hệ thống</h4>
+              <p class="mt-2 text-sm text-on-surface-variant">
+                Giao dịch đang PENDING trong CineAI. Bấm nút bên dưới để thanh toán tại VNPAY; CineAI vẫn được giữ ở tab này.
+              </p>
+              <div class="mt-3 text-sm">
+                <span class="text-on-surface-variant">Mã tham chiếu:</span>
+                <strong class="ml-2 break-all font-mono">{{ preparedVnpayPayment.transactionRef }}</strong>
+              </div>
+              <a
+                :href="preparedVnpayPayment.paymentUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary-container px-5 py-3 font-bold text-on-primary-container"
+              >
+                <span class="material-symbols-outlined">open_in_new</span>
+                Mở VNPAY để thanh toán
+              </a>
+              <button
+                type="button"
+                :disabled="cancellingPayment"
+                class="ml-3 mt-4 inline-flex items-center gap-2 rounded-xl border border-red-400/40 px-5 py-3 font-bold text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                @click="cancelPreparedVnpayPayment"
+              >
+                <span class="material-symbols-outlined">cancel</span>
+                {{ cancellingPayment ? 'Đang hủy...' : 'Hủy yêu cầu và chọn lại ghế' }}
+              </button>
+              <p class="mt-3 text-xs text-on-surface-variant">
+                Sau khi thanh toán xong, quay lại tab CineAI hoặc chọn “Xem vé của tôi” tại trang kết quả.
+              </p>
             </div>
 
             <div v-if="selectedPayment === 'Quét Mã QR' && showQR" class="qr-panel">
@@ -270,7 +308,9 @@ async function handleConfirmPayment() {
               <strong>{{ finalTotal.toLocaleString('vi-VN') }} VNĐ</strong>
             </div>
 
-            <button @click="handleConfirmPayment" :disabled="processing || showtimeExpired" class="summary-next">
+            <button @click="handleConfirmPayment"
+              :disabled="processing || showtimeExpired || (selectedPayment === 'Ví VNPAY' && !!preparedVnpayPayment)"
+              class="summary-next">
               <template v-if="processing">
                 <span class="loading-state">
                   <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
@@ -278,7 +318,7 @@ async function handleConfirmPayment() {
                 </span>
               </template>
               <template v-else>
-                Xác Nhận Thanh Toán
+                {{ selectedPayment === 'Ví VNPAY' && preparedVnpayPayment ? 'Đã Lưu Yêu Cầu PENDING' : 'Xác Nhận Thanh Toán' }}
               </template>
             </button>
           </div>

@@ -25,11 +25,11 @@ export const useUserStore = defineStore('user', () => {
 
     if (process.client) {
       if (user && token) {
-        localStorage.setItem('cineai_user', JSON.stringify(user))
-        localStorage.setItem('cineai_token', token)
+        sessionStorage.setItem('cineai_user', JSON.stringify(user))
+        sessionStorage.setItem('cineai_token', token)
       } else {
-        localStorage.removeItem('cineai_user')
-        localStorage.removeItem('cineai_token')
+        sessionStorage.removeItem('cineai_user')
+        sessionStorage.removeItem('cineai_token')
       }
     }
 
@@ -45,17 +45,20 @@ export const useUserStore = defineStore('user', () => {
       registeredUsers.value = [mappedUser]
       isAuthenticated.value = true
       if (process.client) {
-        localStorage.setItem('cineai_user', JSON.stringify(mappedUser))
+        sessionStorage.setItem('cineai_user', JSON.stringify(mappedUser))
       }
     } catch {
       logout()
     }
   }
 
-  // Initialize from client-side localStorage if available
+  // Mỗi tab có một phiên đăng nhập độc lập.
   if (process.client) {
-    const savedToken = localStorage.getItem('cineai_token')
-    const saved = localStorage.getItem('cineai_user')
+    // Xóa phiên bản cũ dùng chung giữa các tab để tránh rò tài khoản chéo tab.
+    localStorage.removeItem('cineai_user')
+    localStorage.removeItem('cineai_token')
+    const savedToken = sessionStorage.getItem('cineai_token')
+    const saved = sessionStorage.getItem('cineai_user')
     if (savedToken) {
       authToken.value = savedToken
       setAuthToken(savedToken)
@@ -68,8 +71,8 @@ export const useUserStore = defineStore('user', () => {
           registeredUsers.value = [currentUser.value]
         }
       } catch (e) {
-        localStorage.removeItem('cineai_user')
-        localStorage.removeItem('cineai_token')
+        sessionStorage.removeItem('cineai_user')
+        sessionStorage.removeItem('cineai_token')
       }
     }
 

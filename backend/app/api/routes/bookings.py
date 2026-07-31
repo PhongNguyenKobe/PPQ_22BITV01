@@ -1,10 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.crud.booking import (
     list_showtime_available_seats,
     booking_to_dict,
@@ -41,11 +42,18 @@ async def request_booking_cancellation(
         return {"id": booking.id, "status": booking.status, "reason": booking.cancellation_reason}
     if booking.status != "CONFIRMED":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a confirmed booking can request cancellation")
-    if booking.showtime.starts_at <= datetime.now(timezone.utc):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The showtime has started and cannot be cancelled")
+    cancellation_deadline = booking.showtime.starts_at - timedelta(minutes=settings.cancellation_cutoff_minutes)
+    if cancellation_deadline <= datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cancellation must be requested at least {settings.cancellation_cutoff_minutes} minutes before showtime",
+        )
     booking.status = "CANCEL_REQUESTED"
     booking.cancellation_reason = reason.strip()
     booking.cancellation_requested_at = datetime.now(timezone.utc)
+    booking.cancellation_review_note = None
+    booking.cancellation_reviewed_at = None
+    booking.cancellation_reviewed_by = None
     await db.commit()
     return {"id": booking.id, "status": booking.status, "reason": booking.cancellation_reason}
 

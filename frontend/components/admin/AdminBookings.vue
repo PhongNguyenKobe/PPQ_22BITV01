@@ -33,9 +33,6 @@ async function load() {
   error.value = ''
   try {
     const result = await adminBackendService.getBookings({
-      status: status.value || undefined,
-      start_date: startDate.value || undefined,
-      end_date: endDate.value || undefined,
       branch_id: !isBranchAdmin.value && selectedBranch.value !== 'ALL' ? selectedBranch.value : undefined,
       limit: pageSize,
       skip: (currentPage.value - 1) * pageSize,
@@ -50,7 +47,12 @@ async function load() {
 }
 
 async function cancel(item: AdminBooking) {
-  const reason = window.prompt('Nhập lý do hủy đơn:')
+  const reason = window.prompt(
+    item.status === 'CANCEL_REQUESTED'
+      ? 'Nhập ghi chú duyệt hủy và hoàn tiền:'
+      : 'Nhập lý do hủy đơn:',
+    item.cancellation_reason || '',
+  )
   if (!reason?.trim()) return
   try {
     loading.value = true
@@ -63,9 +65,22 @@ async function cancel(item: AdminBooking) {
   }
 }
 
+async function rejectCancellation(item: AdminBooking) {
+  const reason = window.prompt('Nhập lý do từ chối yêu cầu hủy (ít nhất 5 ký tự):')?.trim()
+  if (!reason || reason.length < 5) return
+  try {
+    loading.value = true
+    await adminBackendService.rejectBookingCancellation(item.id, reason)
+    await load()
+  } catch (e: any) {
+    error.value = e?.message || 'Không thể từ chối yêu cầu hủy.'
+  } finally {
+    loading.value = false
+  }
+}
+
 function handleFilter() {
   currentPage.value = 1
-  void load()
 }
 
 onMounted(load)
@@ -93,8 +108,7 @@ watch(selectedBranch, () => {
       </div>
     </div>
 
-    <!-- Filter Control Panel -->
-    <div class="panel-glass grid gap-4 p-5 md:grid-cols-4 items-end shadow-md">
+    <div v-if="false" class="panel-glass grid gap-4 p-5 md:grid-cols-4 items-end shadow-md">
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Từ ngày</label>
         <input v-model="startDate" type="date" class="field-input w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-red-500">
@@ -178,14 +192,22 @@ watch(selectedBranch, () => {
                 </span>
               </td>
               <td class="p-4 text-right">
-                <button v-if="isBranchAdmin && ['PENDING','CONFIRMED','CANCEL_REQUESTED'].includes(item.status)" 
-                  class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all"
-                  :class="item.status === 'CANCEL_REQUESTED'
-                    ? 'bg-rose-500 hover:bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-500/20'
-                    : 'bg-white/5 hover:bg-rose-500/20 text-rose-400 border-rose-500/20 hover:border-rose-500'" 
-                  @click="cancel(item)">
-                  {{ item.status === 'CANCEL_REQUESTED' ? 'Duyệt yêu cầu hủy' : 'Hủy đơn hàng' }}
-                </button>
+                <div v-if="isBranchAdmin && ['PENDING','CONFIRMED','CANCEL_REQUESTED'].includes(item.status)"
+                  class="flex justify-end gap-2">
+                  <button
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all"
+                    :class="item.status === 'CANCEL_REQUESTED'
+                      ? 'bg-rose-500 hover:bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-500/20'
+                      : 'bg-white/5 hover:bg-rose-500/20 text-rose-400 border-rose-500/20 hover:border-rose-500'"
+                    @click="cancel(item)">
+                    {{ item.status === 'CANCEL_REQUESTED' ? 'Duyệt hủy & hoàn tiền' : 'Hủy đơn hàng' }}
+                  </button>
+                  <button v-if="item.status === 'CANCEL_REQUESTED'"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border border-white/15 bg-white/5 text-gray-300 hover:bg-white/10"
+                    @click="rejectCancellation(item)">
+                    Từ chối
+                  </button>
+                </div>
                 <span v-else class="text-xs text-gray-500 font-medium">Không thể xử lý</span>
               </td>
             </tr>

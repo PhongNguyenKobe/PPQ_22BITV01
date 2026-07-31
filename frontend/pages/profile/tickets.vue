@@ -54,7 +54,8 @@ watch(ticketHistory, () => {
 
 const canRequestCancellation = computed(() => {
   if (!selectedTicket.value || selectedTicket.value.status !== 'CONFIRMED') return false
-  return new Date(`${selectedTicket.value.date}T${selectedTicket.value.time}`).getTime() > Date.now()
+  const cutoffMs = 120 * 60 * 1000
+  return new Date(`${selectedTicket.value.date}T${selectedTicket.value.time}`).getTime() - cutoffMs > Date.now()
 })
 
 function closeTicketDetails() {
@@ -217,7 +218,7 @@ onMounted(async () => {
         <div v-if="totalPages > 1" class="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-glass-stroke/20">
           <span class="text-xs text-on-surface-variant">Hiển thị trang {{ currentPage }} / {{ totalPages }} (Tổng {{ ticketHistory.length }} vé)</span>
           <div class="flex items-center gap-1.5">
-            <button 
+            <button
               :disabled="currentPage === 1" 
               @click="currentPage--; scrollToTop()"
               class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-primary-container disabled:bg-transparent border border-glass-stroke/40 hover:border-primary-container disabled:opacity-30 transition-all text-xs font-bold text-on-surface disabled:hover:text-on-surface disabled:cursor-not-allowed flex items-center gap-1"
@@ -344,6 +345,9 @@ onMounted(async () => {
             >
               {{ cancellationLoading ? 'Đang gửi...' : 'Yêu cầu hủy vé' }}
             </button>
+            <p v-if="selectedTicket.status === 'CONFIRMED'" class="mt-2 text-[11px] text-on-surface-variant">
+              Yêu cầu hủy phải được gửi trước giờ chiếu ít nhất 120 phút và cần Branch Admin phê duyệt.
+            </p>
           </div>
         </div>
       </div>

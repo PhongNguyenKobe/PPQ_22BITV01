@@ -5,6 +5,7 @@ interface Product {
   id: string | number
   backendMovieId?: string
   name: string
+  originalTitle?: string
   price: number
   category: string
   imageUrl: string
@@ -38,6 +39,7 @@ export const useProductsStore = defineStore('products', {
             id: movie.id,
             backendMovieId: movie.id,
             name: movie.title,
+            originalTitle: movie.originalTitle,
             price: 90,
             category: movie.genre[0] || 'Khác',
             genres: movie.genre,

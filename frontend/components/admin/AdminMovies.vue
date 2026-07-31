@@ -266,8 +266,17 @@ onMounted(() => {
         
         <form class="grid gap-3 md:grid-cols-[1.5fr_2fr_1fr_auto]" @submit.prevent="importTmdbMovieToCatalog">
           <div class="relative">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
-            <input v-model="tmdbMovieQuery" placeholder="Lọc phim TMDB..." class="field-input pl-10" />
+            <label for="tmdb-movie-filter" class="sr-only">Tìm nhanh trong danh sách phim TMDB</label>
+            <span
+              class="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[18px] text-blue-300">
+              search
+            </span>
+            <input
+              id="tmdb-movie-filter"
+              v-model="tmdbMovieQuery"
+              placeholder="Tìm nhanh trong danh sách TMDB..."
+              class="field-input tmdb-search-input"
+            />
           </div>
           <select v-model="selectedTmdbMovieId" class="field-input font-medium" required>
             <option value="">-- Chọn phim từ TMDB --</option>
@@ -283,6 +292,9 @@ onMounted(() => {
             {{ tmdbImporting ? 'Đang import...' : 'Import phim' }}
           </button>
         </form>
+        <p class="mt-2 text-xs text-on-surface-variant">
+          Ô tìm kiếm chỉ thu hẹp danh sách ở mục “Chọn phim từ TMDB” bên cạnh, không lọc kho phim đã import phía dưới.
+        </p>
 
         <div v-if="selectedTmdbMovie" class="mt-4 flex gap-4 bg-black/30 p-4 rounded-xl border border-white/5 animate-fade-in">
           <img
@@ -549,6 +561,10 @@ onMounted(() => {
   outline: none;
   border-color: rgba(229, 9, 20, 0.65);
   box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.15);
+}
+
+.field-input.tmdb-search-input {
+  padding-left: 2.6rem;
 }
 
 .action-primary {

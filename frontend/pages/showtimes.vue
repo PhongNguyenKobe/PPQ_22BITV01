@@ -14,7 +14,6 @@ const loading = ref(true)
 const error = ref("")
 
 const selectedBranch = ref("Tất cả rạp")
-const selectedMovie = ref("Tất cả phim")
 const selectedDay = ref(0) // Index của ngày được chọn
 
 // =========================================================================
@@ -80,10 +79,6 @@ const branches = computed(() => {
   return ["Tất cả rạp", ...list]
 })
 
-const movieTitles = computed(() => {
-  return ["Tất cả phim", ...movies.value.map((m) => m.title)]
-})
-
 // Helper format ngày hiển thị đẹp: ví dụ "Thứ 6, 27/07"
 function formatVietnameseDate(dateStr: string) {
   if (!dateStr) return ""
@@ -95,15 +90,19 @@ function formatVietnameseDate(dateStr: string) {
 }
 
 // =========================================================================
-// 3. AI RECOMMENDATIONS (GỢI Ý THÔNG MINH)
+// 3. SUẤT CHIẾU NỔI BẬT TỪ DỮ LIỆU ĐANG MỞ BÁN
 // =========================================================================
 const aiCards = computed(() => {
+  const selectedDate = days.value[selectedDay.value]?.fullDate
   const featured = movies.value.filter((m) => m.isFeatured).slice(0, 3)
   return featured.map((movie) => {
-    const sts = showtimesMap.value[movie.id] || []
+    const sts = (showtimesMap.value[movie.id] || []).filter((showtime) =>
+      (!selectedDate || showtime.date === selectedDate)
+      && (selectedBranch.value === "Tất cả rạp" || showtime.branchName === selectedBranch.value)
+    )
     const first = sts[0]
     return {
-      badge: "Gợi Ý ĐỈNH CAO",
+      badge: "Phim nổi bật",
       movie: movie.title,
       poster: movie.poster || 'https://via.placeholder.com/300x450',
       desc: movie.description?.slice(0, 70) + "..." || "Bộ phim cực HOT không thể bỏ qua.",
@@ -111,7 +110,7 @@ const aiCards = computed(() => {
       theater: first?.branchName || "CineAI Cinema",
       movieId: movie.id,
     }
-  })
+  }).filter(card => card.time !== "Đang cập nhật lịch")
 })
 
 // =========================================================================
@@ -149,13 +148,6 @@ onMounted(async () => {
 // =========================================================================
 const filteredShowtimes = computed(() => {
   let movieIds = movies.value.map((m) => m.id)
-
-  // Lọc theo phim được chọn ở Dropdown
-  if (selectedMovie.value !== "Tất cả phim") {
-    const found = movies.value.find((m) => m.title === selectedMovie.value)
-    if (found) movieIds = [found.id]
-    else return []
-  }
 
   // Lấy ngày đang được chọn trên Thanh chọn ngày
   const selectedDateStr = days.value[selectedDay.value]?.fullDate || ""
@@ -200,7 +192,7 @@ function handleSelectShowtime(movie: any, showtime: Showtime) {
   })
   ticketsStore.selectCinema(showtime.branchName)
   ticketsStore.selectShowtime(showtime)
-  navigateTo('/checkout/cinema')
+  navigateTo('/checkout/seat')
 }
 </script>
 
@@ -236,25 +228,26 @@ function handleSelectShowtime(movie: any, showtime: Showtime) {
             <div class="flex flex-wrap items-center gap-3">
               <!-- Branch Select -->
               <div class="relative min-w-[180px]">
-                <select v-model="selectedBranch"
+                <label for="showtimes-branch" class="sr-only">Chọn rạp đang có suất mở bán</label>
+                <select id="showtimes-branch" v-model="selectedBranch"
                   class="w-full bg-white/5 border border-white/10 text-xs font-semibold text-white rounded-xl py-3 pl-4 pr-10 appearance-none focus:outline-none focus:border-red-500 hover:bg-white/10 transition-all cursor-pointer">
-                  <option v-for="b in branches" :key="b" class="bg-gray-900 text-white">{{ b }}</option>
+                  <option v-for="b in branches" :key="b" class="bg-gray-900 text-white">
+                    {{ b === 'Tất cả rạp' ? 'Toàn bộ rạp đang mở bán' : b }}
+                  </option>
                 </select>
                 <span
                   class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
               </div>
 
-              <!-- Movie Select -->
-              <div class="relative min-w-[200px]">
-                <select v-model="selectedMovie"
-                  class="w-full bg-white/5 border border-white/10 text-xs font-semibold text-white rounded-xl py-3 pl-4 pr-10 appearance-none focus:outline-none focus:border-red-500 hover:bg-white/10 transition-all cursor-pointer">
-                  <option v-for="title in movieTitles" :key="title" class="bg-gray-900 text-white">{{ title }}</option>
-                </select>
-                <span
-                  class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
-              </div>
             </div>
           </div>
+
+          <p class="-mt-5 mb-7 text-xs text-gray-500 md:text-right">
+            Danh sách chỉ gồm chi nhánh có suất tương lai, trạng thái mở bán và còn thời gian đặt vé.
+            <span v-if="branches.length === 2" class="text-red-300">
+              Hiện chỉ có {{ branches[1] }} đáp ứng điều kiện.
+            </span>
+          </p>
 
           <!-- Horizontal Date Picker Bar (Thanh Chọn Thứ / Ngày) -->
           <div class="relative">
@@ -282,11 +275,11 @@ function handleSelectShowtime(movie: any, showtime: Showtime) {
         </div>
       </section>
 
-      <!-- 2. AI RECOMMENDATION CARDS -->
+      <!-- 2. FEATURED SHOWTIMES FROM LIVE DATA -->
       <section v-if="aiCards.length > 0" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="flex items-center gap-2 mb-6">
           <span class="material-symbols-outlined text-red-500 animate-pulse">auto_awesome</span>
-          <h2 class="text-lg font-bold text-white tracking-wide uppercase">AI Gợi Ý Suất Chiếu Nổi Bật</h2>
+          <h2 class="text-lg font-bold text-white tracking-wide uppercase">Suất Chiếu Nổi Bật</h2>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">

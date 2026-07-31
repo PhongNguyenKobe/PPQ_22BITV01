@@ -24,6 +24,17 @@ const formattedMoviePrice = computed(() => {
   return new Intl.NumberFormat('vi-VN').format(Number(selectedMovie.value.price) * 1000) + 'đ'
 })
 
+async function goBackToShowtimes() {
+  await ticketsStore.releaseCurrentSeatHolds()
+  await navigateTo('/checkout/showtime')
+}
+
+onBeforeRouteLeave(async (to) => {
+  if (to.path !== '/checkout/payment') {
+    await ticketsStore.releaseCurrentSeatHolds()
+  }
+})
+
 onMounted(() => {
   // Redirect back to cinema selection if no showtime has been selected
   if (!selectedShowtime.value) {
@@ -78,6 +89,10 @@ function handleProceedToPayment() {
               <NuxtLink to="/checkout/showtime" class="mt-3 inline-block font-bold underline">Chọn suất khác</NuxtLink>
             </div>
             <div class="selection-header">
+              <button type="button" class="back-to-showtimes" @click="goBackToShowtimes">
+                <span class="material-symbols-outlined">arrow_back</span>
+                Chọn suất khác
+              </button>
               <h1>Chọn Ghế Ngồi</h1>
               <p>Chọn vị trí phù hợp trong phòng chiếu để tiếp tục thanh toán.</p>
             </div>
@@ -235,6 +250,22 @@ function handleProceedToPayment() {
 .selection-column { min-width: 0; }
 .selection-header h1 { font-size: 2rem; line-height: 1.05; font-weight: 900; color: #fff; }
 .selection-header p { margin-top: 0.45rem; color: #c8c8c8; font-size: 0.95rem; margin-bottom: 0.9rem; }
+.back-to-showtimes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+  border: 1px solid rgba(255, 180, 170, 0.3);
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  color: #ffb4aa;
+  background: rgba(229, 9, 20, 0.08);
+  font-size: 0.78rem;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+.back-to-showtimes:hover { border-color: #ffb4aa; background: rgba(229, 9, 20, 0.16); }
+.back-to-showtimes .material-symbols-outlined { font-size: 1rem; }
 
 .summary-card { padding: 1.2rem; }
 .summary-card h3 { color: #fff; font-size: 1.5rem; font-weight: 900; text-transform: uppercase; }

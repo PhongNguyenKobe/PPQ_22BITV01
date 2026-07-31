@@ -46,7 +46,7 @@ const selectedBranchInfo = computed(() =>
 const selectedScopeLabel = computed(() =>
   selectedBranchInfo.value
     ? `${selectedBranchInfo.value.name} (${selectedBranchInfo.value.city})`
-    : 'Tất cả chi nhánh',
+    : 'Phim tại toàn hệ thống',
 )
 
 type MovieAvailability = { branchNames: string[]; minPrice: number }
@@ -71,6 +71,12 @@ const searchTerm = ref("");
 const selectedCategory = ref("ALL");
 const selectedStatus = ref<"ALL" | "NOW_SHOWING" | "UPCOMING">("ALL");
 const sortOption = ref<"none" | "price-asc" | "price-desc">("none");
+const hasActiveFilters = computed(() =>
+  searchTerm.value.trim() !== ''
+  || selectedCategory.value !== 'ALL'
+  || selectedStatus.value !== 'ALL'
+  || sortOption.value !== 'none'
+)
 
 // Fetch dữ liệu phim từ backend catalog
 onMounted(async () => {
@@ -123,16 +129,29 @@ const categories = computed(() => [
   ),
 ].sort((a, b) => a.localeCompare(b, "vi")));
 
+function normalizeSearchText(value: string | null | undefined) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, character => character === 'Đ' ? 'D' : 'd')
+    .toLocaleLowerCase('vi')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
 // Search + Filter + Sort
 const filteredProducts = computed(() => {
   let updated = products.value.filter(product => movieAvailability.value.has(String(product.backendMovieId || product.id)));
 
   if (searchTerm.value.trim() !== "") {
-    const lower = searchTerm.value.toLowerCase();
+    const query = normalizeSearchText(searchTerm.value);
 
-    updated = updated.filter((p) =>
-      p.name.toLowerCase().includes(lower)
-    );
+    updated = updated.filter((product) => {
+      const searchableTitle = normalizeSearchText(
+        `${product.name} ${product.originalTitle || ''}`,
+      )
+      return searchableTitle.includes(query)
+    });
   }
 
   if (selectedCategory.value !== "ALL") {
@@ -144,9 +163,9 @@ const filteredProducts = computed(() => {
   if (selectedStatus.value !== "ALL") updated = updated.filter((p) => p.status === selectedStatus.value)
 
   if (sortOption.value === "price-asc") {
-    updated.sort((a, b) => a.price - b.price);
+    updated.sort((a, b) => effectivePrice(a) - effectivePrice(b));
   } else if (sortOption.value === "price-desc") {
-    updated.sort((a, b) => b.price - a.price);
+    updated.sort((a, b) => effectivePrice(b) - effectivePrice(a));
   }
 
   return updated;
@@ -162,6 +181,10 @@ function clearFilters() {
 
 function availabilityFor(product: { id: string | number; backendMovieId?: string }) {
   return movieAvailability.value.get(String(product.backendMovieId || product.id))
+}
+
+function effectivePrice(product: { id: string | number; backendMovieId?: string; price: number }) {
+  return availabilityFor(product)?.minPrice || Number(product.price) * 1000
 }
 </script>
 
@@ -207,25 +230,36 @@ function availabilityFor(product: { id: string | number; backendMovieId?: string
         <p class="mt-1 text-sm text-on-surface">{{ selectedScopeLabel }}</p>
       </div>
       <select v-model="selectedBranch" class="control-input max-w-sm" aria-label="Chọn chi nhánh">
-        <option value="ALL">Tất cả chi nhánh</option>
+        <option value="ALL">Phim tại toàn hệ thống</option>
         <option v-for="branch in branches" :key="branch.id" :value="branch.id">
           {{ branch.name }} ({{ branch.city }})
         </option>
       </select>
     </div>
 
-    <div class="glass-panel p-6 rounded-3xl border border-white/10 shadow-2xl mb-8 space-y-6">
+    <div class="movie-toolbar mb-6">
       <!-- Top Row: Search input + Toggles / Dropdowns -->
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-12">
         <!-- Search Input -->
-        <div class="md:col-span-6 relative">
-          <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
+        <div class="relative md:col-span-6">
+          <span class="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl text-red-400">search</span>
           <input
             v-model="searchTerm"
+            autocomplete="off"
             type="text"
-            placeholder="Tìm theo tên phim..."
-            class="control-input !pl-11"
+            placeholder="Tìm nhanh tên phim bạn muốn xem..."
+            class="control-input search-control !pl-12 !pr-11"
+            aria-label="Tìm phim theo tên"
           />
+          <button
+            v-if="searchTerm"
+            type="button"
+            class="absolute right-3 top-1/2 flex -translate-y-1/2 items-center rounded-full p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            aria-label="Xóa nội dung tìm kiếm"
+            @click="searchTerm = ''"
+          >
+            <span class="material-symbols-outlined text-lg">close</span>
+          </button>
         </div>
         
         <!-- Category Dropdown -->
@@ -251,7 +285,7 @@ function availabilityFor(product: { id: string | number; backendMovieId?: string
       </div>
 
       <!-- Bottom Row: Status Tabs (Pills) + Clear Button -->
-      <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-white/5">
+      <div class="mt-3 flex flex-wrap items-center gap-3">
         <!-- Status Tabs / Pills -->
         <div class="flex bg-black/40 p-1 rounded-xl border border-white/5">
           <button
@@ -259,7 +293,7 @@ function availabilityFor(product: { id: string | number; backendMovieId?: string
             :class="selectedStatus === 'ALL' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'text-gray-400 hover:text-white'"
             @click="selectedStatus = 'ALL'"
           >
-            Tất cả trạng thái
+            Tất cả
           </button>
           <button
             class="rounded-lg px-4 py-2 text-xs font-bold transition-all"
@@ -278,9 +312,18 @@ function availabilityFor(product: { id: string | number; backendMovieId?: string
         </div>
 
         <!-- Clear Button -->
-        <button @click="clearFilters" class="px-5 py-2.5 rounded-xl border border-white/10 hover:border-red-500/50 hover:bg-red-600/10 text-xs font-bold text-gray-300 hover:text-red-400 transition-all flex items-center gap-2">
+        <span class="ml-auto text-xs text-on-surface-variant">
+          {{ filteredProducts.length }} kết quả
+        </span>
+
+        <button
+          v-if="hasActiveFilters"
+          type="button"
+          @click="clearFilters"
+          class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
+        >
           <span class="material-symbols-outlined text-sm">filter_alt_off</span>
-          Xóa bộ lọc
+          Đặt lại
         </button>
       </div>
     </div>
@@ -311,6 +354,26 @@ function availabilityFor(product: { id: string | number; backendMovieId?: string
 <style scoped>
 .products-shell {
   position: relative;
+}
+
+.movie-toolbar {
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.15rem;
+  background: rgba(25, 27, 27, 0.82);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+}
+
+.search-control {
+  min-height: 3.2rem;
+  background: rgba(8, 9, 9, 0.72);
+  border-color: rgba(229, 9, 20, 0.28);
+  font-size: 0.95rem;
+}
+
+.search-control:focus {
+  border-color: rgba(239, 68, 68, 0.78);
+  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.1);
 }
 
 .filters-wrap {

@@ -365,8 +365,15 @@ function toggleLike(comment: typeof comments.value[0]) {
       <!-- 2. REVIEWS & COMMENTS SECTION (NẰM TRÊN CÙNG HÌNH NỀN) -->
       <!-- ================================================================= -->
       <section class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-white/10">
+        <div class="rounded-3xl border border-amber-400/25 bg-amber-400/5 p-8 text-center">
+          <span class="material-symbols-outlined text-4xl text-amber-300">rate_review</span>
+          <h2 class="mt-3 text-xl font-bold text-white">Đánh giá và bình luận đang được phát triển</h2>
+          <p class="mt-2 text-sm text-gray-400">
+            Nội dung đánh giá chưa được kết nối cơ sở dữ liệu. CineAI sẽ mở chức năng này trong phiên bản sau.
+          </p>
+        </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div v-if="false" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
           <!-- Rating Summary Box -->
           <div class="lg:col-span-5 space-y-6">

@@ -39,7 +39,10 @@ async def read_branch(branch_id: UUID, db: AsyncSession = Depends(get_db)) -> Br
         FROM showtimes s
         JOIN auditoriums a ON a.id = s.auditorium_id
         JOIN movies m ON m.id = s.movie_id
-        WHERE a.branch_id = :id AND s.status = 'OPEN' AND s.booking_closes_at > NOW()
+        WHERE a.branch_id = :id
+          AND s.status = 'OPEN'
+          AND s.starts_at > NOW()
+          AND s.booking_closes_at > NOW()
         ORDER BY s.starts_at
     """), {"id": str(branch_id)})).mappings().all()
     movies = {}

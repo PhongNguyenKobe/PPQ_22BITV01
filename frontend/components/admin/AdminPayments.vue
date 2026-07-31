@@ -24,7 +24,9 @@ function isLegacy(item: AdminPayment) {
 }
 
 function canRefundThroughGateway(item: AdminPayment) {
-  return isBranchAdmin.value && isVnpay(item) && item.status === 'SUCCESS' && item.signature_valid === true
+  return isBranchAdmin.value && isVnpay(item)
+    && ['SUCCESS', 'REFUND_FAILED'].includes(item.status)
+    && item.signature_valid === true
 }
 
 const currentPage = ref(1)
@@ -132,6 +134,7 @@ watch(selectedBranch, () => {
             <option value="FAILED">FAILED</option>
             <option value="REFUNDED">REFUNDED</option>
             <option value="REFUND_PENDING">REFUND_PENDING</option>
+            <option value="REFUND_FAILED">REFUND_FAILED</option>
           </select>
           <span
             class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
@@ -203,7 +206,7 @@ watch(selectedBranch, () => {
                   :class="{
                     'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': item.status === 'SUCCESS',
                     'bg-amber-500/10 text-amber-400 border-amber-500/20': item.status === 'PENDING',
-                    'bg-rose-500/10 text-rose-400 border-rose-500/20': item.status === 'FAILED',
+                    'bg-rose-500/10 text-rose-400 border-rose-500/20': ['FAILED', 'REFUND_FAILED'].includes(item.status),
                     'bg-indigo-500/10 text-indigo-400 border-indigo-500/20': item.status === 'REFUNDED',
                     'bg-purple-500/10 text-purple-400 border-purple-500/20 animate-pulse': item.status === 'REFUND_PENDING'
                   }">
@@ -211,6 +214,9 @@ watch(selectedBranch, () => {
                 </span>
                 <div v-if="isVnpay(item)" class="text-[10px] text-gray-500 mt-1">
                   Status: {{ item.provider_status || 'Chờ' }} · Code: {{ item.response_code || '—' }}
+                </div>
+                <div v-if="item.refund_error" class="mt-1 max-w-[220px] text-[10px] text-rose-400">
+                  Hoàn tiền: {{ item.refund_error }}
                 </div>
               </td>
               <td class="p-4">
@@ -247,7 +253,7 @@ watch(selectedBranch, () => {
                   <button v-if="canRefundThroughGateway(item)"
                     class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 transition-colors animate-pulse"
                     @click="refund(item)">
-                    Hoàn tiền
+                    {{ item.status === 'REFUND_FAILED' ? 'Thử hoàn lại' : 'Hoàn tiền' }}
                   </button>
                 </div>
               </td>

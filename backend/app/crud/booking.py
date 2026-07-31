@@ -109,6 +109,7 @@ async def validate_showtime_exists(db: AsyncSession, showtime_id: UUID) -> bool:
         select(Showtime.id).where(
             Showtime.id == showtime_id,
             Showtime.status == "OPEN",
+            Showtime.starts_at > func.now(),
             Showtime.booking_closes_at > func.now(),
         )
     )
@@ -258,6 +259,7 @@ async def create_user_booking(db: AsyncSession, user_id: UUID, showtime_id: UUID
         select(Showtime).where(
             Showtime.id == showtime_id,
             Showtime.status == "OPEN",
+            Showtime.starts_at > func.now(),
             Showtime.booking_closes_at > func.now(),
         )
     )
