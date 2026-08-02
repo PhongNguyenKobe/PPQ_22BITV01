@@ -40,6 +40,7 @@ services:
       VNPAY_API_URL: ${VNPAY_API_URL:-https://sandbox.vnpayment.vn/merchant_webapi/api/transaction}
       CANCELLATION_CUTOFF_MINUTES: ${CANCELLATION_CUTOFF_MINUTES:-120}
       RUN_SEED: ${RUN_SEED:-1}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     command: >
       sh -c "alembic upgrade head &&
       if [ \"$${RUN_SEED}\" = \"1\" ]; then python scripts/seed_demo_auth.py; fi &&

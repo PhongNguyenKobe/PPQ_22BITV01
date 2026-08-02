@@ -1894,3 +1894,24 @@ export const adminService = {
     }
   }
 }
+
+export interface AiQueryResponse {
+  reply: string
+  movies: Movie[]
+  branches: BackendBranch[]
+  showtimes: Showtime[]
+}
+
+export const aiDiscoveryService = {
+  async query(prompt: string, history: Array<{ role: string; parts: Array<{ text: string }> }>): Promise<AiQueryResponse> {
+    const res = await apiClient.post<any>('/ai-discovery/query', { prompt, history })
+    const raw = res.data
+    return {
+      reply: raw.reply || '',
+      movies: (raw.movies || []).map(mapBackendMovieToFrontend),
+      branches: raw.branches || [],
+      showtimes: (raw.showtimes || []).map(mapBackendShowtimeToFrontend),
+    }
+  }
+}
+

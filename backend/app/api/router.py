@@ -11,6 +11,7 @@ from app.api.routes.payments import router as payments_router
 from app.api.routes.promotions import router as promotions_router
 from app.api.routes.showtimes import router as showtimes_router
 from app.api.routes.users import router as users_router
+from app.api.routes.ai_discovery import router as ai_discovery_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -24,3 +25,4 @@ api_router.include_router(promotions_router, prefix="/promotions", tags=["promot
 # api_router.include_router(checkout_router, prefix="/checkout", tags=["checkout"])
 api_router.include_router(branch_admin_router, prefix="/branch-admin", tags=["branch-admin"])
 api_router.include_router(admin_router, prefix="/admin", tags=["admin"])
+api_router.include_router(ai_discovery_router, prefix="/ai-discovery", tags=["ai-discovery"])

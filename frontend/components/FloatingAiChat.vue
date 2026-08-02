@@ -15,10 +15,10 @@ const isOpen = ref(false)
       <div v-if="isOpen" class="mb-4 w-80 rounded-2xl border border-white/10 bg-[#121414]/95 p-6 shadow-2xl backdrop-blur-xl">
         <div class="flex items-start justify-between gap-4">
           <div class="flex items-center gap-3">
-            <span class="material-symbols-outlined rounded-full bg-primary-container p-2 text-white">smart_toy</span>
+            <span class="material-symbols-outlined rounded-full bg-primary-container p-2 text-white animate-pulse">smart_toy</span>
             <div>
               <h4 class="font-bold text-white">CineAI Assistant</h4>
-              <p class="text-xs text-amber-300">Đang phát triển</p>
+              <p class="text-xs text-green-400 font-bold">Online</p>
             </div>
           </div>
           <button class="text-on-surface-variant hover:text-white" @click="isOpen = false">
@@ -26,10 +26,10 @@ const isOpen = ref(false)
           </button>
         </div>
         <p class="mt-5 text-sm leading-6 text-on-surface-variant">
-          Trợ lý AI tạm thời chưa phát triển xong. Tính năng hỏi đáp, gợi ý phim và hỗ trợ đặt vé sẽ được bổ sung sau.
+          Chào bạn! Tôi có thể giúp bạn tìm lịch chiếu, gợi ý phim và hỗ trợ đặt vé bằng ngôn ngữ tự nhiên một cách nhanh chóng.
         </p>
         <NuxtLink to="/ai-discovery" class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-primary-container" @click="isOpen = false">
-          Xem kế hoạch tính năng
+          Trò chuyện với AI ngay
           <span class="material-symbols-outlined text-base">arrow_forward</span>
         </NuxtLink>
       </div>
