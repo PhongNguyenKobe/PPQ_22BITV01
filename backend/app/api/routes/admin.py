@@ -9,6 +9,7 @@ from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user, require_roles
 from app.core.permissions import require_admin, require_branch_admin
@@ -19,6 +20,7 @@ from app.crud.showtime import effective_showtime_status
 from app.db.session import get_db
 from app.models.catalog import Auditorium, Branch, Movie, MovieGenre, Seat, SeatType, Showtime, Vendor
 from app.core.config import settings
+from app.core.tickets import parse_ticket_qr_payload, ticket_checkin_state
 from app.models.commerce import Booking, BookingSeat, Payment, PaymentStatusHistory
 from app.services.vnpay import query_transaction, refund_transaction, verify_refund_response
 from app.models.user import Role, User
@@ -152,6 +154,11 @@ from app.schemas.movie import MovieRead
 from app.schemas.user import UserCreate, UserUpdate
 
 router = APIRouter()
+
+
+class TicketScanRequest(BaseModel):
+    qr_data: str = Field(min_length=1, max_length=100)
+    consume: bool = False
 
 
 def _showtime_admin_read(
@@ -1961,6 +1968,77 @@ async def refund_payment(
     }
 
 
+@router.post("/tickets/scan", dependencies=[Depends(require_roles("BRANCH_ADMIN"))])
+async def scan_ticket(
+    payload: TicketScanRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        ticket_code = parse_ticket_qr_payload(payload.qr_data)
+    except ValueError:
+        return {"state": "INVALID", "message": "Mã QR không đúng định dạng vé CineAI."}
+
+    result = await db.execute(
+        select(Booking)
+        .options(
+            selectinload(Booking.showtime).selectinload(Showtime.movie),
+            selectinload(Booking.showtime)
+            .selectinload(Showtime.auditorium)
+            .selectinload(Auditorium.branch),
+            selectinload(Booking.seats).selectinload(BookingSeat.seat),
+        )
+        .where(Booking.ticket_code == ticket_code)
+        .with_for_update()
+    )
+    booking = result.scalar_one_or_none()
+    if booking is None:
+        return {"state": "NOT_FOUND", "message": "Không tìm thấy vé này trong hệ thống."}
+
+    branch = booking.showtime.auditorium.branch
+    assigned_branch_id = await _staff_branch_id(db, current_user)
+    if assigned_branch_id is not None and assigned_branch_id != branch.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vé này thuộc một chi nhánh khác.",
+        )
+
+    now = datetime.now(timezone.utc)
+    state = ticket_checkin_state(
+        booking.status,
+        booking.showtime.ends_at,
+        booking.checked_in_at,
+        now,
+    )
+    if payload.consume and state == "VALID":
+        booking.checked_in_at = now
+        booking.checked_in_by = current_user.id
+        await db.commit()
+        state = "CHECKED_IN"
+
+    messages = {
+        "VALID": "Vé hợp lệ, có thể xác nhận cho khách vào rạp.",
+        "CHECKED_IN": "Soát vé thành công.",
+        "ALREADY_USED": "Vé đã được sử dụng trước đó.",
+        "EXPIRED": "Vé đã hết hạn vì suất chiếu đã kết thúc.",
+        "CANCELLED": "Vé đã bị hủy.",
+        "CANCEL_REQUESTED": "Vé đang chờ xử lý yêu cầu hủy.",
+        "NOT_CONFIRMED": "Vé chưa được thanh toán hoặc chưa xác nhận.",
+    }
+    return {
+        "state": state,
+        "message": messages[state],
+        "ticket_code": booking.ticket_code,
+        "movie_title": booking.showtime.movie.title,
+        "branch_name": branch.name,
+        "auditorium_name": booking.showtime.auditorium.name,
+        "starts_at": booking.showtime.starts_at,
+        "ends_at": booking.showtime.ends_at,
+        "seats": [f"{item.seat.seat_row}{item.seat.seat_number}" for item in booking.seats],
+        "checked_in_at": booking.checked_in_at,
+    }
+
+
 @router.get("/reports/revenue", dependencies=[Depends(require_admin)])
 async def get_revenue_report(
     start_date: str,
@@ -2044,29 +2122,72 @@ async def get_top_movies(
 ):
     start = _parse_date_boundary(start_date)
     end = _parse_date_boundary(end_date, end=True)
-    filters = [Booking.status == "CONFIRMED", Booking.created_at >= start, Booking.created_at <= end]
+    assigned_branch_id = await _staff_branch_id(db, current_user)
+    if assigned_branch_id is not None:
+        if branch_id is not None and branch_id != assigned_branch_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot view another branch")
+        branch_id = assigned_branch_id
+
+    payment_totals = (
+        select(
+            Payment.booking_id.label("booking_id"),
+            func.sum(Payment.amount).label("revenue"),
+            func.max(Payment.paid_at).label("paid_at"),
+        )
+        .where(Payment.status == "SUCCESS")
+        .group_by(Payment.booking_id)
+        .subquery()
+    )
+    ticket_totals = (
+        select(
+            BookingSeat.booking_id.label("booking_id"),
+            func.count(BookingSeat.id).label("tickets_sold"),
+        )
+        .group_by(BookingSeat.booking_id)
+        .subquery()
+    )
+    filters = [
+        Booking.status == "CONFIRMED",
+        payment_totals.c.paid_at >= start,
+        payment_totals.c.paid_at <= end,
+    ]
     if branch_id is not None:
         filters.append(Auditorium.branch_id == branch_id)
     result = await db.execute(
         select(
             Movie.id,
             Movie.title,
-            func.count(BookingSeat.id).label("tickets_sold"),
-            func.coalesce(func.sum(Booking.total_price), 0).label("revenue"),
+            func.coalesce(func.sum(ticket_totals.c.tickets_sold), 0).label("tickets_sold"),
+            func.coalesce(func.sum(payment_totals.c.revenue), 0).label("revenue"),
+            func.sum(func.sum(ticket_totals.c.tickets_sold)).over().label("total_tickets_sold"),
+            func.count(Movie.id).over().label("total_movies"),
         )
         .select_from(Movie)
         .join(Showtime, Showtime.movie_id == Movie.id)
         .join(Auditorium, Auditorium.id == Showtime.auditorium_id)
         .join(Booking, Booking.showtime_id == Showtime.id)
-        .join(BookingSeat, BookingSeat.booking_id == Booking.id)
+        .join(payment_totals, payment_totals.c.booking_id == Booking.id)
+        .join(ticket_totals, ticket_totals.c.booking_id == Booking.id)
         .where(*filters)
         .group_by(Movie.id, Movie.title)
-        .order_by(func.count(BookingSeat.id).desc())
+        .order_by(
+            func.sum(payment_totals.c.revenue).desc(),
+            func.sum(ticket_totals.c.tickets_sold).desc(),
+            Movie.title.asc(),
+        )
         .limit(limit)
     )
     return [
-        {"movie_id": row.id, "title": row.title, "tickets_sold": row.tickets_sold, "revenue": float(row.revenue)}
-        for row in result
+        {
+            "rank": rank,
+            "movie_id": row.id,
+            "title": row.title,
+            "tickets_sold": int(row.tickets_sold),
+            "revenue": float(row.revenue),
+            "total_tickets_sold": int(row.total_tickets_sold),
+            "total_movies": int(row.total_movies),
+        }
+        for rank, row in enumerate(result, start=1)
     ]
     booking = await db.get(Booking, payment.booking_id)
     showtime = await db.get(Showtime, booking.showtime_id)

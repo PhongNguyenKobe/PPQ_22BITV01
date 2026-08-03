@@ -55,6 +55,16 @@ const maxMovieRevenue = computed(() => {
   return Math.max(...movies.value.map(m => Number(m.revenue) || 0), 1)
 })
 
+const totalTicketsSold = computed(() => Number(movies.value[0]?.total_tickets_sold || 0))
+const totalMovies = computed(() => Number(movies.value[0]?.total_movies || 0))
+const topThreeMovies = computed(() => movies.value.slice(0, 3))
+const rankStyles: Record<number, string> = {
+  1: 'border-amber-400/40 bg-amber-400/10 text-amber-300',
+  2: 'border-slate-300/30 bg-slate-300/10 text-slate-200',
+  3: 'border-orange-500/30 bg-orange-500/10 text-orange-300',
+}
+const rankClass = (rank: number) => rankStyles[rank] || 'border-white/10 bg-white/5 text-gray-300'
+
 onMounted(load)
 watch(selectedBranch, load)
 </script>
@@ -124,7 +134,7 @@ watch(selectedBranch, load)
           </div>
           <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Phim phát sinh doanh thu</p>
           <div class="text-2xl text-white mt-2 font-mono font-black tracking-tight">
-            {{ movies.length }} phim
+            {{ totalMovies }} phim
           </div>
         </div>
         
@@ -132,9 +142,9 @@ watch(selectedBranch, load)
           <div class="absolute right-0 bottom-0 translate-x-2 translate-y-2 opacity-5 pointer-events-none">
             <span class="material-symbols-outlined text-7xl">storefront</span>
           </div>
-          <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Chi nhánh đang hoạt động</p>
+          <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Tổng số vé bán ra</p>
           <div class="text-2xl text-sky-400 mt-2 font-mono font-black tracking-tight">
-            {{ occupancy.length }} rạp
+            {{ totalTicketsSold.toLocaleString('vi-VN') }} vé
           </div>
         </div>
       </div>
@@ -145,12 +155,25 @@ watch(selectedBranch, load)
         <div class="panel-glass p-6 flex flex-col shadow-lg">
           <div class="flex items-center gap-2 mb-5 pb-3 border-b border-white/5">
             <span class="material-symbols-outlined text-red-500">hotel_class</span>
-            <h3 class="font-bold text-white text-base">Top phim ăn khách</h3>
+            <h3 class="font-bold text-white text-base">Top 1–3 phim theo doanh thu</h3>
+          </div>
+          <div v-if="topThreeMovies.length" class="grid gap-3 mb-5 sm:grid-cols-3">
+            <div
+              v-for="m in topThreeMovies"
+              :key="`rank-${m.movie_id}`"
+              class="rounded-xl border p-3"
+              :class="rankClass(m.rank)"
+            >
+              <div class="text-xs font-black uppercase">Top {{ m.rank }}</div>
+              <div class="mt-1 truncate text-sm font-bold text-white" :title="m.title">{{ m.title }}</div>
+              <div class="mt-2 font-mono text-xs">{{ m.tickets_sold }} vé</div>
+              <div class="font-mono text-xs font-black">{{ Number(m.revenue).toLocaleString('vi-VN') }}đ</div>
+            </div>
           </div>
           <div class="space-y-5 flex-1 max-h-[400px] overflow-y-auto pr-2">
             <div v-for="m in movies" :key="m.movie_id" class="space-y-1.5">
               <div class="flex justify-between items-center text-sm">
-                <span class="text-white font-bold">{{ m.title }}</span>
+                <span class="text-white font-bold"><span class="text-red-400 mr-2">#{{ m.rank }}</span>{{ m.title }}</span>
                 <span class="text-gray-400 text-xs font-semibold font-mono">{{ m.tickets_sold }} vé</span>
               </div>
               <div class="flex items-center gap-3">

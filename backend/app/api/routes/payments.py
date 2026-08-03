@@ -227,7 +227,7 @@ async def checkout(
     await db.commit()
     await db.refresh(payment)
 
-    confirmation = await generate_confirmation_number()
+    confirmation = booking.ticket_code or await generate_confirmation_number()
     payment_url = None
     if vnpay:
         payment_url = build_payment_url(

@@ -12,6 +12,7 @@ from app.api.routes.promotions import router as promotions_router
 from app.api.routes.showtimes import router as showtimes_router
 from app.api.routes.users import router as users_router
 from app.api.routes.ai_discovery import router as ai_discovery_router
+from app.api.routes.combos import router as combos_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -22,6 +23,7 @@ api_router.include_router(showtimes_router, prefix="/showtimes", tags=["showtime
 api_router.include_router(bookings_router, prefix="/bookings", tags=["bookings"])
 api_router.include_router(payments_router, prefix="/payments", tags=["payments"])
 api_router.include_router(promotions_router, prefix="/promotions", tags=["promotions"])
+api_router.include_router(combos_router, prefix="/combos", tags=["combos"])
 # api_router.include_router(checkout_router, prefix="/checkout", tags=["checkout"])
 api_router.include_router(branch_admin_router, prefix="/branch-admin", tags=["branch-admin"])
 api_router.include_router(admin_router, prefix="/admin", tags=["admin"])

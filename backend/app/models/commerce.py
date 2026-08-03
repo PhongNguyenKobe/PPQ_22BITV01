@@ -32,6 +32,9 @@ class Booking(Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ticket_code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_in_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
@@ -39,6 +42,40 @@ class Booking(Base):
     seats = relationship("BookingSeat", back_populates="booking", cascade="all, delete-orphan", lazy="selectin")
     payments = relationship("Payment", back_populates="booking", lazy="selectin")
     promotion = relationship("Promotion", lazy="selectin")
+    combos = relationship("BookingCombo", back_populates="booking", cascade="all, delete-orphan", lazy="selectin")
+
+
+class Combo(Base):
+    __tablename__ = "combos"
+    __table_args__ = (CheckConstraint("price > 0", name="ck_combos_price_positive"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    image_url: Mapped[str | None] = mapped_column(Text)
+    stock_quantity: Mapped[int | None] = mapped_column(Integer)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class BookingCombo(Base):
+    __tablename__ = "booking_combos"
+    __table_args__ = (UniqueConstraint("booking_id", "combo_id", name="uq_booking_combos_booking_combo"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    booking_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    combo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("combos.id", ondelete="RESTRICT"), nullable=False)
+    combo_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+
+    booking = relationship("Booking", back_populates="combos")
+    combo = relationship("Combo", lazy="selectin")
 
 
 class BookingSeat(Base):

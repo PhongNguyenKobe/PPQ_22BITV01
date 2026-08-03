@@ -3,7 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +43,22 @@ def ensure_usable(promotion: Promotion | None, subtotal: Decimal) -> Promotion:
 @router.get("", response_model=list[PromotionRead], dependencies=[Depends(require_admin)])
 async def list_promotions(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Promotion).order_by(Promotion.created_at.desc()))
+    return list(result.scalars().all())
+
+
+@router.get("/public", response_model=list[PromotionRead])
+async def list_public_promotions(db: AsyncSession = Depends(get_db)):
+    """Customer-facing promotions backed by the admin-managed promotion table."""
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Promotion)
+        .where(
+            Promotion.is_active.is_(True),
+            Promotion.ends_at >= now,
+            or_(Promotion.usage_limit.is_(None), Promotion.used_count < Promotion.usage_limit),
+        )
+        .order_by(Promotion.starts_at.asc(), Promotion.created_at.desc())
+    )
     return list(result.scalars().all())
 
 

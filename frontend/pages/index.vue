@@ -556,8 +556,9 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
       <div class="absolute inset-0 z-50 flex items-center justify-center bg-[#121414]/75 backdrop-blur-[2px]">
         <div class="rounded-2xl border border-white/10 bg-[#1a1c1c] px-8 py-6 text-center shadow-2xl">
           <span class="material-symbols-outlined text-4xl text-[#ffb4aa]">fastfood</span>
-          <h3 class="mt-2 text-xl font-bold text-white">Combo bắp nước</h3>
-          <p class="mt-1 text-sm text-[#c8c6c5]">Tạm thời chưa phát triển xong</p>
+          <h3 class="mt-2 text-xl font-bold text-white">Combo theo từng rạp</h3>
+          <p class="mt-1 max-w-sm text-sm text-[#c8c6c5]">Chọn phim, rạp và ghế để xem combo đang bán cùng giá thực tế tại chi nhánh.</p>
+          <NuxtLink to="/products" class="mt-4 inline-flex rounded-xl bg-[#e50914] px-5 py-2.5 text-sm font-bold text-white">Đặt vé và chọn combo</NuxtLink>
         </div>
       </div>
       <div class="max-w-[1280px] mx-auto px-6 md:px-[48px] reveal">

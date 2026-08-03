@@ -12,7 +12,7 @@ definePageMeta({
 })
 
 const ticketsStore = useTicketsStore()
-const { selectedMovie, selectedShowtime, selectedSeats, totalAmount, purchaseError } = storeToRefs(ticketsStore)
+const { selectedMovie, selectedShowtime, selectedSeats, selectedCombos, totalAmount, purchaseError } = storeToRefs(ticketsStore)
 const showtimeExpired = computed(() => isShowtimeExpired(selectedShowtime.value))
 
 const selectedPayment = ref('Ví VNPAY')
@@ -163,7 +163,9 @@ async function cancelPreparedVnpayPayment() {
             <div class="step-line active"></div>
             <div class="step done"><span>3</span><small>Chọn ghế</small></div>
             <div class="step-line active"></div>
-            <div class="step active"><span>4</span><small>Thanh toán</small></div>
+            <div class="step done"><span>4</span><small>Bắp nước</small></div>
+            <div class="step-line active"></div>
+            <div class="step active"><span>5</span><small>Thanh toán</small></div>
           </div>
 
           <div class="selection-panel">
@@ -288,6 +290,10 @@ async function cancelPreparedVnpayPayment() {
               <div>
                 <span>{{ selectedSeats.length }} vé x {{ selectedShowtime.price.toLocaleString('vi-VN') }}đ</span>
                 <strong>{{ totalAmount.toLocaleString('vi-VN') }}đ</strong>
+              </div>
+              <div v-for="item in selectedCombos" :key="item.combo.id">
+                <span>{{ item.combo.name }} x {{ item.quantity }}</span>
+                <strong>{{ (Number(item.combo.price) * item.quantity).toLocaleString('vi-VN') }}đ</strong>
               </div>
               <div>
                 <span>Phí dịch vụ</span>

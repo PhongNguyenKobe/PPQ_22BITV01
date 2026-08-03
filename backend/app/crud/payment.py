@@ -38,4 +38,4 @@ async def generate_qr_code_data(order_id: UUID, confirmation_number: str) -> str
     Generate QR code data for e-ticket.
     Format: CineAI_TICKET_{confirmation_number}_{order_id}
     """
-    return f"CineAI_TICKET_{confirmation_number}_{order_id}"
+    return confirmation_number.upper()

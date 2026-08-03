@@ -39,9 +39,13 @@ export interface ApiError {
 
 export function handleApiError(error: unknown): ApiError {
   if (axios.isAxiosError(error)) {
+    const detail = (error.response?.data as any)?.detail
+    const friendlyDetail = Array.isArray(detail)
+      ? detail.map(item => item?.msg || 'Dữ liệu chưa hợp lệ').join('. ')
+      : detail
     return {
       message:
-        (error.response?.data as any)?.detail ||
+        friendlyDetail ||
         (error.response?.data as any)?.message ||
         error.message ||
         'Đã có lỗi xảy ra, vui lòng thử lại.',
@@ -133,6 +137,7 @@ export interface Seat {
 
 export interface UserTicket {
   id: string
+  ticketCode?: string
   movieTitle: string
   poster: string
   branchName: string
@@ -145,11 +150,15 @@ export interface UserTicket {
   qrCode: string
   bookingDate: string
   status: string
+  checkedInAt?: string | null
   cancellationReason?: string | null
 }
 
 interface BackendUserTicket {
   id: string
+  ticket_code?: string | null
+  qr_code?: string | null
+  checked_in_at?: string | null
   movie_title: string
   poster_url?: string | null
   branch_name: string
@@ -727,6 +736,7 @@ export const usersApi = {
       .filter(ticket => ['CONFIRMED', 'CANCEL_REQUESTED', 'CANCELLED'].includes(ticket.status))
       .map(ticket => ({
         id: ticket.id,
+        ticketCode: ticket.ticket_code || ticket.id.slice(0, 8).toUpperCase(),
         movieTitle: ticket.movie_title,
         poster: ticket.poster_url || '/images/movie-placeholder.svg',
         branchName: ticket.branch_name,
@@ -736,9 +746,10 @@ export const usersApi = {
         seats: (ticket.seats || []).map(seat => `${seat.row}${seat.number}`),
         totalAmount: Number(ticket.total_price),
         paymentMethod: ticket.payment_method || 'Không xác định',
-        qrCode: `CINEAI_E_TICKET_${ticket.id}`,
+        qrCode: ticket.qr_code || `CINEAI_E_TICKET_${ticket.id}`,
         bookingDate: ticket.booking_date,
         status: ticket.status,
+        checkedInAt: ticket.checked_in_at,
         cancellationReason: ticket.cancellation_reason,
       }))
   },
@@ -787,6 +798,13 @@ export interface Promotion {
   usage_limit: number | null
   used_count: number
   is_active: boolean
+}
+
+export const promotionsService = {
+  async getPublicPromotions(): Promise<Promotion[]> {
+    const res = await apiClient.get<Promotion[]>('/promotions/public')
+    return res.data
+  },
 }
 
 export const adminBackendService = {
@@ -1021,6 +1039,10 @@ export const adminBackendService = {
 
   async getTopMoviesReport(start_date: string, end_date: string, branch_id?: string) {
     return (await apiClient.get('/admin/reports/top-movies', { params: { start_date, end_date, branch_id } })).data
+  },
+
+  async scanTicket(qr_data: string, consume = false): Promise<any> {
+    return (await apiClient.post('/admin/tickets/scan', { qr_data, consume })).data
   },
 
   async importTmdbMovie(payload: AdminImportTmdbMoviePayload): Promise<AdminImportTmdbMovieResult> {
@@ -1421,6 +1443,48 @@ export const tmdbService = {
 // API Client Functions
 // ----------------------------------------------------
 
+export interface MovieReview {
+  id: string
+  user_id: string
+  user_name: string
+  rating: number
+  content: string
+  verified_purchase: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface MovieReviewsResponse {
+  summary: {
+    total: number
+    average: number
+    distribution: Record<string, number>
+  }
+  reviews: MovieReview[]
+}
+
+export interface CinemaCombo {
+  id: string
+  branch_id: string
+  name: string
+  description?: string | null
+  price: number
+  image_url?: string | null
+  stock_quantity?: number | null
+  is_active: boolean
+}
+
+export const comboService = {
+  async getPublic(branchId: string): Promise<CinemaCombo[]> {
+    return (await apiClient.get<CinemaCombo[]>('/combos', { params: { branch_id: branchId } })).data
+  },
+  async getManage(): Promise<CinemaCombo[]> { return (await apiClient.get<CinemaCombo[]>('/combos/manage')).data },
+  async importStarter(): Promise<CinemaCombo[]> { return (await apiClient.post<CinemaCombo[]>('/combos/manage/import-starter')).data },
+  async create(payload: Omit<CinemaCombo, 'id'>): Promise<CinemaCombo> { return (await apiClient.post('/combos/manage', payload)).data },
+  async update(id: string, payload: Omit<CinemaCombo, 'id'>): Promise<CinemaCombo> { return (await apiClient.patch(`/combos/manage/${id}`, payload)).data },
+  async remove(id: string): Promise<void> { await apiClient.delete(`/combos/manage/${id}`) },
+}
+
 export const movieService = {
   async getAll(status?: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'): Promise<Movie[]> {
     if (USE_MOCK) return mockMovies
@@ -1458,6 +1522,25 @@ export const movieService = {
     }
     const res = await apiClient.get<BackendShowtime[]>(`/movies/${movieId}/showtimes`)
     return res.data.map(mapBackendShowtimeToFrontend)
+  },
+
+  async getReviews(movieId: string): Promise<MovieReviewsResponse> {
+    const res = await apiClient.get<MovieReviewsResponse>(`/movies/${movieId}/reviews`)
+    return res.data
+  },
+
+  async createReview(movieId: string, payload: { rating: number; content: string }): Promise<MovieReview> {
+    const res = await apiClient.post<MovieReview>(`/movies/${movieId}/reviews`, payload)
+    return res.data
+  },
+
+  async updateReview(movieId: string, reviewId: string, payload: { rating: number; content: string }): Promise<MovieReview> {
+    const res = await apiClient.patch<MovieReview>(`/movies/${movieId}/reviews/${reviewId}`, payload)
+    return res.data
+  },
+
+  async deleteReview(movieId: string, reviewId: string): Promise<void> {
+    await apiClient.delete(`/movies/${movieId}/reviews/${reviewId}`)
   },
 
   async getSeats(showtimeId: string): Promise<Seat[]> {
@@ -1557,12 +1640,14 @@ export const checkoutService = {
     seats: string[]
     totalAmount: number
     promotionCode?: string
+    comboItems?: Array<{ combo_id: string; quantity: number }>
   }): Promise<{ paymentUrl: string; transactionRef: string }> {
     const bookingRes = await apiClient.post<any>('/bookings', {
       showtime_id: bookingDetails.showtimeId,
       seat_ids: bookingDetails.seats,
       quantity: bookingDetails.seats.length,
       total_price: bookingDetails.totalAmount,
+      combo_items: bookingDetails.comboItems || [],
     })
     const response = await apiClient.post<any>('/payments/checkout', {
       booking_id: bookingRes.data.id,

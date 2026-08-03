@@ -2,17 +2,71 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.catalog import Auditorium, Seat, Showtime
+from app.core.tickets import build_ticket_code, ticket_code_prefix, ticket_qr_payload
+from app.models.catalog import Auditorium, Branch, Seat, Showtime
 from app.models.commerce import Booking, BookingSeat, Payment, SeatHold
 
 HOLD_MINUTES = 5
+SINGLE_SEAT_GAP_MESSAGE = (
+    "Không thể để lại một ghế trống riêng lẻ. Vui lòng chọn ghế liền nhau."
+)
+
+
+def _single_available_seats(
+    seats: list[tuple[UUID, str, int]],
+    unavailable_ids: set[UUID],
+) -> set[UUID]:
+    """Return available seats that form a one-seat run within a physical row segment."""
+    single_seats: set[UUID] = set()
+    rows: dict[str, list[tuple[UUID, int]]] = {}
+    for seat_id, seat_row, seat_number in seats:
+        rows.setdefault(seat_row, []).append((seat_id, seat_number))
+
+    for row_seats in rows.values():
+        ordered = sorted(row_seats, key=lambda item: item[1])
+        segment: list[tuple[UUID, int]] = []
+        for seat in ordered:
+            if segment and seat[1] != segment[-1][1] + 1:
+                _collect_single_available_seat(segment, unavailable_ids, single_seats)
+                segment = []
+            segment.append(seat)
+        _collect_single_available_seat(segment, unavailable_ids, single_seats)
+    return single_seats
+
+
+def _collect_single_available_seat(
+    segment: list[tuple[UUID, int]],
+    unavailable_ids: set[UUID],
+    result: set[UUID],
+) -> None:
+    available_run: list[UUID] = []
+    for seat_id, _ in segment:
+        if seat_id in unavailable_ids:
+            if len(available_run) == 1:
+                result.add(available_run[0])
+            available_run = []
+        else:
+            available_run.append(seat_id)
+    if len(available_run) == 1:
+        result.add(available_run[0])
+
+
+def leaves_new_single_seat_gap(
+    seats: list[tuple[UUID, str, int]],
+    unavailable_ids: set[UUID],
+    selected_ids: set[UUID],
+) -> bool:
+    """Only reject a singleton created by this selection, not one already present."""
+    before = _single_available_seats(seats, unavailable_ids)
+    after = _single_available_seats(seats, unavailable_ids | selected_ids)
+    return bool(after - before)
 
 
 async def cleanup_expired_reservations(db: AsyncSession) -> None:
@@ -116,7 +170,14 @@ async def validate_showtime_exists(db: AsyncSession, showtime_id: UUID) -> bool:
     return result.scalar_one_or_none() is not None
 
 
-async def validate_seats_available(db: AsyncSession, showtime_id: UUID, seat_ids: list[UUID], user_id: UUID | None = None) -> tuple[bool, str]:
+async def validate_seats_available(
+    db: AsyncSession,
+    showtime_id: UUID,
+    seat_ids: list[UUID],
+    user_id: UUID | None = None,
+    *,
+    enforce_single_seat_gap: bool = True,
+) -> tuple[bool, str]:
     await cleanup_expired_reservations(db)
     unique_ids = set(seat_ids)
     if not unique_ids:
@@ -159,6 +220,35 @@ async def validate_seats_available(db: AsyncSession, showtime_id: UUID, seat_ids
     )
     if (held.scalar() or 0) > 0:
         return False, "One or more seats are temporarily held by another customer"
+
+    if enforce_single_seat_gap:
+        all_seats_result = await db.execute(
+            select(Seat.id, Seat.seat_row, Seat.seat_number).where(
+                Seat.auditorium_id == showtime.auditorium_id,
+                Seat.is_active.is_(True),
+            )
+        )
+        booked_ids_result = await db.execute(
+            select(BookingSeat.seat_id)
+            .join(Booking, Booking.id == BookingSeat.booking_id)
+            .where(
+                BookingSeat.showtime_id == showtime_id,
+                Booking.status.in_(["PENDING", "CONFIRMED"]),
+            )
+        )
+        held_ids_result = await db.execute(
+            select(SeatHold.seat_id).where(
+                SeatHold.showtime_id == showtime_id,
+                SeatHold.expires_at > datetime.now(timezone.utc),
+                SeatHold.user_id != user_id if user_id else SeatHold.user_id.is_not(None),
+            )
+        )
+        unavailable_ids = set(booked_ids_result.scalars().all()) | set(
+            held_ids_result.scalars().all()
+        )
+        seats = [(row.id, row.seat_row, row.seat_number) for row in all_seats_result.all()]
+        if leaves_new_single_seat_gap(seats, unavailable_ids, unique_ids):
+            return False, SINGLE_SEAT_GAP_MESSAGE
     return True, "Seats are available"
 
 
@@ -170,7 +260,13 @@ async def hold_showtime_seats(
 ) -> datetime:
     if not await validate_showtime_exists(db, showtime_id):
         raise ValueError("SHOWTIME_UNAVAILABLE")
-    valid, message = await validate_seats_available(db, showtime_id, seat_ids, user_id)
+    valid, message = await validate_seats_available(
+        db,
+        showtime_id,
+        seat_ids,
+        user_id,
+        enforce_single_seat_gap=False,
+    )
     if not valid:
         raise ValueError(message)
     await db.execute(
@@ -230,6 +326,9 @@ def booking_to_dict(booking: Booking) -> dict:
         "discount_amount": booking.discount_amount,
         "promotion_code": booking.promotion.code if booking.promotion else None,
         "status": booking.status,
+        "ticket_code": booking.ticket_code,
+        "qr_code": ticket_qr_payload(booking.ticket_code) if booking.ticket_code else None,
+        "checked_in_at": booking.checked_in_at,
         "cancellation_reason": booking.cancellation_reason,
         "cancellation_requested_at": booking.cancellation_requested_at,
         "cancelled_at": booking.cancelled_at,
@@ -287,7 +386,25 @@ async def create_user_booking(db: AsyncSession, user_id: UUID, showtime_id: UUID
         ),
         Decimal("0"),
     )
+    booking_id = uuid4()
+    branch = (
+        await db.execute(
+            select(Branch)
+        .join(Auditorium, Auditorium.branch_id == Branch.id)
+        .where(Auditorium.id == showtime.auditorium_id)
+        .with_for_update()
+        )
+    ).scalar_one()
+    code_prefix = ticket_code_prefix(branch.code, showtime.starts_at)
+    latest_code = await db.scalar(
+        select(Booking.ticket_code)
+        .where(Booking.ticket_code.like(f"{code_prefix}%"))
+        .order_by(Booking.ticket_code.desc())
+        .limit(1)
+    )
+    daily_sequence = int(latest_code[-3:]) + 1 if latest_code else 1
     booking = Booking(
+        id=booking_id,
         user_id=user_id,
         showtime_id=showtime_id,
         subtotal_price=subtotal,
@@ -295,6 +412,7 @@ async def create_user_booking(db: AsyncSession, user_id: UUID, showtime_id: UUID
         total_price=subtotal,
         status="PENDING",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=HOLD_MINUTES),
+        ticket_code=build_ticket_code(branch.code, showtime.starts_at, daily_sequence),
         seats=[BookingSeat(showtime_id=showtime_id, seat_id=seat_id) for seat_id in seat_ids],
     )
     db.add(booking)

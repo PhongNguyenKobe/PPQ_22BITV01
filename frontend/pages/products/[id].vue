@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useProductsStore } from '~/store/products'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
-import { branchesService, youtubeTrailerLink, type BranchDetail } from '~/services/api'
+import { branchesService, movieService, youtubeTrailerLink, type BranchDetail, type MovieReview, type MovieReviewsResponse } from '~/services/api'
 import { formatDate } from '~/utils/date'
 
 definePageMeta({
@@ -39,42 +39,15 @@ const listQuery = computed(() => ({
 
 // State bình luận
 const newComment = ref('')
-const userRating = ref(5)
+const userRating = ref(0)
 const isSubmittingComment = ref(false)
-
-// Danh sách bình luận mẫu (Mock comments)
-const comments = ref([
-  {
-    id: 1,
-    userName: 'Minh Tuấn',
-    userAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-    rating: 5,
-    date: '2 giờ trước',
-    content: 'Phim đỉnh thực sự! Kỹ xảo hoành tráng, âm thanh sống động nghe cực sướng tai. Đã xem 2 lần rồi vẫn muốn xem lại!',
-    likes: 12,
-    isLiked: false
-  },
-  {
-    id: 2,
-    userName: 'Hoàng Yến',
-    userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
-    rating: 4,
-    date: '1 ngày trước',
-    content: 'Cốt chuyện ổn, diễn xuất tròn vai. Đoạn kết hơi vội một chút nhưng nhìn chung rất đáng tiền vé.',
-    likes: 5,
-    isLiked: false
-  },
-  {
-    id: 3,
-    userName: 'Trần Khoa',
-    userAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&auto=format&fit=crop&q=80',
-    rating: 5,
-    date: '3 ngày trước',
-    content: '10/10 không nói nhiều! Bạn nào mê thể loại này thì nhất định phải đi xem ở phòng chiếu IMAX nhé.',
-    likes: 19,
-    isLiked: false
-  }
-])
+const reviewsLoading = ref(true)
+const reviewsData = ref<MovieReviewsResponse>({
+  summary: { total: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
+  reviews: [],
+})
+const editingReviewId = ref<string | null>(null)
+const ratingLabels = ['', 'Không hay', 'Tạm được', 'Bình thường', 'Hay', 'Rất hay']
 
 // Fetch products
 onMounted(async () => {
@@ -85,6 +58,7 @@ onMounted(async () => {
     if (selectedBranchId.value) {
       selectedBranchCatalog.value = await branchesService.getById(selectedBranchId.value)
     }
+    await loadReviews()
   } catch (error) {
     console.error('Lỗi tải sản phẩm:', error)
   } finally {
@@ -97,6 +71,8 @@ const currentProduct = computed(() => {
   const id = String(route.params.id as string)
   return products.value.find((p) => String(p.id) === id)
 })
+const reviewMovieId = computed(() => currentProduct.value?.backendMovieId || String(route.params.id || ''))
+const myReview = computed(() => reviewsData.value.reviews.find(review => review.user_id === currentUser.value?.id) || null)
 
 const trailerHref = computed(() => {
   if (!currentProduct.value) return '#'
@@ -145,42 +121,66 @@ function startBooking() {
   router.push(selectedBranchName.value ? '/checkout/showtime' : '/checkout/cinema')
 }
 
-// Thêm bình luận
-function submitComment() {
-  if (!newComment.value.trim()) return
-  if (!userStore.isAuthenticated) {
-    alert('Vui lòng đăng nhập để gửi bình luận!')
-    return router.push('/login')
+async function loadReviews() {
+  reviewsLoading.value = true
+  try {
+    reviewsData.value = await movieService.getReviews(reviewMovieId.value)
+  } catch (error) {
+    console.error('Không thể tải đánh giá:', error)
+  } finally {
+    reviewsLoading.value = false
   }
-
-  isSubmittingComment.value = true
-
-  setTimeout(() => {
-    comments.value.unshift({
-      id: Date.now(),
-      userName: currentUser.value?.name || 'Khán giả CineAI',
-      userAvatar: (currentUser.value as any)?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-      rating: userRating.value,
-      date: 'Vừa xong',
-      content: newComment.value,
-      likes: 0,
-      isLiked: false
-    })
-
-    newComment.value = ''
-    userRating.value = 5
-    isSubmittingComment.value = false
-  }, 400)
 }
 
-function toggleLike(comment: typeof comments.value[0]) {
-  if (comment.isLiked) {
-    comment.likes--
-    comment.isLiked = false
-  } else {
-    comment.likes++
-    comment.isLiked = true
+async function submitComment() {
+  if (!userRating.value || !newComment.value.trim()) return
+  if (!userStore.isAuthenticated) {
+    return router.push({ path: '/login', query: { redirect: route.fullPath } })
   }
+  isSubmittingComment.value = true
+  try {
+    const payload = { rating: userRating.value, content: newComment.value.trim() }
+    if (editingReviewId.value) await movieService.updateReview(reviewMovieId.value, editingReviewId.value, payload)
+    else await movieService.createReview(reviewMovieId.value, payload)
+    editingReviewId.value = null
+    newComment.value = ''
+    userRating.value = 0
+    await loadReviews()
+  } finally {
+    isSubmittingComment.value = false
+  }
+}
+
+function editReview(review: MovieReview) {
+  editingReviewId.value = review.id
+  userRating.value = review.rating
+  newComment.value = review.content
+}
+
+function cancelEdit() {
+  editingReviewId.value = null
+  newComment.value = ''
+  userRating.value = 0
+}
+
+async function deleteReview(review: MovieReview) {
+  if (!confirm('Bạn muốn xóa đánh giá này?')) return
+  await movieService.deleteReview(reviewMovieId.value, review.id)
+  cancelEdit()
+  await loadReviews()
+}
+
+function reviewPercent(star: number) {
+  const total = reviewsData.value.summary.total
+  return total ? Math.round(((reviewsData.value.summary.distribution[String(star)] || 0) / total) * 100) : 0
+}
+
+function reviewerInitials(name: string) {
+  return name.split(' ').filter(Boolean).slice(-2).map(part => part[0]).join('').toUpperCase()
+}
+
+function reviewDate(value: string) {
+  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 </script>
 
@@ -365,15 +365,7 @@ function toggleLike(comment: typeof comments.value[0]) {
       <!-- 2. REVIEWS & COMMENTS SECTION (NẰM TRÊN CÙNG HÌNH NỀN) -->
       <!-- ================================================================= -->
       <section class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-white/10">
-        <div class="rounded-3xl border border-amber-400/25 bg-amber-400/5 p-8 text-center">
-          <span class="material-symbols-outlined text-4xl text-amber-300">rate_review</span>
-          <h2 class="mt-3 text-xl font-bold text-white">Đánh giá và bình luận đang được phát triển</h2>
-          <p class="mt-2 text-sm text-gray-400">
-            Nội dung đánh giá chưa được kết nối cơ sở dữ liệu. CineAI sẽ mở chức năng này trong phiên bản sau.
-          </p>
-        </div>
-
-        <div v-if="false" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
           <!-- Rating Summary Box -->
           <div class="lg:col-span-5 space-y-6">
@@ -385,64 +377,46 @@ function toggleLike(comment: typeof comments.value[0]) {
 
               <div class="flex items-center gap-6 mb-6 pb-6 border-b border-white/10">
                 <div class="text-center">
-                  <span class="text-5xl font-black text-white block">4.8</span>
+                  <span class="text-5xl font-black text-white block">{{ reviewsData.summary.average.toFixed(1) }}</span>
                   <div class="flex items-center text-yellow-400 text-sm justify-center my-1">
-                    <span v-for="i in 5" :key="i" class="material-symbols-outlined text-sm">star</span>
+                    <span v-for="i in 5" :key="i" class="material-symbols-outlined text-sm">
+                      {{ i <= Math.round(reviewsData.summary.average) ? 'star' : 'star_border' }}
+                    </span>
                   </div>
-                  <span class="text-xs text-gray-400 font-medium">128 đánh giá</span>
+                  <span class="text-xs text-gray-400 font-medium">{{ reviewsData.summary.total }} đánh giá</span>
                 </div>
 
-                <!-- Rating Bars -->
                 <div class="flex-1 space-y-2 text-xs">
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 text-gray-400 font-bold">5</span>
+                  <div v-for="star in [5, 4, 3, 2, 1]" :key="star" class="flex items-center gap-2">
+                    <span class="w-3 text-gray-400 font-bold">{{ star }}</span>
                     <div class="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div class="h-full bg-yellow-400 w-[85%] rounded-full"></div>
+                      <div class="h-full bg-yellow-400 rounded-full transition-all" :style="{ width: `${reviewPercent(star)}%` }"></div>
                     </div>
-                    <span class="w-8 text-right text-gray-400">85%</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 text-gray-400 font-bold">4</span>
-                    <div class="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div class="h-full bg-yellow-400 w-[10%] rounded-full"></div>
-                    </div>
-                    <span class="w-8 text-right text-gray-400">10%</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 text-gray-400 font-bold">3</span>
-                    <div class="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div class="h-full bg-yellow-400 w-[5%] rounded-full"></div>
-                    </div>
-                    <span class="w-8 text-right text-gray-400">5%</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 text-gray-400 font-bold">2</span>
-                    <div class="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div class="h-full bg-yellow-400 w-[0%] rounded-full"></div>
-                    </div>
-                    <span class="w-8 text-right text-gray-400">0%</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 text-gray-400 font-bold">1</span>
-                    <div class="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div class="h-full bg-yellow-400 w-[0%] rounded-full"></div>
-                    </div>
-                    <span class="w-8 text-right text-gray-400">0%</span>
+                    <span class="w-8 text-right text-gray-400">{{ reviewPercent(star) }}%</span>
                   </div>
                 </div>
               </div>
 
-              <!-- Form Bình Luận -->
-              <form @submit.prevent="submitComment" class="space-y-4">
-                <h3 class="text-sm font-bold text-white uppercase tracking-wider">Viết bình luận của bạn</h3>
+              <form v-if="userStore.isAuthenticated && (!myReview || editingReviewId)" @submit.prevent="submitComment" class="space-y-4">
+                <div class="flex items-center justify-between gap-3">
+                  <h3 class="text-sm font-bold text-white uppercase tracking-wider">{{ editingReviewId ? 'Chỉnh sửa đánh giá' : 'Cảm nhận của bạn' }}</h3>
+                  <button v-if="editingReviewId" type="button" class="text-xs text-gray-400 hover:text-white" @click="cancelEdit">Hủy</button>
+                </div>
 
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-gray-400">Số sao:</span>
-                  <div class="flex gap-1">
+                <div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-400">Chạm để chấm điểm:</span>
+                    <span class="text-xs font-bold" :class="userRating ? 'text-yellow-300' : 'text-gray-500'">
+                      {{ userRating ? `${userRating}/5 · ${ratingLabels[userRating]}` : 'Chưa chọn' }}
+                    </span>
+                  </div>
+                  <div class="mt-2 flex gap-2" role="radiogroup" aria-label="Chọn số sao đánh giá">
                     <button v-for="star in 5" :key="star" type="button" @click="userRating = star"
-                      class="text-yellow-400 hover:scale-125 transition-transform">
-                      <span class="material-symbols-outlined text-xl">
-                        {{ star <= userRating ? 'star' : 'star_border' }} </span>
+                      class="rounded-lg p-1 transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-yellow-300/60"
+                      :class="star <= userRating ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-200'"
+                      :aria-label="`${star} sao`" :aria-checked="star === userRating" role="radio">
+                      <span class="material-symbols-outlined text-3xl"
+                        :style="{ fontVariationSettings: `'FILL' ${star <= userRating ? 1 : 0}, 'wght' 500` }">star</span>
                     </button>
                   </div>
                 </div>
@@ -450,18 +424,28 @@ function toggleLike(comment: typeof comments.value[0]) {
                 <div>
                   <textarea v-model="newComment" rows="3" placeholder="Chia sẻ cảm nhận của bạn về bộ phim này..."
                     class="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors resize-none"
-                    required></textarea>
+                    maxlength="1000" required></textarea>
+                  <div class="mt-1 flex justify-between text-[10px] text-gray-500">
+                    <span>Có thể viết ngắn, ví dụ: “Hay”</span>
+                    <span>{{ newComment.length }}/1000</span>
+                  </div>
                 </div>
 
-                <button type="submit" :disabled="isSubmittingComment"
+                <button type="submit" :disabled="isSubmittingComment || !userRating || !newComment.trim()"
                   class="w-full py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
                   <span v-if="isSubmittingComment"
                     class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   <span v-else class="material-symbols-outlined text-sm">send</span>
-                  Gửi Bình Luận
+                  {{ userRating ? `Gửi đánh giá ${userRating} sao` : 'Chọn số sao để đánh giá' }}
                 </button>
               </form>
-
+              <div v-else-if="myReview" class="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm text-emerald-100">
+                Bạn đã đánh giá phim này. Bạn có thể chỉnh sửa hoặc xóa tại bình luận của mình.
+              </div>
+              <div v-else class="rounded-2xl border border-white/10 bg-black/20 p-5 text-center">
+                <p class="text-sm text-gray-300">Đăng nhập để chia sẻ cảm nhận của bạn.</p>
+                <NuxtLink :to="{ path: '/login', query: { redirect: route.fullPath } }" class="mt-3 inline-flex rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white">Đăng nhập</NuxtLink>
+              </div>
             </div>
           </div>
 
@@ -470,19 +454,28 @@ function toggleLike(comment: typeof comments.value[0]) {
             <div class="flex items-center justify-between mb-2">
               <h2 class="text-xl font-bold text-white flex items-center gap-2">
                 <span class="material-symbols-outlined text-red-500">forum</span>
-                Bình Luận Từ Khán Giả ({{ comments.length }})
+                Bình Luận Từ Khán Giả ({{ reviewsData.summary.total }})
               </h2>
             </div>
 
-            <div v-for="c in comments" :key="c.id"
+            <div v-if="reviewsLoading" class="rounded-2xl border border-white/10 bg-[#14161d]/80 p-8 text-center text-sm text-gray-400">Đang tải đánh giá...</div>
+            <div v-else-if="!reviewsData.reviews.length" class="rounded-2xl border border-dashed border-white/15 bg-[#14161d]/50 p-10 text-center">
+              <span class="material-symbols-outlined text-4xl text-gray-600">reviews</span>
+              <p class="mt-2 font-bold text-white">Chưa có đánh giá</p>
+              <p class="mt-1 text-xs text-gray-400">Hãy là người đầu tiên chia sẻ cảm nhận về phim.</p>
+            </div>
+            <div v-for="c in reviewsData.reviews" :key="c.id"
               class="bg-[#14161d]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all space-y-3 shadow-lg">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                  <img :src="c.userAvatar" :alt="c.userName"
-                    class="w-10 h-10 rounded-full object-cover border border-white/10" />
+                  <div class="flex h-10 w-10 items-center justify-center rounded-full border border-red-400/20 bg-red-600/15 text-xs font-black text-red-200">{{ reviewerInitials(c.user_name) }}</div>
                   <div>
-                    <h4 class="text-sm font-bold text-white">{{ c.userName }}</h4>
-                    <span class="text-[10px] text-gray-500">{{ c.date }}</span>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h4 class="text-sm font-bold text-white">{{ c.user_name }}</h4>
+                      <span v-if="c.verified_purchase" class="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-300">✓ Đã mua vé</span>
+                      <span v-if="c.user_id === currentUser?.id" class="rounded-full bg-sky-500/10 px-2 py-0.5 text-[9px] font-bold text-sky-300">Của bạn</span>
+                    </div>
+                    <span class="text-[10px] text-gray-500">{{ reviewDate(c.updated_at) }}{{ c.updated_at !== c.created_at ? ' · Đã chỉnh sửa' : '' }}</span>
                   </div>
                 </div>
 
@@ -497,13 +490,9 @@ function toggleLike(comment: typeof comments.value[0]) {
                 {{ c.content }}
               </p>
 
-              <div class="flex items-center justify-between pt-2 border-t border-white/5">
-                <button @click="toggleLike(c)" class="flex items-center gap-1.5 text-xs font-semibold transition-colors"
-                  :class="c.isLiked ? 'text-red-500' : 'text-gray-400 hover:text-white'">
-                  <span class="material-symbols-outlined text-sm">{{ c.isLiked ? 'favorite' : 'favorite_border'
-                    }}</span>
-                  <span>{{ c.likes }} Hữu ích</span>
-                </button>
+              <div v-if="c.user_id === currentUser?.id" class="flex items-center justify-end gap-3 pt-2 border-t border-white/5">
+                <button @click="editReview(c)" class="text-xs font-bold text-sky-300 hover:text-sky-200">Chỉnh sửa</button>
+                <button @click="deleteReview(c)" class="text-xs font-bold text-red-400 hover:text-red-300">Xóa</button>
               </div>
             </div>
 

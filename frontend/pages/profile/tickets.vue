@@ -165,7 +165,7 @@ onMounted(async () => {
                   <h3 class="font-black text-base text-on-surface line-clamp-2 mt-1 leading-snug">{{ ticket.movieTitle }}
                   </h3>
                   <p class="text-[11px] text-on-surface-variant mt-1">Mã đặt vé: <span
-                      class="text-on-surface font-bold font-mono">{{ ticket.id }}</span></p>
+                      class="text-on-surface font-bold font-mono">{{ ticket.ticketCode || ticket.id }}</span></p>
                 </div>
               </div>
 
@@ -207,7 +207,7 @@ onMounted(async () => {
               </div>
               <div>
                 <span class="text-[10px] text-on-surface-variant uppercase tracking-wider block">Quét tại quầy vé</span>
-                <span class="text-xs font-bold text-on-surface mt-0.5 block font-mono">{{ ticket.id }}</span>
+                <span class="text-xs font-bold text-on-surface mt-0.5 block font-mono">{{ ticket.ticketCode || ticket.id }}</span>
               </div>
             </div>
 
@@ -288,7 +288,7 @@ onMounted(async () => {
                 class="w-40 h-40 md:w-48 md:h-48" />
             </div>
             <p class="text-center text-xs text-on-surface-variant uppercase tracking-widest">Mã đặt vé</p>
-            <p class="text-center text-lg font-bold text-white font-mono mt-0.5">{{ selectedTicket.id }}</p>
+            <p class="text-center text-lg font-bold text-white font-mono mt-0.5">{{ selectedTicket.ticketCode || selectedTicket.id }}</p>
           </div>
 
           <!-- Detailed Info Grid -->
