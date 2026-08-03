@@ -64,6 +64,9 @@ async def create_user(db: AsyncSession, user_in: UserCreate, default_role_code: 
         full_name=user_in.full_name,
         date_of_birth=user_in.date_of_birth,
         gender=user_in.gender,
+        address=user_in.address,
+        receive_marketing_emails=user_in.receive_marketing_emails,
+        is_verified=False,
         roles=[role],
     )
     db.add(user)

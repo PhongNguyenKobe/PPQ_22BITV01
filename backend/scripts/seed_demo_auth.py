@@ -70,6 +70,7 @@ async def upsert_demo_users(session: AsyncSession) -> None:
         user.password_hash = get_password_hash(payload["password"])
         user.full_name = payload["full_name"]
         user.is_active = True
+        user.is_verified = True
         user.roles = [role]
 
     await session.commit()

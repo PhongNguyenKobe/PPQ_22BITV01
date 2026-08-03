@@ -95,20 +95,64 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  async function register(payload: { name: string; email: string; phone: string; password: string; dateOfBirth?: string; gender?: string }): Promise<boolean> {
+  async function register(payload: {
+    name: string
+    email: string
+    phone: string
+    password: string
+    dateOfBirth?: string
+    gender?: string
+    address?: string
+    receiveMarketingEmails?: boolean
+  }): Promise<boolean> {
     authError.value = ''
     try {
-      const response = await authService.register({
+      await authService.register({
         full_name: payload.name,
         email: payload.email,
         phone: payload.phone,
         password: payload.password,
         date_of_birth: payload.dateOfBirth || null,
         gender: payload.gender || null,
+        address: payload.address || null,
+        receive_marketing_emails: payload.receiveMarketingEmails !== false,
       })
+      return true
+    } catch (error) {
+      authError.value = errorMessage(error)
+      return false
+    }
+  }
+
+  async function verifyOtp(identifier: string, code: string): Promise<boolean> {
+    authError.value = ''
+    try {
+      const response = await authService.verifyOtp({ identifier, code })
       const mappedUser = mapBackendUserToProfile(response.user, response.access_token)
       registeredUsers.value = [mappedUser]
       setSession(mappedUser, response.access_token)
+      return true
+    } catch (error) {
+      authError.value = errorMessage(error)
+      return false
+    }
+  }
+
+  async function forgotPassword(identifier: string): Promise<boolean> {
+    authError.value = ''
+    try {
+      await authService.forgotPassword(identifier)
+      return true
+    } catch (error) {
+      authError.value = errorMessage(error)
+      return false
+    }
+  }
+
+  async function resetPassword(payload: { identifier: string; code: string; new_password: string }): Promise<boolean> {
+    authError.value = ''
+    try {
+      await authService.resetPassword(payload)
       return true
     } catch (error) {
       authError.value = errorMessage(error)
@@ -128,6 +172,9 @@ export const useUserStore = defineStore('user', () => {
     authError,
     login,
     register,
+    verifyOtp,
+    forgotPassword,
+    resetPassword,
     refreshCurrentUser,
     logout
   }

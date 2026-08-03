@@ -37,11 +37,13 @@ class UserBase(BaseModel):
     full_name: str = Field(min_length=1, max_length=150)
     date_of_birth: date | None = None
     gender: str | None = Field(default=None, max_length=10)
+    address: str | None = Field(default=None, max_length=255)
+    receive_marketing_emails: bool = True
 
 
 class UserCreate(UserBase):
     phone: str = Field(min_length=10, max_length=10)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=8, max_length=16)
 
     @field_validator("phone")
     @classmethod
@@ -62,6 +64,8 @@ class UserUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=150)
     date_of_birth: date | None = None
     gender: str | None = Field(default=None, max_length=10)
+    address: str | None = Field(default=None, max_length=255)
+    receive_marketing_emails: bool | None = None
 
     @field_validator("phone")
     @classmethod
@@ -76,7 +80,7 @@ class UserUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=8, max_length=16)
 
     @field_validator("new_password")
     @classmethod
@@ -90,6 +94,7 @@ class UserRead(UserBase):
     id: UUID
     branch_id: UUID | None = None
     is_active: bool
+    is_verified: bool
     created_at: datetime
     updated_at: datetime
     roles: list[RoleRead] = Field(default_factory=list)

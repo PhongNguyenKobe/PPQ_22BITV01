@@ -604,7 +604,28 @@ export interface RegisterPayload {
   full_name: string
   date_of_birth?: string | null
   gender?: string | null
+  address?: string | null
+  receive_marketing_emails?: boolean
   password: string
+}
+
+export interface RegisterResponse {
+  message: string
+  email: string
+}
+
+export interface CheckIdentifierResponse {
+  exists: boolean
+  type?: 'email' | 'phone'
+}
+
+export interface VerifyOtpRequest {
+  identifier: string
+  code: string
+}
+
+export interface ResendOtpRequest {
+  identifier: string
 }
 
 export interface AuthResponse {
@@ -676,8 +697,33 @@ export const authService = {
     return res.data
   },
 
-  async register(payload: RegisterPayload): Promise<AuthResponse> {
-    const res = await apiClient.post<AuthResponse>('/auth/register', payload)
+  async register(payload: RegisterPayload): Promise<RegisterResponse> {
+    const res = await apiClient.post<RegisterResponse>('/auth/register', payload)
+    return res.data
+  },
+
+  async checkIdentifier(identifier: string): Promise<CheckIdentifierResponse> {
+    const res = await apiClient.post<CheckIdentifierResponse>('/auth/check-identifier', { identifier })
+    return res.data
+  },
+
+  async verifyOtp(payload: VerifyOtpRequest): Promise<AuthResponse> {
+    const res = await apiClient.post<AuthResponse>('/auth/verify-otp', payload)
+    return res.data
+  },
+
+  async resendOtp(identifier: string): Promise<{ message: string }> {
+    const res = await apiClient.post<{ message: string }>('/auth/resend-otp', { identifier })
+    return res.data
+  },
+
+  async forgotPassword(identifier: string): Promise<{ message: string }> {
+    const res = await apiClient.post<{ message: string }>('/auth/forgot-password', { identifier })
+    return res.data
+  },
+
+  async resetPassword(payload: { identifier: string; code: string; new_password: string }): Promise<{ message: string }> {
+    const res = await apiClient.post<{ message: string }>('/auth/reset-password', payload)
     return res.data
   },
 
