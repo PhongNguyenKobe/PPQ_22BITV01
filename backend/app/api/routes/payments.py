@@ -202,30 +202,34 @@ async def checkout(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking already has an active payment")
 
     vnpay = _is_vnpay(payload.payment_method)
+    paypal = payload.payment_method.upper() == "PAYPAL"
     if vnpay and not settings.vnpay_enabled:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="VNPAY Sandbox is not configured")
+    if paypal and not settings.paypal_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="PayPal Sandbox is not configured")
 
     booking.subtotal_price = subtotal
     booking.discount_amount = discount
     booking.total_price = final_total
     booking.promotion_id = promotion.id if promotion else None
     payment_id = uuid4()
+    
+    is_async_payment = vnpay or paypal
+    
     payment = Payment(
         id=payment_id, booking_id=booking.id, user_id=current_user.id, amount=final_total,
-        payment_method="VNPAY" if vnpay else payload.payment_method,
-        status="PENDING" if vnpay else "SUCCESS",
-        paid_at=None if vnpay else datetime.now(timezone.utc),
+        payment_method="VNPAY" if vnpay else ("PAYPAL" if paypal else payload.payment_method),
+        status="PENDING" if is_async_payment else "SUCCESS",
+        paid_at=None if is_async_payment else datetime.now(timezone.utc),
         provider_ref=payment_id.hex if vnpay else None,
     )
-    if not vnpay:
+    if not is_async_payment:
         booking.status = "CONFIRMED"
         if promotion:
             promotion.used_count += 1
     db.add(payment)
     await db.flush()
     await _history(db, payment, None, "CREATE", {"amount": str(final_total), "method": payment.payment_method}, None)
-    await db.commit()
-    await db.refresh(payment)
 
     confirmation = await generate_confirmation_number()
     payment_url = None
@@ -237,8 +241,32 @@ async def checkout(
             ip_address=_client_ip(request),
             expires_at=booking.expires_at or datetime.now(timezone.utc) + timedelta(minutes=15),
         )
+    elif paypal:
+        from app.services.paypal import create_paypal_order
+        base_api_url = f"{str(request.base_url).rstrip('/')}{settings.api_v1_prefix}"
+        try:
+            paypal_order = await create_paypal_order(
+                amount=payment.amount,
+                payment_id=payment.id,
+                base_api_url=base_api_url,
+            )
+            payment.provider_ref = paypal_order["id"]
+            for link in paypal_order["links"]:
+                if link["rel"] == "approve":
+                    payment_url = link["href"]
+                    break
+            if not payment_url:
+                raise ValueError("No approval link in PayPal response")
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"PayPal initialization failed: {str(e)}"
+            )
     else:
         await seat_events.broadcast(booking.showtime_id, "SEATS_UPDATED")
+
+    await db.commit()
+    await db.refresh(payment)
     return CheckoutResponse(
         order_id=booking.id, booking_id=booking.id, payment_id=payment.id,
         status=payment.status, total_amount=payment.amount,
@@ -277,6 +305,124 @@ async def vnpay_callback(request: Request, db: AsyncSession = Depends(get_db)):
         "transaction_ref": str(payment.provider_ref) if payment else None,
         "payment_status": payment.status if payment else None,
     }
+
+
+
+@router.get("/paypal/return", include_in_schema=False)
+async def paypal_return(
+    payment_id: UUID,
+    token: str,
+    PayerID: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Payment)
+        .options(selectinload(Payment.booking))
+        .where(Payment.id == payment_id)
+        .with_for_update()
+    )
+    payment = result.scalar_one_or_none()
+    if payment is None:
+        return RedirectResponse(
+            f"{settings.frontend_url.rstrip('/')}/checkout/paypal-return?result=failed&message=Payment not found",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    old_status = payment.status
+    if old_status in {"SUCCESS", "REFUNDED"}:
+        return RedirectResponse(
+            f"{settings.frontend_url.rstrip('/')}/checkout/paypal-return?result=success&payment_id={payment_id}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    if old_status == "CANCELLED":
+        return RedirectResponse(
+            f"{settings.frontend_url.rstrip('/')}/checkout/paypal-return?result=failed&payment_id={payment_id}&message=Payment already cancelled",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    try:
+        from app.services.paypal import capture_paypal_order
+        capture_res = await capture_paypal_order(token)
+        capture_status = capture_res.get("status")
+        
+        capture_id = None
+        try:
+            purchase_units = capture_res.get("purchase_units", [])
+            if purchase_units:
+                payments_obj = purchase_units[0].get("payments", {})
+                captures = payments_obj.get("captures", [])
+                if captures:
+                    capture_id = captures[0].get("id")
+        except Exception:
+            pass
+
+        if capture_status == "COMPLETED":
+            payment.status = "SUCCESS"
+            payment.paid_at = datetime.now(timezone.utc)
+            payment.response_code = "COMPLETED"
+            payment.provider_status = "COMPLETED"
+            payment.provider_transaction_no = capture_id
+            payment.transaction_id = capture_id or token
+            payment.signature_valid = True
+            payment.booking.status = "CONFIRMED"
+            
+            if payment.booking.promotion_id:
+                promotion = await db.get(Promotion, payment.booking.promotion_id, with_for_update=True)
+                if promotion:
+                    promotion.used_count += 1
+                    
+            await _history(db, payment, old_status, "PAYPAL_RETURN", capture_res, True)
+            await db.commit()
+            await seat_events.broadcast(payment.booking.showtime_id, "SEATS_UPDATED")
+            
+            return RedirectResponse(
+                f"{settings.frontend_url.rstrip('/')}/checkout/paypal-return?result=success&payment_id={payment_id}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        else:
+            payment.status = "FAILED"
+            payment.booking.status = "CANCELLED"
+            await _history(db, payment, old_status, "PAYPAL_RETURN", capture_res, False, f"PayPal status: {capture_status}")
+            await db.commit()
+            return RedirectResponse(
+                f"{settings.frontend_url.rstrip('/')}/checkout/paypal-return?result=failed&payment_id={payment_id}&message=PayPal capture status: {capture_status}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+    except Exception as e:
+        payment.status = "FAILED"
+        payment.booking.status = "CANCELLED"
+        await _history(db, payment, old_status, "PAYPAL_RETURN", {"error": str(e)}, False, "PayPal capture exception")
+        await db.commit()
+        return RedirectResponse(
+            f"{settings.frontend_url.rstrip('/')}/checkout/paypal-return?result=failed&payment_id={payment_id}&message={str(e)}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+@router.get("/paypal/cancel", include_in_schema=False)
+async def paypal_cancel(
+    payment_id: UUID,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Payment)
+        .options(selectinload(Payment.booking))
+        .where(Payment.id == payment_id)
+        .with_for_update()
+    )
+    payment = result.scalar_one_or_none()
+    if payment:
+        old_status = payment.status
+        if old_status == "PENDING":
+            payment.status = "CANCELLED"
+            payment.booking.status = "CANCELLED"
+            await _history(db, payment, old_status, "PAYPAL_CANCEL", {"token": token}, None, "User cancelled PayPal checkout")
+            await db.commit()
+    return RedirectResponse(
+        f"{settings.frontend_url.rstrip('/')}/checkout/paypal-return?result=cancelled&payment_id={payment_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 

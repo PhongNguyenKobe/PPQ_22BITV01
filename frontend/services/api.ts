@@ -1622,6 +1622,30 @@ export const checkoutService = {
     }
   },
 
+  async createPaypalPayment(bookingDetails: {
+    showtimeId: string
+    seats: string[]
+    totalAmount: number
+    promotionCode?: string
+  }): Promise<{ paymentUrl: string; transactionRef: string }> {
+    const bookingRes = await apiClient.post<any>('/bookings', {
+      showtime_id: bookingDetails.showtimeId,
+      seat_ids: bookingDetails.seats,
+      quantity: bookingDetails.seats.length,
+      total_price: bookingDetails.totalAmount,
+    })
+    const response = await apiClient.post<any>('/payments/checkout', {
+      booking_id: bookingRes.data.id,
+      amount: bookingDetails.totalAmount,
+      payment_method: 'PAYPAL',
+      promotion_code: bookingDetails.promotionCode || null,
+    })
+    return {
+      paymentUrl: response.data.payment_url,
+      transactionRef: response.data.payment_id,
+    }
+  },
+
   async cancelPendingPayment(paymentId: string): Promise<void> {
     await apiClient.post(`/payments/${paymentId}/cancel`)
   },

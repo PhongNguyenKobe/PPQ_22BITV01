@@ -40,6 +40,9 @@ class Settings(BaseSettings):
         "http://localhost:8000/api/v1/payments/vnpay/return",
         validation_alias="VNPAY_RETURN_URL",
     )
+    paypal_client_id: str = Field("", validation_alias="PAYPAL_CLIENT_ID")
+    paypal_client_secret: str = Field("", validation_alias="PAYPAL_CLIENT_SECRET")
+    paypal_mode: str = Field("sandbox", validation_alias="PAYPAL_MODE")
     backend_cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
@@ -62,6 +65,10 @@ class Settings(BaseSettings):
     @property
     def vnpay_enabled(self) -> bool:
         return bool(self.vnpay_tmn_code and self.vnpay_hash_secret)
+
+    @property
+    def paypal_enabled(self) -> bool:
+        return bool(self.paypal_client_id and self.paypal_client_secret)
 
 
 @lru_cache

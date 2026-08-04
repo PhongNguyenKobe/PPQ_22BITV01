@@ -29,7 +29,7 @@ const voucherError = ref('')
 const voucherSuccessMsg = ref('')
 
 const paymentMethods = [
-  { name: 'Ví Momo', icon: 'payments', desc: 'Tạm thời chưa phát triển', enabled: false },
+  { name: 'Paypal', icon: 'payments', desc: 'Thanh toán qua Paypal', enabled: true },
   { name: 'Ví VNPAY', icon: 'account_balance_wallet', desc: 'Thanh toán qua cổng VNPAY', enabled: true },
   { name: 'Thẻ ATM/Tín Dụng', icon: 'credit_card', desc: 'Tạm thời chưa phát triển', enabled: false },
   { name: 'Quét Mã QR', icon: 'qr_code_scanner', desc: 'Tạm thời chưa phát triển', enabled: false }
@@ -107,7 +107,19 @@ async function handleConfirmPayment() {
       }
       return
     }
-    purchaseError.value = 'Phương thức này tạm thời chưa phát triển. Vui lòng chọn VNPAY.'
+    if (selectedPayment.value === 'Paypal') {
+      const payment = await ticketsStore.startPaypalPayment(
+        isVoucherApplied.value ? voucherCode.value : undefined,
+        finalTotal.value,
+      )
+      if (payment && payment.paymentUrl) {
+        if (process.client) {
+          window.location.assign(payment.paymentUrl)
+        }
+      }
+      return
+    }
+    purchaseError.value = 'Phương thức này tạm thời chưa phát triển. Vui lòng chọn VNPAY hoặc Paypal.'
   } catch (e) {
     console.error('Payment confirmation error', e)
   } finally {

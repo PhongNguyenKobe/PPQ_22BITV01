@@ -241,6 +241,41 @@ export const useTicketsStore = defineStore('tickets', () => {
     }
   }
 
+  async function startPaypalPayment(
+    promotionCode?: string,
+    payableAmount?: number,
+  ): Promise<{ paymentUrl: string; transactionRef: string } | null> {
+    if (!selectedShowtime.value || selectedSeats.value.length === 0) {
+      purchaseError.value = 'Vui lòng chọn suất chiếu và ghế trước khi thanh toán.'
+      return null
+    }
+    if (isShowtimeExpired(selectedShowtime.value)) {
+      purchaseError.value = 'Đã hết thời gian mua vé cho suất chiếu này. Vui lòng chọn suất khác.'
+      return null
+    }
+
+    loading.value = true
+    purchaseError.value = ''
+    try {
+      const payment = await checkoutService.createPaypalPayment({
+        showtimeId: selectedShowtime.value.id,
+        seats: selectedSeats.value.map((seat) => seat.id),
+        totalAmount: payableAmount ?? totalAmount.value,
+        promotionCode,
+      })
+      return payment
+    } catch (e: any) {
+      purchaseError.value =
+        e?.status === 404 || e?.status === 409
+          ? 'Suất chiếu đã hết hạn hoặc ngừng bán vé. Vui lòng chọn suất khác.'
+          : e?.message || 'Không thể khởi tạo thanh toán PayPal. Vui lòng thử lại.'
+      console.error('PayPal payment initialization failed:', e)
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     selectedMovie,
     selectedCinema,
@@ -262,6 +297,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     clearSelection,
     purchaseTickets,
     startVnpayPayment,
+    startPaypalPayment,
     loadTicketHistory,
     requestCancellation,
   }

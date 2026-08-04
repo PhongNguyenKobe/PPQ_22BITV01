@@ -41,6 +41,9 @@ services:
       CANCELLATION_CUTOFF_MINUTES: ${CANCELLATION_CUTOFF_MINUTES:-120}
       RUN_SEED: ${RUN_SEED:-1}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      PAYPAL_MODE: ${PAYPAL_MODE:-sandbox}
     command: >
       sh -c "alembic upgrade head &&
       if [ \"$${RUN_SEED}\" = \"1\" ]; then python scripts/seed_demo_auth.py; fi &&

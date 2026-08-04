@@ -57,7 +57,7 @@ const TMDB_GENRES_VI: Record<number, string> = {
   37: 'Miền Tây',
 }
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<any> => {
   const config = useRuntimeConfig()
   const id = getRouterParam(event, 'id')
   const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || ''))
