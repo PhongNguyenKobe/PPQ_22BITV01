@@ -54,8 +54,10 @@ watch(ticketHistory, () => {
 
 const canRequestCancellation = computed(() => {
   if (!selectedTicket.value || selectedTicket.value.status !== 'CONFIRMED') return false
-  const cutoffMs = 120 * 60 * 1000
-  return new Date(`${selectedTicket.value.date}T${selectedTicket.value.time}`).getTime() - cutoffMs > Date.now()
+  const bookingTime = new Date(selectedTicket.value.bookingDate).getTime()
+  const limitMs = 24 * 60 * 60 * 1000 // 24 hours
+  const showtime = new Date(`${selectedTicket.value.date}T${selectedTicket.value.time}`).getTime()
+  return (Date.now() - bookingTime <= limitMs) && (Date.now() < showtime)
 })
 
 function closeTicketDetails() {
@@ -158,10 +160,24 @@ onMounted(async () => {
                 <img :src="ticket.poster" :alt="ticket.movieTitle"
                   class="w-20 h-28 object-cover rounded-xl border border-glass-stroke flex-shrink-0" />
                 <div>
-                  <span
-                    class="text-[10px] bg-primary-container/10 border border-primary-container/20 text-primary-container px-2 py-0.5 rounded font-bold uppercase">
-                    Vé Đã Xác Nhận
-                  </span>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span v-if="ticket.status === 'CANCELLED'"
+                      class="text-[10px] bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold uppercase">
+                      Đã Hủy
+                    </span>
+                    <span v-else-if="ticket.status === 'CANCEL_REQUESTED'"
+                      class="text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold uppercase">
+                      Chờ Hủy
+                    </span>
+                    <span v-else-if="ticket.checkedInAt"
+                      class="text-[10px] bg-gray-500/10 border border-gray-500/20 text-gray-400 px-2 py-0.5 rounded font-bold uppercase">
+                      Đã Sử Dụng
+                    </span>
+                    <span v-else
+                      class="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">
+                      Chưa Sử Dụng
+                    </span>
+                  </div>
                   <h3 class="font-black text-base text-on-surface line-clamp-2 mt-1 leading-snug">{{ ticket.movieTitle }}
                   </h3>
                   <p class="text-[11px] text-on-surface-variant mt-1">Mã đặt vé: <span
@@ -270,9 +286,24 @@ onMounted(async () => {
             <img :src="selectedTicket.poster"
               class="w-24 h-36 md:w-28 md:h-40 rounded-xl border border-glass-stroke shadow-2xl object-cover z-10" />
             <div class="pb-1 z-10 flex-1">
-              <span
-                class="bg-primary-container text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">Vé
-                Đã Thanh Toán</span>
+              <div class="flex flex-wrap gap-1.5">
+                <span v-if="selectedTicket.status === 'CANCELLED'"
+                  class="bg-red-500 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">
+                  Đã Hủy
+                </span>
+                <span v-else-if="selectedTicket.status === 'CANCEL_REQUESTED'"
+                  class="bg-amber-500 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">
+                  Chờ Hủy
+                </span>
+                <span v-else-if="selectedTicket.checkedInAt"
+                  class="bg-gray-500 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">
+                  Đã Sử Dụng
+                </span>
+                <span v-else
+                  class="bg-emerald-600 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">
+                  Chưa Sử Dụng
+                </span>
+              </div>
               <h2 class="text-xl md:text-2xl font-black text-white mt-2 leading-tight line-clamp-2">{{
                 selectedTicket.movieTitle }}</h2>
             </div>
@@ -311,6 +342,18 @@ onMounted(async () => {
                 <p class="text-on-surface-variant text-[11px] uppercase tracking-wider mb-1">Ghế Ngồi</p>
                 <p class="font-bold text-white">{{ selectedTicket.seats.join(', ') }}</p>
               </div>
+              <div>
+                <p class="text-on-surface-variant text-[11px] uppercase tracking-wider mb-1">Trạng Thái Vé</p>
+                <p v-if="selectedTicket.status === 'CANCELLED'" class="font-bold text-red-400">Đã Hủy</p>
+                <p v-else-if="selectedTicket.status === 'CANCEL_REQUESTED'" class="font-bold text-amber-400">Chờ Hủy</p>
+                <p v-else-if="selectedTicket.checkedInAt" class="font-bold text-gray-400">
+                  Đã Sử Dụng
+                  <span class="block text-[10px] font-normal text-on-surface-variant/80 mt-0.5">
+                    Vào rạp: {{ formatDateTime(selectedTicket.checkedInAt) }}
+                  </span>
+                </p>
+                <p v-else class="font-bold text-emerald-400">Chưa Sử Dụng</p>
+              </div>
             </div>
 
             <div class="border-t border-glass-stroke/50 pt-4 flex justify-between items-center">
@@ -346,7 +389,7 @@ onMounted(async () => {
               {{ cancellationLoading ? 'Đang gửi...' : 'Yêu cầu hủy vé' }}
             </button>
             <p v-if="selectedTicket.status === 'CONFIRMED'" class="mt-2 text-[11px] text-on-surface-variant">
-              Yêu cầu hủy phải được gửi trước giờ chiếu ít nhất 120 phút và cần Branch Admin phê duyệt.
+              Yêu cầu hủy phải được gửi trong vòng 24 giờ sau khi thanh toán và cần Quản trị phê duyệt.
             </p>
           </div>
         </div>

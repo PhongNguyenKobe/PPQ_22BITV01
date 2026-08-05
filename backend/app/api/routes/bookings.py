@@ -46,11 +46,30 @@ async def request_booking_cancellation(
         return {"id": booking.id, "status": booking.status, "reason": booking.cancellation_reason}
     if booking.status != "CONFIRMED":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a confirmed booking can request cancellation")
-    cancellation_deadline = booking.showtime.starts_at - timedelta(minutes=settings.cancellation_cutoff_minutes)
-    if cancellation_deadline <= datetime.now(timezone.utc):
+    
+    payment_time = booking.created_at
+    successful_payment = next(
+        (payment for payment in booking.payments if payment.status == "SUCCESS"),
+        None,
+    )
+    if successful_payment:
+        payment_time = successful_payment.created_at
+
+    if payment_time.tzinfo is None:
+        payment_time = payment_time.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > payment_time + timedelta(hours=24):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cancellation must be requested at least {settings.cancellation_cutoff_minutes} minutes before showtime",
+            detail="Cancellation can only be requested within 24 hours of payment",
+        )
+
+    starts_at = booking.showtime.starts_at
+    if starts_at.tzinfo is None:
+        starts_at = starts_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) >= starts_at:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot request cancellation for a showtime that has already started",
         )
     booking.status = "CANCEL_REQUESTED"
     booking.cancellation_reason = reason.strip()

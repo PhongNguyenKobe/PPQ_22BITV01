@@ -600,6 +600,7 @@ export interface BackendUser {
   created_at: string
   updated_at: string
   roles: BackendRole[]
+  branch_id?: string | null
 }
 
 export interface AuthCredentials {
@@ -682,6 +683,7 @@ export function mapBackendUserToProfile(user: BackendUser, token?: string): User
     phone: user.phone,
     dateOfBirth: user.date_of_birth,
     gender: user.gender,
+    branchId: user.branch_id || undefined,
     token,
   }
 }

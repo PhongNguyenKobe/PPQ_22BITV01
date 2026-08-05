@@ -2,13 +2,25 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.security import get_password_hash
 from app.models.user import Role, User
 from app.schemas.user import UserCreate, UserUpdate
+
+
+async def populate_user_branch_id(db: AsyncSession, user: User) -> None:
+    user.branch_id = None
+    user_roles = [role.code for role in user.roles]
+    if "BRANCH_ADMIN" in user_roles or "STAFF" in user_roles:
+        row = (await db.execute(
+            text("SELECT branch_id FROM branch_staff WHERE user_id = :user_id AND is_active = TRUE LIMIT 1"),
+            {"user_id": user.id}
+        )).first()
+        if row:
+            user.branch_id = row.branch_id
 
 
 async def get_role_by_code(db: AsyncSession, code: str) -> Role | None:
@@ -18,24 +30,36 @@ async def get_role_by_code(db: AsyncSession, code: str) -> Role | None:
 
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     result = await db.execute(select(User).options(selectinload(User.roles)).where(User.email == email))
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if user:
+        await populate_user_branch_id(db, user)
+    return user
 
 
 async def get_user_by_phone(db: AsyncSession, phone: str) -> User | None:
     result = await db.execute(select(User).options(selectinload(User.roles)).where(User.phone == phone))
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if user:
+        await populate_user_branch_id(db, user)
+    return user
 
 
 async def get_user_by_identifier(db: AsyncSession, identifier: str) -> User | None:
     result = await db.execute(
         select(User).options(selectinload(User.roles)).where(or_(User.email == identifier, User.phone == identifier))
     )
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if user:
+        await populate_user_branch_id(db, user)
+    return user
 
 
 async def get_user_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     result = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == user_id))
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if user:
+        await populate_user_branch_id(db, user)
+    return user
     
 async def list_users(db: AsyncSession, skip: int = 0, limit: int = 20) -> list[User]:
     result = await db.execute(

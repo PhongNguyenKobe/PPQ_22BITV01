@@ -26,10 +26,17 @@ DEMO_USERS = [
     },
     {
         "email": "admin@cineai.vn",
-        "phone": "0900000002",
+        "phone": "0900000099",
         "full_name": "Quản Trị Viên CineAI",
         "password": "admin123",
         "role": "SUPER_ADMIN",
+    },
+    {
+        "email": "branchadmin.hcm@cinema.vn",
+        "phone": "0900000002",
+        "full_name": "Branch Admin HCM",
+        "password": "admin123",
+        "role": "BRANCH_ADMIN",
     },
 ]
 

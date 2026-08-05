@@ -36,6 +36,9 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
         raise credentials_exception
+    
+    from app.crud.user import populate_user_branch_id
+    await populate_user_branch_id(db, user)
     return user
 
 
