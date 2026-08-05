@@ -41,6 +41,12 @@ class BookingCreate(BaseModel):
     seat_ids: list[UUID]
     quantity: int = Field(gt=0, le=10)
     total_price: Decimal
+    combo_items: list["BookingComboItem"] = Field(default_factory=list, max_length=10)
+
+
+class BookingComboItem(BaseModel):
+    combo_id: UUID
+    quantity: int = Field(ge=1, le=10)
 
 
 class BookingRead(BaseModel):
@@ -64,6 +70,9 @@ class BookingRead(BaseModel):
     discount_amount: Decimal = Decimal("0")
     promotion_code: str | None = None
     status: str  # 'PENDING', 'CONFIRMED', 'CANCEL_REQUESTED', 'CANCELLED', 'EXPIRED'
+    ticket_code: str | None = None
+    qr_code: str | None = None
+    checked_in_at: datetime | None = None
     cancellation_reason: str | None = None
     cancellation_requested_at: datetime | None = None
     cancellation_review_note: str | None = None

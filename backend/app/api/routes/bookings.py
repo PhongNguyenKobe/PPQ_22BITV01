@@ -24,6 +24,10 @@ from app.schemas.booking import (
     BookingListResponse,
 )
 from app.models.user import User
+from app.models.commerce import BookingCombo, Combo
+from app.models.catalog import Auditorium, Showtime
+from sqlalchemy import select
+from decimal import Decimal
 
 router = APIRouter()
 
@@ -128,6 +132,28 @@ async def create_booking(
                 detail="Your seat hold expired. Please select the seats again.",
             ) from None
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="One or more seats are already booked") from None
+    if payload.combo_items:
+        branch_id = await db.scalar(
+            select(Auditorium.branch_id).join(Showtime, Showtime.auditorium_id == Auditorium.id).where(Showtime.id == payload.showtime_id)
+        )
+        requested = {item.combo_id: item.quantity for item in payload.combo_items}
+        combos = list((await db.execute(
+            select(Combo).where(Combo.id.in_(requested), Combo.branch_id == branch_id, Combo.is_active.is_(True))
+        )).scalars().all())
+        if len(combos) != len(requested):
+            raise HTTPException(status_code=400, detail="Một combo không còn bán tại chi nhánh này")
+        combo_total = Decimal("0")
+        for combo in combos:
+            quantity = requested[combo.id]
+            if combo.stock_quantity is not None and combo.stock_quantity < quantity:
+                raise HTTPException(status_code=409, detail=f"Combo {combo.name} không đủ số lượng")
+            line_total = combo.price * quantity
+            combo_total += line_total
+            db.add(BookingCombo(booking_id=booking.id, combo_id=combo.id, combo_name=combo.name, unit_price=combo.price, quantity=quantity, line_total=line_total))
+        booking.subtotal_price += combo_total
+        booking.total_price += combo_total
+        await db.commit()
+        booking = await get_user_booking(db, booking.id, current_user.id)
     return BookingRead(**booking_to_dict(booking))
 
 

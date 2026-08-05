@@ -9,7 +9,7 @@ definePageMeta({
 })
 
 const ticketsStore = useTicketsStore()
-const { selectedMovie, selectedCinema, selectedShowtime, selectedSeats, totalAmount } = storeToRefs(ticketsStore)
+const { selectedMovie, selectedCinema, selectedShowtime, selectedSeats, totalAmount, holdError } = storeToRefs(ticketsStore)
 const showtimeExpired = computed(() => isShowtimeExpired(selectedShowtime.value))
 
 const backgroundStyle = computed(() => {
@@ -30,7 +30,7 @@ async function goBackToShowtimes() {
 }
 
 onBeforeRouteLeave(async (to) => {
-  if (to.path !== '/checkout/payment') {
+  if (!['/checkout/combo', '/checkout/payment'].includes(to.path)) {
     await ticketsStore.releaseCurrentSeatHolds()
   }
 })
@@ -43,8 +43,8 @@ onMounted(() => {
 })
 
 function handleProceedToPayment() {
-  if (selectedSeats.value.length === 0 || showtimeExpired.value) return
-  navigateTo('/checkout/payment')
+  if (selectedSeats.value.length === 0 || showtimeExpired.value || holdError.value) return
+  navigateTo('/checkout/combo')
 }
 </script>
 
@@ -134,7 +134,7 @@ function handleProceedToPayment() {
 
             <button
               @click="handleProceedToPayment"
-              :disabled="selectedSeats.length === 0 || showtimeExpired"
+              :disabled="selectedSeats.length === 0 || showtimeExpired || !!holdError"
               class="summary-next"
             >
               Tiếp tục thanh toán

@@ -8,7 +8,7 @@ definePageMeta({
   middleware: ['auth'],
 })
 
-type AdminTab = 'overview' | 'users' | 'movies' | 'promotions' | 'branches' | 'schedule-monitor' | 'auditoriums' | 'seats' | 'showtimes' | 'bookings' | 'payments' | 'reports'
+type AdminTab = 'overview' | 'users' | 'movies' | 'promotions' | 'combos' | 'branches' | 'schedule-monitor' | 'auditoriums' | 'seats' | 'showtimes' | 'bookings' | 'payments' | 'ticket-scanner' | 'reports'
 type AdminTabItem = {
   key: AdminTab
   label: string
@@ -23,11 +23,13 @@ const allTabItems: AdminTabItem[] = [
   { key: 'branches', label: 'Chi nhánh', icon: 'location_city', description: 'Khu vực và cụm rạp' },
   { key: 'schedule-monitor', label: 'Giám sát lịch chiếu', icon: 'calendar_view_week', description: 'Xem phim và suất chiếu theo từng chi nhánh' },
   { key: 'promotions', label: 'Khuyến mãi', icon: 'sell', description: 'Mã giảm giá và giới hạn sử dụng' },
+  { key: 'combos', label: 'Combo bắp nước', icon: 'fastfood', description: 'Tạo và quản lý combo của chi nhánh' },
   { key: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters', description: 'Màn hình và sức chứa' },
   { key: 'seats', label: 'Ghế ngồi', icon: 'event_seat', description: 'Sơ đồ ghế theo phòng' },
   { key: 'showtimes', label: 'Suất chiếu', icon: 'schedule', description: 'Lịch chiếu đang mở bán' },
   { key: 'bookings', label: 'Đơn đặt vé', icon: 'confirmation_number', description: 'Tra cứu và xử lý đơn vé' },
   { key: 'payments', label: 'Thanh toán', icon: 'payments', description: 'Giao dịch và hoàn tiền' },
+  { key: 'ticket-scanner', label: 'Soát vé QR', icon: 'qr_code_scanner', description: 'Kiểm tra và xác nhận vé vào rạp' },
   { key: 'reports', label: 'Báo cáo', icon: 'analytics', description: 'Doanh thu và hiệu suất vận hành' },
 ]
 
@@ -39,7 +41,7 @@ const isBranchAdmin = computed(() => currentUser.value?.role === 'branch-admin')
 const tabItems = computed(() =>
   allTabItems.filter((tab) =>
     isBranchAdmin.value
-      ? ['auditoriums', 'seats', 'showtimes', 'bookings', 'payments'].includes(tab.key)
+      ? ['auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(tab.key)
       : ['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'bookings', 'payments', 'reports'].includes(tab.key),
   ),
 )
@@ -47,8 +49,8 @@ const tabItems = computed(() =>
 const requestedTab = String(route.query.tab || '')
 const activeTab = ref<AdminTab>(
   currentUser.value?.role === 'branch-admin'
-    ? (['auditoriums', 'seats', 'showtimes', 'bookings', 'payments'].includes(requestedTab) ? requestedTab as AdminTab : 'auditoriums')
-    : (allTabItems.some(item => item.key === requestedTab) ? requestedTab as AdminTab : 'overview'),
+    ? (['auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(requestedTab) ? requestedTab as AdminTab : 'auditoriums')
+    : (['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'bookings', 'payments', 'reports'].includes(requestedTab) ? requestedTab as AdminTab : 'overview'),
 )
 
 const tabRenderKeys = ref<Record<AdminTab, number>>({
@@ -56,6 +58,7 @@ const tabRenderKeys = ref<Record<AdminTab, number>>({
   users: 0,
   movies: 0,
   promotions: 0,
+  combos: 0,
   branches: 0,
   'schedule-monitor': 0,
   auditoriums: 0,
@@ -63,6 +66,7 @@ const tabRenderKeys = ref<Record<AdminTab, number>>({
   showtimes: 0,
   bookings: 0,
   payments: 0,
+  'ticket-scanner': 0,
   reports: 0,
 })
 
@@ -143,6 +147,11 @@ function refreshActiveTab() {
 
     <section v-if="activeTab === 'payments'" class="space-y-4">
       <AdminPayments :key="tabRenderKeys.payments" />
+    </section>
+    <section v-if="activeTab === 'combos'" class="space-y-4"><AdminCombos :key="tabRenderKeys.combos" /></section>
+
+    <section v-if="activeTab === 'ticket-scanner'" class="space-y-4">
+      <AdminTicketScanner :key="tabRenderKeys['ticket-scanner']" />
     </section>
 
     <section v-if="activeTab === 'reports'" class="space-y-4">

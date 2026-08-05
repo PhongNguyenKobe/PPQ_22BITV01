@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { movieService, type Seat } from '~/services/api'
+import { leavesNewSingleSeatGap } from '~/utils/seatGap'
 
 const ticketsStore = useTicketsStore()
 const { selectedShowtime, selectedSeats, holdExpiresAt, holdError } = storeToRefs(ticketsStore)
@@ -22,6 +23,12 @@ async function refreshSeats() {
     price: seat.price > 0 ? seat.price : selectedShowtime.value?.price || 0,
   }))
   selectedSeats.value = seatsList.value.filter((seat) => seat.status === 'selected')
+  if (
+    selectedSeats.value.length
+    && leavesNewSingleSeatGap(seatsList.value, new Set(selectedSeats.value.map(seat => seat.id)))
+  ) {
+    holdError.value = 'Lựa chọn hiện tại đang để lại một ghế trống riêng lẻ. Vui lòng bỏ ghế đã chọn và chọn lại cụm ghế liền nhau.'
+  }
 }
 
 const holdSecondsRemaining = computed(() => {
@@ -88,6 +95,17 @@ function isSeatSelected(seatId: string): boolean {
 
 async function handleSeatClick(seat: Seat) {
   if (seat.status === 'occupied') return
+
+  const nextSelectedIds = new Set(selectedSeats.value.map(item => item.id))
+  if (nextSelectedIds.has(seat.id)) {
+    nextSelectedIds.delete(seat.id)
+  } else {
+    nextSelectedIds.add(seat.id)
+  }
+  if (leavesNewSingleSeatGap(seatsList.value, nextSelectedIds)) {
+    holdError.value = `Không thể chọn ghế ${seat.row}${seat.number}. Vui lòng không để lại một ghế trống riêng lẻ.`
+    return
+  }
   
   // Clone seat status update
   const seatObj = {

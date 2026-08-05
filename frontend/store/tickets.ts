@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { checkoutService, movieService, usersApi, type Showtime, type Seat, type UserTicket } from '~/services/api'
+import { checkoutService, movieService, usersApi, type Showtime, type Seat, type UserTicket, type CinemaCombo } from '~/services/api'
 import { isShowtimeExpired } from '~/utils/showtime'
 
 export const useTicketsStore = defineStore('tickets', () => {
@@ -8,6 +8,7 @@ export const useTicketsStore = defineStore('tickets', () => {
   const selectedCinema = ref<string>('') // Cinema branch name
   const selectedShowtime = ref<Showtime | null>(null)
   const selectedSeats = ref<Seat[]>([])
+  const selectedCombos = ref<Array<{ combo: CinemaCombo; quantity: number }>>([])
   const ticketHistory = ref<UserTicket[]>([])
   const loading = ref(false)
   const purchaseError = ref('')
@@ -28,6 +29,7 @@ export const useTicketsStore = defineStore('tickets', () => {
         selectedCinema.value = parsed.selectedCinema || ''
         selectedShowtime.value = parsed.selectedShowtime || null
         selectedSeats.value = Array.isArray(parsed.selectedSeats) ? parsed.selectedSeats : []
+        selectedCombos.value = Array.isArray(parsed.selectedCombos) ? parsed.selectedCombos : []
         holdExpiresAt.value = parsed.holdExpiresAt || null
       } catch {
         sessionStorage.removeItem('cineai_checkout_selection')
@@ -42,12 +44,13 @@ export const useTicketsStore = defineStore('tickets', () => {
       }
     }
     watch(
-      [selectedMovie, selectedCinema, selectedShowtime, selectedSeats, holdExpiresAt],
+      [selectedMovie, selectedCinema, selectedShowtime, selectedSeats, selectedCombos, holdExpiresAt],
       () => sessionStorage.setItem('cineai_checkout_selection', JSON.stringify({
         selectedMovie: selectedMovie.value,
         selectedCinema: selectedCinema.value,
         selectedShowtime: selectedShowtime.value,
         selectedSeats: selectedSeats.value,
+        selectedCombos: selectedCombos.value,
         holdExpiresAt: holdExpiresAt.value,
       })),
       { deep: true },
@@ -56,7 +59,12 @@ export const useTicketsStore = defineStore('tickets', () => {
 
   const totalAmount = computed(() => {
     return selectedSeats.value.reduce((sum, seat) => sum + seat.price, 0)
+      + selectedCombos.value.reduce((sum, item) => sum + Number(item.combo.price) * item.quantity, 0)
   })
+  function setComboQuantity(combo: CinemaCombo, quantity: number) {
+    selectedCombos.value = selectedCombos.value.filter(item => item.combo.id !== combo.id)
+    if (quantity > 0) selectedCombos.value.push({ combo, quantity })
+  }
 
   async function loadTicketHistory() {
     historyLoading.value = true
@@ -87,6 +95,7 @@ export const useTicketsStore = defineStore('tickets', () => {
       }
     }
     selectedSeats.value = [] // Reset seats when showtime changes
+    selectedCombos.value = []
     purchaseError.value = ''
     holdExpiresAt.value = null
     holdError.value = ''
@@ -136,12 +145,14 @@ export const useTicketsStore = defineStore('tickets', () => {
     selectedCinema.value = ''
     selectedShowtime.value = null
     selectedSeats.value = []
+    selectedCombos.value = []
   }
 
   function selectCinema(cinema: string) {
     selectedCinema.value = cinema
     selectedShowtime.value = null
     selectedSeats.value = []
+    selectedCombos.value = []
   }
 
   function clearSelection() {
@@ -151,6 +162,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     selectedCinema.value = ''
     selectedShowtime.value = null
     selectedSeats.value = []
+    selectedCombos.value = []
     purchaseError.value = ''
     holdExpiresAt.value = null
     holdError.value = ''
@@ -227,6 +239,7 @@ export const useTicketsStore = defineStore('tickets', () => {
         seats: selectedSeats.value.map((seat) => seat.id),
         totalAmount: payableAmount ?? totalAmount.value,
         promotionCode,
+        comboItems: selectedCombos.value.map(item => ({ combo_id: item.combo.id, quantity: item.quantity })),
       })
       return payment
     } catch (e: any) {
@@ -281,6 +294,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     selectedCinema,
     selectedShowtime,
     selectedSeats,
+    selectedCombos,
     ticketHistory,
     loading,
     purchaseError,
@@ -289,6 +303,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     historyLoading,
     historyError,
     totalAmount,
+    setComboQuantity,
     selectMovie,
     selectCinema,
     selectShowtime,

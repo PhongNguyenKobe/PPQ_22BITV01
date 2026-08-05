@@ -231,7 +231,7 @@ async def checkout(
     await db.flush()
     await _history(db, payment, None, "CREATE", {"amount": str(final_total), "method": payment.payment_method}, None)
 
-    confirmation = await generate_confirmation_number()
+    confirmation = booking.ticket_code or await generate_confirmation_number()
     payment_url = None
     if vnpay:
         payment_url = build_payment_url(

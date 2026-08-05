@@ -59,8 +59,10 @@ const branchMenu = [
   { tab: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters' },
   { tab: 'seats', label: 'Ghế ngồi', icon: 'event_seat' },
   { tab: 'showtimes', label: 'Suất chiếu', icon: 'schedule' },
+  { tab: 'combos', label: 'Combo bắp nước', icon: 'fastfood' },
   { tab: 'bookings', label: 'Đơn đặt vé', icon: 'confirmation_number' },
   { tab: 'payments', label: 'Giao dịch & hoàn tiền', icon: 'payments' },
+  { tab: 'ticket-scanner', label: 'Soát vé QR', icon: 'qr_code_scanner' },
 ]
 
 function isCurrentTab(tab: string) {
