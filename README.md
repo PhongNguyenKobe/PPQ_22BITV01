@@ -1,94 +1,104 @@
 # Thông tin thành viên trong nhóm, nội dung các buổi học trong file ABOUT.md
+# CineAI - Hệ thống Đặt Vé Xem Phim Thông Minh Tích Hợp AI
 
-# Hệ thống đặt vé xem phim Full Stack với AI
-# Vue 3 + TypeScript + Vite + Nuxtjs + Axios
+**CineAI** là một nền tảng đặt vé xem phim Full-stack Multi-vendor hiện đại. Dự án được tích hợp các mô hình trí tuệ nhân tạo (AI) giúp tối ưu hóa trải nghiệm khách hàng. Hỗ trợ quản trị viên quản lý doanh thu, suất chiếu thông minh theo thời gian thực.
 
-## Backend FastAPI
-- Backend dùng FastAPI + async SQLAlchemy + PostgreSQL.
-- Database connection local hiện tại nằm trong `backend/.env`.
-- Migration/Alembic: `backend/alembic/`
-- Script tạo bảng nhanh: `backend/scripts/create_tables.py`
-- Script seed demo auth: `backend/scripts/seed_demo_auth.py`
+---
 
-### Chạy backend
-1. Cài dependency trong `backend/requirements.txt`.
-2. Chạy migration: `alembic upgrade head` trong thư mục `backend/`.
-3. Nếu cần dữ liệu đăng nhập demo, chạy `python scripts/seed_demo_auth.py`.
-4. Khởi động API: `uvicorn app.main:app --reload`.
+## 🚀 Các Tính Năng Nổi Bật
 
-### Chạy full stack bằng Docker
-1. Tạo file `.env` ở thư mục gốc (cùng cấp `docker-compose.yml`) với nội dung tối thiểu:
+### 🤖 1. Cổng Trí Tuệ Nhân Tạo (AI Discovery Hub)
+Tích hợp AI cao cấp mang lại trải nghiệm tương tác tự nhiên và cá nhân hóa cho người dùng tại cổng `/ai-discovery`:
+- **CineAI Assistant (Chatbot đặt vé):** Trò chuyện bằng ngôn ngữ tự nhiên để tìm kiếm phim, rạp chiếu và suất chiếu thực tế. Trợ lý AI tự động trích xuất thực thể, thời gian và đề xuất suất chiếu trực quan để người dùng đặt vé siêu tốc.
+- **AI Mood Matcher (Chọn phim theo tâm trạng):** Người dùng nhập tâm trạng hoặc hoàn cảnh hiện tại (ví dụ: *"Tôi muốn tìm phim hài giải tỏa stress sau giờ làm"*). AI phân tích danh sách phim đang chiếu tại hệ thống và đề xuất **Top 3 bộ phim phù hợp nhất** kèm lời khuyên lý giải cụ thể, thấu hiểu tâm lý.
 
-```env
-POSTGRES_USER=ppq_user
-POSTGRES_PASSWORD=change-me
-POSTGRES_DB=movie_db
-POSTGRES_PORT=5432
-JWT_SECRET_KEY=change-this-secret
-TMDB_API_TOKEN=your_tmdb_token
-RUN_SEED=1
-```
+### 📊 2. Admin Dashboard Cao Cấp (Overview & Transactions)
+Giao diện quản trị được thiết kế theo phong cách hiện đại, trực quan, hỗ trợ quản trị viên nắm bắt nhanh hiệu quả kinh doanh:
+- **Bục Vinh Quang Phim:** Tôn vinh Top 3 phim có doanh thu cao nhất theo chu kỳ thời gian (Tháng này / Năm nay / Tất cả) với hiệu ứng phát sáng viền neon vàng/bạc/đồng và poster thực tế.
+- **Modal Phân Tích Suất Chiếu:** Khi click vào poster phim trên bục vinh quang, mở ra popup phân tích chi tiết: doanh thu, lượng vé bán ra và tỷ lệ lấp đầy ghế thực tế của các suất chiếu tiếp theo.
+- **Bảng Xếp Hạng & Sparkline:** Bảng xếp hạng phim động hỗ trợ bộ lọc nhanh kèm biểu đồ mini (sparkline) dạng SVG động đổi màu theo tỷ lệ tăng trưởng.
+- **Bộ Lọc Giao Dịch Đa Cổng:** Quản lý giao dịch tích hợp cổng **VNPAY** và **PayPal**, cho phép lọc danh sách thanh toán chính xác theo từng cổng và hiển thị mã Order ID/Capture ID chi tiết.
 
-2. Build và chạy:
+### 💳 3. Đặt Vé & Thanh Toán Đa Cổng
+- **Đa cổng thanh toán:** Hỗ trợ thanh toán nội địa qua **VNPAY** và thanh toán quốc tế qua **PayPal**.
+- **Vé & Email tự động:** Sau khi đặt vé thành công, hệ thống tự động gửi email xác nhận cho khách hàng chứa thông tin chi tiết vé, mã vé và hình ảnh vé điện tử thiết kế trực quan.
+- **Nút chọn lại combo:** Cho phép người dùng dễ dàng quay lại bước chọn combo từ trang thanh toán nếu đổi ý.
 
-```bash
-docker compose up --build
-```
+### 🔍 4. Tối Ưu Hóa SEO Toàn Diện (Seoquake Certified)
+Trang web được thiết kế tuân thủ nghiêm ngặt các quy tắc tối ưu hóa công cụ tìm kiếm:
+- **Canonical & Language Tags:** Khai báo ngôn ngữ Việt Nam (`lang="vi"`) và thẻ canonical động.
+- **Thẻ Meta & Open Graph:** Cấu hình đầy đủ thẻ meta description tối ưu (270 ký tự), Open Graph và Twitter Cards hỗ trợ hiển thị hình ảnh preview đẹp mắt khi chia sẻ lên MXH.
+- **Schema.org & Google Analytics:** Nhúng dữ liệu có cấu trúc JSON-LD và tag đo lường GA4 giúp tăng thứ hạng tìm kiếm.
+- **XML Sitemap tự động:** Hệ thống tự động sinh sơ đồ trang web thời gian thực tại `/sitemap.xml`.
+- **Text/HTML Ratio:** Bổ sung các khối văn bản SEO tinh tế ở trang chủ và chân trang giúp tỷ lệ văn bản vượt mốc **15%** an toàn.
+
+---
+
+## 🛠️ Công Nghệ Sử Dụng
+
+- **Frontend:** Nuxt 3 (Vue 3, TypeScript, TailwindCSS, Pinia, Axios).
+- **Backend:** FastAPI (Python, Uvicorn, SQLAlchemy async, Alembic, PostgreSQL).
+- **AI integration:** Gemini API (Model `gemini-3.5-flash` nhận diện và phân tích ngôn ngữ tự nhiên).
+
+---
+
+## 💻 Hướng Dẫn Cài Đặt & Chạy Dự Án
+
+### Cách 1: Chạy Bằng Docker Compose (Khuyên Dùng)
+
+1. Tạo tệp `.env` tại thư mục gốc của dự án (cùng cấp với `docker-compose.yml`):
+   ```env
+   POSTGRES_USER=ppq_user
+   POSTGRES_PASSWORD=change-me
+   POSTGRES_DB=movie_db
+   POSTGRES_PORT=5432
+   JWT_SECRET_KEY=change-this-secret
+   TMDB_API_TOKEN=your_tmdb_token
+   GEMINI_API_KEY=your_gemini_api_key
+   RUN_SEED=1
+   ```
+
+2. Khởi động hệ thống:
+   ```bash
+   docker compose up --build
+   ```
 
 3. Truy cập:
-- Frontend: `http://localhost:3000`
-- Backend API docs: `http://localhost:8000/docs`
-
-4. Dừng:
-
-```bash
-docker compose down
-```
-
-## 👤 User (Khách hàng)
-- **Đăng ký/Đăng nhập**: tạo tài khoản, lưu thông tin cá nhân.  
-- **Xem phim & lịch chiếu**: duyệt danh sách phim, trailer, suất chiếu.  
-- **Đặt vé**: chọn phim, suất chiếu, ghế ngồi, số lượng vé.  
-- **Thanh toán**: tích hợp ví điện tử, thẻ ngân hàng.  
-- **Quản lý vé**: lưu vé điện tử, QR code, lịch sử đặt vé.  
-- **AI gợi ý**: đề xuất phim/suất chiếu phù hợp sở thích.  
+   - **Frontend:** `http://localhost:3000`
+   - **Backend API Docs:** `http://localhost:8000/docs`
 
 ---
 
-## 🛠️ Admin (Quản trị tổng)
-- **Quản lý phim**: thêm/sửa/xóa phim, duyệt nội dung.  
-- **Quản lý suất chiếu**: tạo lịch chiếu, cấu hình phòng chiếu, số ghế.  
-- **Quản lý người dùng**: theo dõi hoạt động, phân quyền, hỗ trợ khách hàng.  
-- **Thống kê**: doanh thu, báo cáo vé bán ra.  
-- **Khuyến mãi**: tạo mã giảm giá toàn hệ thống.  
-- **Quản lý AI**: tinh chỉnh thuật toán gợi ý, chatbot.
-- 
-## 🛠️ Admin (Quản chi nhánh)
-- **Quản lý phim**: thêm/sửa/xóa phim, duyệt nội dung.  
-- **Quản lý suất chiếu**: tạo lịch chiếu, cấu hình phòng chiếu, số ghế.  
-- **Quản lý phòng chiếu**: CRUD phim, thông tin của phòng chiếu.
-- **Thống kê**: doanh thu, báo cáo vé bán ra.  
-- **Quản lý AI**: tinh chỉnh thuật toán gợi ý, chatbot.
-- **Quản lý ghế ngồi**: setup ghế ngồi, các loại ghế trong rạp.  
+### Cách 2: Chạy Thủ Công (Manual)
 
+#### 1. Backend (FastAPI)
+1. Di chuyển vào thư mục backend và cài đặt thư viện:
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   ```
+2. Khởi tạo cơ sở dữ liệu và seed dữ liệu mẫu:
+   ```bash
+   alembic upgrade head
+   python scripts/seed_demo_auth.py
+   ```
+3. Chạy API Server:
+   ```bash
+   uvicorn app.main:app --reload --port 8000
+   ```
+
+#### 2. Frontend (Nuxt 3)
+1. Di chuyển vào thư mục frontend và cài đặt dependencies:
+   ```bash
+   cd frontend
+   npm install
+   ```
+2. Khởi động Dev Server:
+   ```bash
+   npm run dev
+   ```
+3. Mở trình duyệt tại `http://localhost:3000`.
 
 ---
 
-## 🤖 Chức năng AI
-
-### AI cho User
-- **Gợi ý phim cá nhân hóa**: dựa trên lịch sử đặt vé, thể loại yêu thích.  
-- **Chatbot hỗ trợ**: trả lời câu hỏi về phim, lịch chiếu, hướng dẫn đặt vé.  
-- **Tìm kiếm ngữ nghĩa**: ví dụ: “phim tình cảm tối nay”.  
-- **Đặt vé bằng giọng nói**: hỗ trợ voice command.  
-- **Phân tích cảm xúc**: gợi ý phim phù hợp tâm trạng.  
-
-### AI cho Admin
-- **Phân tích xu hướng**: dự đoán phim hot, thể loại được ưa chuộng.  
-- **Tối ưu lịch chiếu**: gợi ý suất chiếu hợp lý.  
-- **Phát hiện gian lận**: kiểm tra giao dịch bất thường.  
-- **Phân tích dữ liệu lớn**: hành vi người dùng toàn hệ thống.  
-
-
-Mình dùng TMDB API để lấy poster, trailer, mô tả phim, diễn viên, giúp giao diện đặt vé nhìn cho hấp dẫn và chuẩn dữ liệu. Từ đó, user sẽ thấy thông tin phim đầy đủ, giống các nền tảng quốc tế.
-Nhưng mà TMDB không cung cấp suất chiếu, ghế, giá vé, nên là phải tự xây dựng và quản lý trong database của mình.
+*Thông tin chi tiết về quá trình học tập và phân công thành viên được lưu trữ trong file [ABOUT.md](file:///c:/SE%20Special%20Project%202/PPQ/ABOUT.md).*
