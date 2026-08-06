@@ -32,6 +32,31 @@ Trang web được thiết kế tuân thủ nghiêm ngặt các quy tắc tối 
 - **XML Sitemap tự động:** Hệ thống tự động sinh sơ đồ trang web thời gian thực tại `/sitemap.xml`.
 - **Text/HTML Ratio:** Bổ sung các khối văn bản SEO tinh tế ở trang chủ và chân trang giúp tỷ lệ văn bản vượt mốc **15%** an toàn.
 
+## 👥 Phân Quyền & Vai Trò Hệ Thống (Roles & Permissions)
+
+Hệ thống được thiết kế theo mô hình phân quyền chặt chẽ phục vụ 3 đối tượng người dùng chính:
+
+### 1. Khách Hàng (User)
+- Tìm kiếm phim, suất chiếu thông minh qua AI Discovery Hub (CineAI Assistant & AI Mood Matcher).
+- Chọn rạp chiếu, lịch chiếu, phòng chiếu và đặt giữ ghế trực tuyến theo thời gian thực.
+- Đặt combo bắp nước đi kèm với nhiều voucher khuyến mãi giảm giá.
+- Thanh toán tiện lợi qua cổng nội địa VNPAY hoặc cổng quốc tế PayPal.
+- Nhận email vé điện tử tự động và quản lý lịch sử đặt vé trong trang cá nhân.
+
+### 2. Quản Trị Viên Toàn Hệ Thống (Super Admin)
+- **Tổng quan hệ thống:** Theo dõi biểu đồ doanh thu, vé bán ra, và hiệu suất kinh doanh của tất cả các chi nhánh rạp trên toàn quốc thông qua Dashboard trực quan.
+- **Quản lý danh mục rạp:** Thêm, sửa, xóa các Chi nhánh rạp (Branches) và Phòng chiếu (Auditoriums) trong hệ thống.
+- **Quản lý phim:** CRUD Phim (kết nối TMDB API) và phê duyệt danh mục phim chiếu trên toàn hệ thống.
+- **Quản lý người dùng:** Quản lý tài khoản, theo dõi hoạt động và phân quyền quản trị chi nhánh cho các nhân viên.
+- **Quản lý tài chính:** Giám sát tất cả các giao dịch thanh toán từ VNPAY và PayPal của hệ thống.
+- **Quản lý Khuyến mãi:** Tạo mã giảm giá, voucher cho các chiến dịch toàn cụm rạp.
+
+### 3. Quản Trị Viên Chi Nhánh (Branch Admin)
+- **Vận hành chi nhánh:** Quản lý hoạt động riêng biệt của chi nhánh rạp được chỉ định (bảo mật độc lập dữ liệu giữa các rạp).
+- **Lập lịch suất chiếu (Showtimes):** CRUD và phân bổ giờ chiếu cho phim tại các phòng chiếu của chi nhánh mình quản lý.
+- **Quản lý phòng chiếu & ghế ngồi:** Thiết lập cấu hình phòng chiếu, sơ đồ ghế ngồi (Seat Layout), phân loại ghế (Thường, VIP, đôi Sweetbox) và giá vé nền tương ứng.
+- **Thống kê chi nhánh:** Xem báo cáo doanh thu, sản lượng vé bán ra chi tiết của riêng chi nhánh được giao quản lý để tự động tối ưu hóa suất chiếu.
+
 ---
 
 ## 🛠️ Công Nghệ Sử Dụng
