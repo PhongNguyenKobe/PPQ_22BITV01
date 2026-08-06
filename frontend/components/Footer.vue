@@ -170,6 +170,9 @@ const socialLinks = [
       <p>
         Mua vé xem phim trực tuyến tại CineAI vô cùng đơn giản và an toàn với nhiều phương thức thanh toán đa dạng như VNPAY, PayPal và các ví điện tử phổ biến. Đừng bỏ lỡ danh sách phim bom tấn hot nhất, lịch chiếu phim chi tiết của các chi nhánh rạp trên toàn quốc và các chương trình khuyến mãi, voucher giảm giá combo bắp nước độc quyền được cập nhật liên tục mỗi ngày. CineAI - Điện ảnh đỉnh cao trong tầm tay bạn.
       </p>
+      <p>
+        CineAI luôn tuân thủ nghiêm ngặt các quy định về phân loại độ tuổi người xem phim (P, K, T13, T16, T18) theo tiêu chuẩn của Bộ Văn hóa, Thể thao và Du lịch để đảm bảo môi trường giải trí lành mạnh, an toàn và văn minh. Khách hàng vui lòng xuất trình giấy tờ tùy thân hợp lệ khi đến rạp để nhân viên kiểm tra đối với các phim giới hạn độ tuổi. Về chính sách hoàn trả vé và đổi giờ chiếu, quý khách có thể dễ dàng thực hiện trực tiếp trên hệ thống tối thiểu 60 phút trước giờ phim khởi chiếu.
+      </p>
     </div>
 
     <!-- Bottom -->

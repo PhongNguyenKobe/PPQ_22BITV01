@@ -749,6 +749,9 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
           <p>
             CineAI là tổ hợp rạp chiếu phim chất lượng cao hàng đầu hiện nay, mang đến trải nghiệm nghe nhìn hoàn mỹ cho tín đồ yêu phim ảnh. Rạp được trang bị phòng chiếu hiện đại tiêu chuẩn IMAX màn hình cong siêu lớn, hệ thống âm thanh vòm Dolby Atmos tái hiện chân thực mọi hiệu ứng âm thanh từ nhỏ nhất, cùng ghế ngồi da cao cấp ngả lưng êm ái. CineAI cam kết cung cấp lịch chiếu phim liên tục các tác phẩm bom tấn trong nước và quốc tế với giá vé hợp lý cùng nhiều combo bắp nước siêu tiết kiệm.
           </p>
+          <p>
+            Các cụm rạp của chúng tôi được thiết kế với không gian kiến trúc sang trọng, khu vực sảnh chờ rộng rãi, hiện đại tích hợp quầy check-in tự động và quầy bắp nước tiện lợi. Hệ thống máy chiếu laser thế hệ mới tại phòng chiếu IMAX mang lại độ sáng vượt trội, màu sắc rực rỡ và độ tương phản tuyệt đối giúp người xem chìm đắm hoàn toàn vào thế giới của bộ phim bom tấn.
+          </p>
         </div>
 
         <div class="space-y-3">
@@ -759,6 +762,9 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
           <p>
             Đi đầu trong việc số hóa trải nghiệm điện ảnh, CineAI ứng dụng Trí Tuệ Nhân Tạo (AI) vào quá trình đặt vé xem phim trực tuyến. Khách hàng dễ dàng tìm kiếm suất chiếu phù hợp bằng ngôn ngữ tự nhiên thông qua CineAI Assistant hoặc sử dụng công cụ AI Mood Matcher để tìm kiếm bộ phim khớp chính xác với tâm trạng và hoàn cảnh của mình. Quy trình đặt vé xem phim, mua bắp nước combo, áp dụng mã giảm giá voucher khuyến mãi và thanh toán trực tuyến qua VNPAY, PayPal cực kỳ thuận tiện.
           </p>
+          <p>
+            Trợ lý ảo CineAI Assistant có khả năng hiểu các câu hỏi phức tạp như tìm phim theo khung giờ cụ thể hoặc gợi ý địa điểm rạp gần bạn nhất. Kết hợp với AI Mood Matcher, bạn sẽ nhận được những lời khuyên xem phim đầy cảm hứng khi đang phân vân không biết chọn bộ phim nào. Hệ thống đặt vé hoạt động mượt mà 24/7, giúp bạn giữ trước ghế ngồi đẹp nhất mà không phải xếp hàng chờ đợi lâu tại rạp.
+          </p>
         </div>
 
         <div class="space-y-3">
@@ -768,6 +774,9 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
           </h3>
           <p>
             Đến với CineAI, khách hàng không chỉ được thưởng thức những tác phẩm điện ảnh bom tấn mà còn được hưởng các ưu đãi thành viên độc quyền qua chương trình CineAI Pass. Chúng tôi thường xuyên cập nhật các ưu đãi giảm giá vé xem phim vào các ngày lễ, chương trình tặng voucher bắp ngọt bắp phô mai hấp dẫn và quà tặng bất ngờ khi đặt vé xem phim đôi. Hãy truy cập ngay chuyên mục lịch chiếu phim hôm nay tại rạp CineAI gần nhất để tận hưởng những phút giây thư giãn tuyệt vời bên gia đình.
+          </p>
+          <p>
+            Hội viên của CineAI Pass sẽ được tích điểm trên mọi giao dịch mua vé và combo bắp nước để quy đổi thành nhiều phần quà hấp dẫn như vé xem phim miễn phí hoặc nâng cấp lên hạng ghế VIP/Sweetbox ngọt ngào. Ngoài ra, chúng tôi liên tục tổ chức các sự kiện công chiếu phim bom tấn và tặng quà tri ân độc quyền cho khách hàng thân thiết. Đội ngũ nhân viên thân thiện, phục vụ chuyên nghiệp luôn sẵn sàng hỗ trợ bạn có trải nghiệm điện ảnh trọn vẹn nhất.
           </p>
         </div>
       </div>
