@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
 from app.models.catalog import Movie, Branch, Showtime, Auditorium
-from app.services.gemini import query_gemini_assistant
+from app.services.gemini import query_gemini_assistant, query_gemini_mood_matcher
 from app.schemas.movie import MovieRead, ShowtimeRead
 from app.schemas.admin import BranchRead
 
@@ -29,6 +29,16 @@ class AiDiscoveryResponse(BaseModel):
     movies: List[MovieRead]
     branches: List[BranchRead]
     showtimes: List[ShowtimeRead]
+
+class AiMoodRequest(BaseModel):
+    prompt: str
+
+class MoodMatchItem(BaseModel):
+    movie: MovieRead
+    reason: str
+
+class MoodMatchResponse(BaseModel):
+    recommendations: List[MoodMatchItem]
 
 def _movie_to_read(movie: Movie) -> MovieRead:
     return MovieRead.model_validate(movie)
@@ -176,3 +186,62 @@ Hãy tuân thủ các quy tắc sau:
         branches=[_branch_to_read(b) for b in response_branches],
         showtimes=[_showtime_to_read(s) for s in response_showtimes]
     )
+
+@router.post("/mood-matcher", response_model=MoodMatchResponse)
+async def ai_mood_matcher(
+    payload: AiMoodRequest,
+    db: AsyncSession = Depends(get_db)
+) -> MoodMatchResponse:
+    # 1. Fetch active movies
+    movies_stmt = select(Movie).options(selectinload(Movie.genres)).where(
+        or_(
+            Movie.status == "NOW_SHOWING",
+            Movie.status == "UPCOMING"
+        )
+    )
+    movies_res = await db.execute(movies_stmt)
+    movies = list(movies_res.scalars().all())
+
+    # 2. Format context for Gemini
+    movies_context = ""
+    for m in movies:
+        genres_str = ", ".join([g.name for g in m.genres])
+        movies_context += f"- ID: {m.id}\n  Tên phim: {m.title}\n  Thể loại: {genres_str}\n  Thời lượng: {m.duration_min} phút\n  Mô tả: {m.description or 'Không có mô tả'}\n\n"
+
+    # 3. Formulate system instruction
+    system_instruction = f"""Bạn là CineAI Mood Matcher - chuyên gia tư vấn tâm lý phim ảnh của cụm rạp CineAI.
+Nhiệm vụ của bạn là lắng nghe phân tích tâm trạng, hoàn cảnh hoặc mong muốn của người dùng (ví dụ: "buồn chán sau khi thi trượt", "đi chơi với người yêu", "muốn xem phim cười bể bụng").
+Đối chiếu với danh sách các bộ phim đang chiếu/sắp chiếu dưới đây và đề xuất chính xác Top 3 bộ phim phù hợp nhất với tâm trạng/hoàn cảnh đó.
+Với mỗi phim được gợi ý, hãy viết một đoạn giải thích ngắn gọn, thuyết phục và đầy thấu hiểu bằng tiếng Việt (khoảng 2-3 câu) vì sao phim này là lựa chọn tuyệt vời dành cho họ.
+
+=== DANH SÁCH PHIM ĐANG & SẮP CHIẾU ===
+{movies_context}
+"""
+
+    # 4. Call Gemini mood matcher service
+    gemini_result = await query_gemini_mood_matcher(system_instruction, payload.prompt)
+
+    # 5. Populate response with actual movie models
+    recommendations = []
+    for rec in gemini_result.get("recommendations", []):
+        try:
+            muuid = UUID(rec.get("movie_id", ""))
+            movie_obj = next((m for m in movies if m.id == muuid), None)
+            if movie_obj:
+                recommendations.append(MoodMatchItem(
+                    movie=_movie_to_read(movie_obj),
+                    reason=rec.get("reason", "Phim phù hợp với tâm trạng của bạn.")
+                ))
+        except ValueError:
+            continue
+
+    # Fallback if Gemini failed or didn't return matches
+    if not recommendations and movies:
+        # Fallback to first 3 movies
+        for m in movies[:3]:
+            recommendations.append(MoodMatchItem(
+                movie=_movie_to_read(m),
+                reason="Dựa trên gợi ý của chúng tôi, đây là bộ phim hấp dẫn bạn có thể yêu thích hôm nay."
+            ))
+
+    return MoodMatchResponse(recommendations=recommendations)

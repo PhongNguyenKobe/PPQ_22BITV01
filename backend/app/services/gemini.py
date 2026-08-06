@@ -123,3 +123,94 @@ async def query_gemini_assistant(
             "branches": [],
             "showtimes": []
         }
+
+async def query_gemini_mood_matcher(
+    system_instruction: str,
+    prompt: str
+) -> Dict[str, Any]:
+    """
+    Sends a prompt to Gemini and receives structured movie recommendations with reason.
+    """
+    api_key = settings.gemini_api_key
+    if not api_key:
+        return {"recommendations": []}
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
+
+    # Build response schema for structured JSON output
+    response_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "recommendations": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "movie_id": {
+                            "type": "STRING",
+                            "description": "UUID of the movie being recommended."
+                        },
+                        "reason": {
+                            "type": "STRING",
+                            "description": "Personalized explanation in Vietnamese of why this movie fits the user's mood/situation."
+                        }
+                    },
+                    "required": ["movie_id", "reason"]
+                },
+                "description": "Top 3 movie recommendations matching the user's prompt."
+            }
+        },
+        "required": ["recommendations"]
+    }
+
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": system_instruction}]
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}]
+            }
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": response_schema
+        }
+    }
+
+    def _make_request():
+        data_bytes = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data_bytes,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                return response.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            error_msg = e.read().decode("utf-8")
+            raise RuntimeError(f"Gemini API error (HTTP {e.code}): {error_msg}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to communicate with Gemini API: {str(e)}")
+
+    try:
+        response_text = await asyncio.to_thread(_make_request)
+        response_json = json.loads(response_text)
+        
+        candidates = response_json.get("candidates", [])
+        if not candidates:
+            return {"recommendations": []}
+            
+        content_parts = candidates[0].get("content", {}).get("parts", [])
+        if not content_parts:
+            return {"recommendations": []}
+            
+        text_response = content_parts[0].get("text", "{}")
+        parsed_result = json.loads(text_response)
+        return parsed_result
+    except Exception as e:
+        print(f"Error querying Gemini mood matcher: {e}")
+        return {"recommendations": []}

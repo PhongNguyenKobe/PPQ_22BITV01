@@ -118,6 +118,7 @@ onUnmounted(() => {
             <span class="material-symbols-outlined text-sm">auto_awesome</span>
             Khám Phá AI
           </NuxtLink>
+
         </nav>
       </div>
 
@@ -241,6 +242,8 @@ onUnmounted(() => {
             <span class="material-symbols-outlined text-sm">auto_awesome</span>
             Khám Phá AI Gợi Ý
           </NuxtLink>
+
+
         </div>
 
         <div class="mt-auto pt-4 border-t border-glass-stroke">

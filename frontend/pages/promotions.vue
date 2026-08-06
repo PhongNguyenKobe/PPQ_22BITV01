@@ -66,7 +66,7 @@ onMounted(loadPromotions)
 <template>
   <main class="min-h-[75vh] bg-[#0f1111] px-5 py-10 md:px-10 md:py-14">
     <div class="mx-auto max-w-6xl">
-      <section class="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-red-950/60 via-[#1a1c1c] to-[#151717] px-6 py-10 md:px-12 md:py-14">
+      <section class="relative overflow-hidden rounded-3xl border border-white/10 px-6 py-10 md:px-12 md:py-14 bg-cover bg-center" style="background-image: linear-gradient(to right, rgba(15, 17, 17, 0.95) 30%, rgba(15, 17, 17, 0.6) 70%, rgba(15, 17, 17, 0.3) 100%), url('https://falauniversidades.com.br/wp-content/uploads/2023/09/variedade-de-elementos-de-cinema-em-fundo-vermelho-com-espaco-de-copia-scaled.jpg')">
         <div class="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-red-600/20 blur-3xl"></div>
         <div class="relative max-w-2xl">
           <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-red-300">
