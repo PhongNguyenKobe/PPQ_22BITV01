@@ -12,7 +12,7 @@ Tích hợp AI cao cấp mang lại trải nghiệm tương tác tự nhiên và
 - **CineAI Assistant (Chatbot đặt vé):** Trò chuyện bằng ngôn ngữ tự nhiên để tìm kiếm phim, rạp chiếu và suất chiếu thực tế. Trợ lý AI tự động trích xuất thực thể, thời gian và đề xuất suất chiếu trực quan để người dùng đặt vé siêu tốc.
 - **AI Mood Matcher (Chọn phim theo tâm trạng):** Người dùng nhập tâm trạng hoặc hoàn cảnh hiện tại (ví dụ: *"Tôi muốn tìm phim hài giải tỏa stress sau giờ làm"*). AI phân tích danh sách phim đang chiếu tại hệ thống và đề xuất **Top 3 bộ phim phù hợp nhất** kèm lời khuyên lý giải cụ thể, thấu hiểu tâm lý.
 
-### 📊 2. Admin Dashboard Cao Cấp (Overview & Transactions)
+### 📊 2. Admin Dashboard (Overview & Transactions)
 Giao diện quản trị được thiết kế theo phong cách hiện đại, trực quan, hỗ trợ quản trị viên nắm bắt nhanh hiệu quả kinh doanh:
 - **Bục Vinh Quang Phim:** Tôn vinh Top 3 phim có doanh thu cao nhất theo chu kỳ thời gian (Tháng này / Năm nay / Tất cả) với hiệu ứng phát sáng viền neon vàng/bạc/đồng và poster thực tế.
 - **Modal Phân Tích Suất Chiếu:** Khi click vào poster phim trên bục vinh quang, mở ra popup phân tích chi tiết: doanh thu, lượng vé bán ra và tỷ lệ lấp đầy ghế thực tế của các suất chiếu tiếp theo.
