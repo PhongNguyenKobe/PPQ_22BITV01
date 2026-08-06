@@ -161,6 +161,17 @@ const socialLinks = [
       </section>
     </div>
 
+    <!-- SEO Text block to improve Text/HTML ratio -->
+    <div class="mx-auto max-w-6xl px-6 pt-4 pb-8 border-t border-glass-stroke/30 text-[10px] leading-relaxed text-on-surface-variant/40 space-y-3">
+      <h4 class="font-bold text-on-surface-variant/60 uppercase tracking-wider">CineAI - Hệ thống Rạp Chiếu Phim Đỉnh Cao Tích Hợp Trí Tuệ Nhân Tạo</h4>
+      <p>
+        Chào mừng bạn đến với <strong>CineAI</strong>, cụm rạp chiếu phim hiện đại hàng đầu Việt Nam. Chúng tôi tự hào mang đến trải nghiệm điện ảnh đột phá nhờ tích hợp công nghệ trí tuệ nhân tạo (AI) giúp cá nhân hóa gợi ý phim, phân tích tâm trạng để chọn phim thích hợp (AI Mood Matcher), cùng tính năng đặt vé xem phim trực tuyến siêu tốc qua trợ lý ảo thông minh. Với hệ thống rạp chiếu đạt chuẩn quốc tế, phòng chiếu IMAX hiện đại, âm thanh Dolby Atmos sống động và ghế ngồi da cao cấp, CineAI cam kết là điểm đến giải trí lý tưởng cho gia đình và bạn bè.
+      </p>
+      <p>
+        Mua vé xem phim trực tuyến tại CineAI vô cùng đơn giản và an toàn với nhiều phương thức thanh toán đa dạng như VNPAY, PayPal và các ví điện tử phổ biến. Đừng bỏ lỡ danh sách phim bom tấn hot nhất, lịch chiếu phim chi tiết của các chi nhánh rạp trên toàn quốc và các chương trình khuyến mãi, voucher giảm giá combo bắp nước độc quyền được cập nhật liên tục mỗi ngày. CineAI - Điện ảnh đỉnh cao trong tầm tay bạn.
+      </p>
+    </div>
+
     <!-- Bottom -->
 
     <div
