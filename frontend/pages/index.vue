@@ -738,6 +738,41 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
       </div>
     </section>
 
+    <!-- SECTION GIỚI THIỆU CHUẨN SEO ĐỂ TĂNG TEXT/HTML RATIO -->
+    <section class="reveal mt-20 max-w-6xl mx-auto border-t border-white/5 pt-12 pb-6 px-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-xs sm:text-sm text-gray-400 leading-relaxed">
+        <div class="space-y-3">
+          <h3 class="text-sm font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary-container text-base">local_movies</span>
+            Hệ Thống Rạp CineAI Quốc Tế
+          </h3>
+          <p>
+            CineAI là tổ hợp rạp chiếu phim chất lượng cao hàng đầu hiện nay, mang đến trải nghiệm nghe nhìn hoàn mỹ cho tín đồ yêu phim ảnh. Rạp được trang bị phòng chiếu hiện đại tiêu chuẩn IMAX màn hình cong siêu lớn, hệ thống âm thanh vòm Dolby Atmos tái hiện chân thực mọi hiệu ứng âm thanh từ nhỏ nhất, cùng ghế ngồi da cao cấp ngả lưng êm ái. CineAI cam kết cung cấp lịch chiếu phim liên tục các tác phẩm bom tấn trong nước và quốc tế với giá vé hợp lý cùng nhiều combo bắp nước siêu tiết kiệm.
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <h3 class="text-sm font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary-container text-base">auto_awesome</span>
+            Trải Nghiệm Đặt Vé Đột Phá Với AI
+          </h3>
+          <p>
+            Đi đầu trong việc số hóa trải nghiệm điện ảnh, CineAI ứng dụng Trí Tuệ Nhân Tạo (AI) vào quá trình đặt vé xem phim trực tuyến. Khách hàng dễ dàng tìm kiếm suất chiếu phù hợp bằng ngôn ngữ tự nhiên thông qua CineAI Assistant hoặc sử dụng công cụ AI Mood Matcher để tìm kiếm bộ phim khớp chính xác với tâm trạng và hoàn cảnh của mình. Quy trình đặt vé xem phim, mua bắp nước combo, áp dụng mã giảm giá voucher khuyến mãi và thanh toán trực tuyến qua VNPAY, PayPal cực kỳ thuận tiện.
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <h3 class="text-sm font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary-container text-base">confirmation_number</span>
+            Dịch Vụ & Ưu Đãi Độc Quyền
+          </h3>
+          <p>
+            Đến với CineAI, khách hàng không chỉ được thưởng thức những tác phẩm điện ảnh bom tấn mà còn được hưởng các ưu đãi thành viên độc quyền qua chương trình CineAI Pass. Chúng tôi thường xuyên cập nhật các ưu đãi giảm giá vé xem phim vào các ngày lễ, chương trình tặng voucher bắp ngọt bắp phô mai hấp dẫn và quà tặng bất ngờ khi đặt vé xem phim đôi. Hãy truy cập ngay chuyên mục lịch chiếu phim hôm nay tại rạp CineAI gần nhất để tận hưởng những phút giây thư giãn tuyệt vời bên gia đình.
+          </p>
+        </div>
+      </div>
+    </section>
+
   </div>
 </template>
 
