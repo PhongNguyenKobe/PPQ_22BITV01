@@ -202,12 +202,13 @@ async def get_live_admin_stats(db: AsyncSession) -> dict:
                     FROM bookings b
                 )
                 SELECT m.title AS label,
+                       m.poster_url AS poster_url,
                        COALESCE(SUM(bf.revenue), 0) AS revenue,
                        COALESCE(SUM(bf.seats) FILTER (WHERE bf.status = 'CONFIRMED'), 0) AS tickets
                 FROM movies m
                 JOIN showtimes s ON s.movie_id = m.id
                 JOIN booking_facts bf ON bf.showtime_id = s.id
-                GROUP BY m.id, m.title
+                GROUP BY m.id, m.title, m.poster_url
                 ORDER BY revenue DESC, tickets DESC
                 LIMIT 5
                 """
@@ -231,7 +232,7 @@ async def get_live_admin_stats(db: AsyncSession) -> dict:
             for row in branch_rows
         ],
         "topMovies": [
-            {"label": row.label, "revenue": int(row.revenue), "tickets": int(row.tickets)}
+            {"label": row.label, "poster_url": row.poster_url, "revenue": int(row.revenue), "tickets": int(row.tickets)}
             for row in movie_rows
         ],
     }

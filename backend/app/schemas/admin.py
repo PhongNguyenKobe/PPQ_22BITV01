@@ -45,6 +45,7 @@ class AdminBreakdownItem(BaseModel):
     label: str
     revenue: int
     tickets: int = 0
+    poster_url: str | None = None
 
 
 class AdminStatsResponse(BaseModel):

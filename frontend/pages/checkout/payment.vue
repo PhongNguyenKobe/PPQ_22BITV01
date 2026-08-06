@@ -188,9 +188,13 @@ async function cancelPreparedVnpayPayment() {
               <NuxtLink to="/checkout/showtime" class="mt-3 inline-block font-bold underline">Chọn suất chiếu khác
               </NuxtLink>
             </div>
-            <div class="selection-header">
-              <h1>Thanh Toán Đơn Vé</h1>
-              <p>Chọn phương thức thanh toán và xác nhận giao dịch.</p>
+            <div class="selection-header mb-6 flex items-end justify-between gap-4 border-b border-white/10 pb-4">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-[.25em] text-red-400">Bước 5/5</p>
+                <h1 class="mt-1 text-2xl sm:text-3xl font-black text-white">Thanh Toán Đơn Vé</h1>
+                <p class="mt-1 text-sm text-gray-400">Chọn phương thức thanh toán và xác nhận giao dịch.</p>
+              </div>
+              <NuxtLink to="/checkout/combo" class="text-sm text-gray-300 hover:text-white transition flex-shrink-0">← Chọn lại combo</NuxtLink>
             </div>
 
             <div class="methods-grid">
@@ -223,8 +227,6 @@ async function cancelPreparedVnpayPayment() {
               </div>
               <a
                 :href="preparedVnpayPayment.paymentUrl"
-                target="_blank"
-                rel="noopener noreferrer"
                 class="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary-container px-5 py-3 font-bold text-on-primary-container"
               >
                 <span class="material-symbols-outlined">open_in_new</span>

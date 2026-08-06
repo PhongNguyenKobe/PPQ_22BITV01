@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,7 @@ from app.models.commerce import Booking, Payment, PaymentStatusHistory, Promotio
 from app.models.user import User
 from app.schemas.payment import CheckoutResponse, PaymentCheckoutRequest, PaymentCreate, PaymentRead
 from app.services.vnpay import build_payment_url, verify_signature
+from app.services.email import send_booking_success_email
 
 router = APIRouter()
 
@@ -84,6 +85,7 @@ async def _apply_vnpay_result(
     db: AsyncSession,
     payload: dict,
     source: str,
+    background_tasks: BackgroundTasks | None = None,
 ) -> tuple[Payment | None, str, str]:
     signature_valid = verify_signature(payload)
     result = await db.execute(
@@ -135,6 +137,7 @@ async def _apply_vnpay_result(
             promotion = await db.get(Promotion, payment.booking.promotion_id, with_for_update=True)
             if promotion:
                 promotion.used_count += 1
+        await trigger_booking_success_email(payment.booking, db, background_tasks)
     elif not success and old_status == "PENDING":
         payment.status = "FAILED"
         payment.booking.status = "CANCELLED"
@@ -151,6 +154,7 @@ async def process_payment(
     payload: PaymentCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
 ) -> PaymentRead:
     """Legacy/demo payment endpoint. VNPAY must use /checkout and its signed callback."""
     if _is_vnpay(payload.payment_method):
@@ -168,6 +172,7 @@ async def process_payment(
     db.add(payment)
     await db.flush()
     await _history(db, payment, None, "CREATE", {"payment_method": payload.payment_method}, None)
+    await trigger_booking_success_email(booking, db, background_tasks)
     await db.commit()
     await db.refresh(payment)
     await seat_events.broadcast(booking.showtime_id, "SEATS_UPDATED")
@@ -180,6 +185,7 @@ async def checkout(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
 ) -> CheckoutResponse:
     booking = await _owned_pending_booking(db, payload.booking_id, current_user.id)
     subtotal = booking.subtotal_price or booking.total_price
@@ -227,6 +233,7 @@ async def checkout(
         booking.status = "CONFIRMED"
         if promotion:
             promotion.used_count += 1
+        await trigger_booking_success_email(booking, db, background_tasks)
     db.add(payment)
     await db.flush()
     await _history(db, payment, None, "CREATE", {"amount": str(final_total), "method": payment.payment_method}, None)
@@ -278,25 +285,25 @@ async def checkout(
 
 
 @router.get("/vnpay/return", include_in_schema=False)
-async def vnpay_return(request: Request, db: AsyncSession = Depends(get_db)):
-    payment, _, _ = await _apply_vnpay_result(db, dict(request.query_params), "RETURN")
+async def vnpay_return(request: Request, db: AsyncSession = Depends(get_db), background_tasks: BackgroundTasks = None):
+    payment, _, _ = await _apply_vnpay_result(db, dict(request.query_params), "RETURN", background_tasks)
     result = "success" if payment and payment.status == "SUCCESS" else "failed"
     payment_id = str(payment.id) if payment else ""
     return RedirectResponse(
-        f"{settings.frontend_url.rstrip('/')}/payment/vnpay-return?result={result}&payment_id={payment_id}",
+        f"{settings.frontend_url.rstrip('/')}/checkout/vnpay-return?result={result}&payment_id={payment_id}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
 
 @router.get("/vnpay/ipn")
-async def vnpay_ipn(request: Request, db: AsyncSession = Depends(get_db)):
-    _, response_code, message = await _apply_vnpay_result(db, dict(request.query_params), "IPN")
+async def vnpay_ipn(request: Request, db: AsyncSession = Depends(get_db), background_tasks: BackgroundTasks = None):
+    _, response_code, message = await _apply_vnpay_result(db, dict(request.query_params), "IPN", background_tasks)
     return {"RspCode": response_code, "Message": message}
 
 
 @router.get("/vnpay/callback")
-async def vnpay_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    payment, response_code, message = await _apply_vnpay_result(db, dict(request.query_params), "CALLBACK")
+async def vnpay_callback(request: Request, db: AsyncSession = Depends(get_db), background_tasks: BackgroundTasks = None):
+    payment, response_code, message = await _apply_vnpay_result(db, dict(request.query_params), "CALLBACK", background_tasks)
     success = payment is not None and payment.status == "SUCCESS"
     return {
         "success": success,
@@ -314,6 +321,7 @@ async def paypal_return(
     token: str,
     PayerID: str | None = None,
     db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
 ):
     result = await db.execute(
         select(Payment)
@@ -372,6 +380,7 @@ async def paypal_return(
                     promotion.used_count += 1
                     
             await _history(db, payment, old_status, "PAYPAL_RETURN", capture_res, True)
+            await trigger_booking_success_email(payment.booking, db, background_tasks)
             await db.commit()
             await seat_events.broadcast(payment.booking.showtime_id, "SEATS_UPDATED")
             
@@ -479,3 +488,58 @@ async def cancel_pending_payment(
     await db.refresh(payment)
     await seat_events.broadcast(payment.booking.showtime_id, "SEATS_UPDATED")
     return PaymentRead.model_validate(payment)
+
+
+async def trigger_booking_success_email(
+    booking: Booking,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks | None
+) -> None:
+    if not background_tasks:
+        return
+    try:
+        user = await db.get(User, booking.user_id)
+        if not user or not user.email:
+            return
+
+        # Trích xuất ghế ngồi
+        seats = []
+        for bs in booking.seats:
+            if bs.seat:
+                seats.append(f"{bs.seat.seat_row}{bs.seat.seat_number}")
+        if not seats and booking.seat_snapshot:
+            seats = [f"{s.get('row')}{s.get('number')}" for s in booking.seat_snapshot if s.get('row') and s.get('number')]
+
+        # Trích xuất combo
+        combos = []
+        for bc in booking.combos:
+            combos.append({
+                "name": bc.combo_name,
+                "quantity": bc.quantity,
+                "unit_price": float(bc.unit_price),
+                "line_total": float(bc.line_total)
+            })
+
+        booking_data = {
+            "ticket_code": booking.ticket_code,
+            "movie_title": booking.showtime.movie.title if booking.showtime and booking.showtime.movie else "Phim",
+            "poster_url": booking.showtime.movie.poster_url if booking.showtime and booking.showtime.movie else None,
+            "branch_name": booking.showtime.auditorium.branch.name if booking.showtime and booking.showtime.auditorium and booking.showtime.auditorium.branch else "",
+            "auditorium_name": booking.showtime.auditorium.name if booking.showtime and booking.showtime.auditorium else "",
+            "starts_at": booking.showtime.starts_at.isoformat() if booking.showtime and booking.showtime.starts_at else None,
+            "seats": seats,
+            "combos": combos,
+            "total_price": float(booking.total_price),
+            "subtotal_price": float(booking.subtotal_price),
+            "discount_amount": float(booking.discount_amount),
+            "promotion_code": booking.promotion.code if booking.promotion else None,
+        }
+
+        background_tasks.add_task(
+            send_booking_success_email,
+            user.email,
+            user.full_name or "Khách hàng",
+            booking_data
+        )
+    except Exception as e:
+        print(f"Lỗi khi thiết lập gửi email đặt vé background: {e}")

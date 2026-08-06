@@ -10,6 +10,7 @@ const selectedBranch = useState<string>('admin-selected-branch', () => 'ALL')
 const rows = ref<AdminPayment[]>([])
 const total = ref(0)
 const statusFilter = ref('')
+const methodFilter = ref('')
 const error = ref('')
 const busyId = ref('')
 const selected = ref<AdminPayment | null>(null)
@@ -17,6 +18,10 @@ const history = ref<any[]>([])
 
 function isVnpay(item: AdminPayment) {
   return item.payment_method === 'VNPAY'
+}
+
+function isPaypal(item: AdminPayment) {
+  return item.payment_method === 'PAYPAL'
 }
 
 function isLegacy(item: AdminPayment) {
@@ -49,6 +54,7 @@ async function load() {
   try {
     const result = await adminBackendService.getPayments({
       status: statusFilter.value || undefined,
+      method: methodFilter.value || undefined,
       branch_id: !isBranchAdmin.value && selectedBranch.value !== 'ALL' ? selectedBranch.value : undefined,
       limit: pageSize,
       skip: (currentPage.value - 1) * pageSize,
@@ -98,6 +104,10 @@ watch(statusFilter, () => {
   currentPage.value = 1
   void load()
 })
+watch(methodFilter, () => {
+  currentPage.value = 1
+  void load()
+})
 watch(selectedBranch, () => {
   currentPage.value = 1
   if (!isBranchAdmin.value) void load()
@@ -123,21 +133,37 @@ watch(selectedBranch, () => {
 
     <!-- Filter Bar -->
     <div class="panel-glass flex items-center justify-between p-5 gap-4 flex-wrap shadow-md">
-      <div class="flex items-center gap-3">
-        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Trạng thái</label>
-        <div class="relative min-w-[220px]">
-          <select v-model="statusFilter"
-            class="field-input w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-red-500 cursor-pointer appearance-none">
-            <option value="">Tất cả trạng thái</option>
-            <option value="SUCCESS">SUCCESS</option>
-            <option value="PENDING">PENDING</option>
-            <option value="FAILED">FAILED</option>
-            <option value="REFUNDED">REFUNDED</option>
-            <option value="REFUND_PENDING">REFUND_PENDING</option>
-            <option value="REFUND_FAILED">REFUND_FAILED</option>
-          </select>
-          <span
-            class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
+      <div class="flex items-center gap-6 flex-wrap">
+        <div class="flex items-center gap-3">
+          <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Trạng thái</label>
+          <div class="relative min-w-[200px]">
+            <select v-model="statusFilter"
+              class="field-input w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-red-500 cursor-pointer appearance-none">
+              <option value="">Tất cả trạng thái</option>
+              <option value="SUCCESS">SUCCESS</option>
+              <option value="PENDING">PENDING</option>
+              <option value="FAILED">FAILED</option>
+              <option value="REFUNDED">REFUNDED</option>
+              <option value="REFUND_PENDING">REFUND_PENDING</option>
+              <option value="REFUND_FAILED">REFUND_FAILED</option>
+            </select>
+            <span
+              class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Cổng thanh toán</label>
+          <div class="relative min-w-[200px]">
+            <select v-model="methodFilter"
+              class="field-input w-full pl-4 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-red-500 cursor-pointer appearance-none">
+              <option value="">Tất cả cổng</option>
+              <option value="VNPAY">VNPAY</option>
+              <option value="PAYPAL">PayPal</option>
+            </select>
+            <span
+              class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">expand_more</span>
+          </div>
         </div>
       </div>
 
@@ -163,7 +189,7 @@ watch(selectedBranch, () => {
           <thead>
             <tr class="border-b border-white/10 bg-white/5 text-gray-300 font-bold">
               <th class="p-4 text-xs uppercase tracking-wider">Mã giao dịch CineAI</th>
-              <th class="p-4 text-xs uppercase tracking-wider">Mã Cổng VNPAY</th>
+              <th class="p-4 text-xs uppercase tracking-wider">Mã cổng thanh toán</th>
               <th class="p-4 text-xs uppercase tracking-wider">Mã Đơn</th>
               <th class="p-4 text-xs uppercase tracking-wider">Phương thức</th>
               <th class="p-4 text-xs uppercase tracking-wider">Số tiền</th>
@@ -187,6 +213,13 @@ watch(selectedBranch, () => {
                   <div class="font-mono text-xs text-gray-400">Ref: {{ item.provider_ref || 'Đang tạo' }}</div>
                   <div class="mt-1 font-mono text-xs text-sky-400 flex items-center gap-1">
                     <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                    No: {{ item.provider_transaction_no || 'Chưa phản hồi' }}
+                  </div>
+                </template>
+                <template v-else-if="isPaypal(item)">
+                  <div class="font-mono text-xs text-gray-400">Ref: {{ item.provider_ref || 'Đang tạo' }}</div>
+                  <div class="mt-1 font-mono text-xs text-indigo-400 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
                     No: {{ item.provider_transaction_no || 'Chưa phản hồi' }}
                   </div>
                 </template>

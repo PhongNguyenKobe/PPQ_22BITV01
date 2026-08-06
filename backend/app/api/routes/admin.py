@@ -1742,11 +1742,16 @@ async def list_payments(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     payment_status: str | None = Query(None, alias="status"),
+    payment_method: str | None = Query(None, alias="method"),
     branch_id: UUID | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    filters = [Payment.status == payment_status.upper()] if payment_status else []
+    filters = []
+    if payment_status:
+        filters.append(Payment.status == payment_status.upper())
+    if payment_method:
+        filters.append(Payment.payment_method == payment_method.upper())
     assigned_branch_id = await _staff_branch_id(db, current_user)
     if assigned_branch_id is not None:
         if branch_id is not None and branch_id != assigned_branch_id:
