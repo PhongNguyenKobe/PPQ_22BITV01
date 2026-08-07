@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schemas.user import UserRead
+from app.schemas.user import UserRead, VIETNAM_PHONE_PATTERN
 
 class AdminUserRead(UserRead):
     branch_id: UUID | None = None
@@ -89,6 +89,18 @@ class AdminUserCreate(BaseModel):
     gender: str | None = Field(default=None, max_length=10)
     role_code: Literal["CUSTOMER", "BRANCH_ADMIN", "STAFF", "SUPER_ADMIN"] = "CUSTOMER"
     branch_id: UUID | None = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if not VIETNAM_PHONE_PATTERN.fullmatch(normalized):
+            raise ValueError("Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08 hoặc 09")
+        return normalized
 
 
 class AdminUserUpdate(BaseModel):

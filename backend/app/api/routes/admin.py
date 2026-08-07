@@ -151,7 +151,7 @@ async def _execute_vnpay_refund(
     await db.commit()
     return payment
 from app.schemas.movie import MovieRead
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserUpdate, InternalUserCreate
 
 router = APIRouter()
 
@@ -374,7 +374,7 @@ async def create_admin_user(
     try:
         created = await create_user(
             db,
-            UserCreate(
+            InternalUserCreate(
                 email=payload.email,
                 phone=payload.phone,
                 full_name=payload.full_name,

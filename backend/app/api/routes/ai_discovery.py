@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 from typing import List, Dict, Any
 from uuid import UUID
@@ -82,13 +82,15 @@ async def query_ai_discovery(
     branches_res = await db.execute(branches_stmt)
     branches = list(branches_res.scalars().all())
 
-    # 3. Fetch future open showtimes
+    # 3. Fetch future open showtimes (limit to next 2 days to optimize performance and prompt size)
+    end_time = datetime.now(timezone.utc) + timedelta(days=2)
     showtimes_stmt = select(Showtime).options(
         selectinload(Showtime.movie),
         selectinload(Showtime.auditorium).selectinload(Auditorium.branch)
     ).where(
         Showtime.status == "OPEN",
         Showtime.starts_at > datetime.now(timezone.utc),
+        Showtime.starts_at < end_time,
         Showtime.booking_closes_at > datetime.now(timezone.utc)
     ).order_by(Showtime.starts_at.asc())
     showtimes_res = await db.execute(showtimes_stmt)
@@ -112,7 +114,7 @@ async def query_ai_discovery(
         branch_name = s.auditorium.branch.name if s.auditorium and s.auditorium.branch else "Không rõ"
         starts_local = s.starts_at.astimezone()
         starts_str = starts_local.strftime("%Y-%m-%d %H:%M")
-        showtimes_list_str += f"- ID: {s.id}\n  Phim: {movie_title} (Movie ID: {s.movie_id})\n  Rạp: {branch_name} (Branch ID: {s.auditorium.branch_id if s.auditorium else ''})\n  Phòng chiếu: {s.auditorium.name if s.auditorium else 'Không rõ'}\n  Thời gian chiếu: {starts_str}\n  Giá vé: {int(s.base_price)}đ\n\n"
+        showtimes_list_str += f"- ID: {s.id}\n  Phim: {movie_title}\n  Rạp: {branch_name}\n  Phòng chiếu: {s.auditorium.name if s.auditorium else 'Không rõ'}\n  Thời gian chiếu: {starts_str}\n  Giá vé: {int(s.base_price)}đ\n\n"
 
     # 5. Formulate system instruction
     system_instruction = f"""Bạn là CineAI Assistant - trợ lý ảo đặt vé xem phim thông minh của cụm rạp CineAI.

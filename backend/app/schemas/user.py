@@ -59,6 +59,22 @@ class UserCreate(UserBase):
         return validate_password_strength_value(value)
 
 
+class InternalUserCreate(UserBase):
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if not VIETNAM_PHONE_PATTERN.fullmatch(normalized):
+            raise ValueError("Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 03, 05, 07, 08 hoặc 09")
+        return normalized
+
+
 class UserUpdate(BaseModel):
     phone: str | None = Field(default=None, max_length=20)
     full_name: str | None = Field(default=None, min_length=1, max_length=150)

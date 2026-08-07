@@ -13,7 +13,8 @@ export default defineNuxtRouteMiddleware((to, from) => {
     '/checkout',
     '/profile',
     '/admin',
-    '/branch-admin'
+    '/branch-admin',
+    '/ai-discovery'
   ]
 
   // Routes for admins only

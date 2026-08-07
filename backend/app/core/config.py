@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field("HS256", validation_alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(10080, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     gemini_api_key: str = Field("", validation_alias="GEMINI_API_KEY")
+    gemini_model: str = Field("gemini-3.5-flash-lite", validation_alias="GEMINI_MODEL")
     frontend_url: str = Field("http://localhost:3000", validation_alias="FRONTEND_URL")
     from_email: str = Field("phongnguyenfe@gmail.com", validation_alias="FROM_EMAIL")
     smtp_password: str = Field("dqlv galp qreu sbdx", validation_alias="PASSWORD")

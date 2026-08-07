@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.security import get_password_hash
 from app.models.user import Role, User
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserUpdate, InternalUserCreate
 
 
 async def populate_user_branch_id(db: AsyncSession, user: User) -> None:
@@ -71,7 +71,7 @@ async def list_users(db: AsyncSession, skip: int = 0, limit: int = 20) -> list[U
     )
     return list(result.scalars().all())
 
-async def create_user(db: AsyncSession, user_in: UserCreate, default_role_code: str = "CUSTOMER") -> User:
+async def create_user(db: AsyncSession, user_in: UserCreate | InternalUserCreate, default_role_code: str = "CUSTOMER") -> User:
     if await get_user_by_email(db, user_in.email):
         raise ValueError("EMAIL_EXISTS")
     if user_in.phone and await get_user_by_phone(db, user_in.phone):

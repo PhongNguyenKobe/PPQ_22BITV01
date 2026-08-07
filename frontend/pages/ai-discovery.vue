@@ -5,13 +5,16 @@ import { useTicketsStore } from '~/store/tickets'
 import { aiDiscoveryService, type AiMoodMatchItem } from '~/services/api'
 import { isShowtimeExpired } from '~/utils/showtime'
 
-definePageMeta({ layout: 'default' })
+definePageMeta({
+  layout: 'default',
+  middleware: ['auth'],
+})
 
 const router = useRouter()
 const ticketsStore = useTicketsStore()
 
 // State điều hướng Hub AI: 'select' (chọn chế độ), 'chat' (CineAI Assistant), 'mood' (AI Mood Matcher)
-const activeMode = ref<'select' | 'chat' | 'mood'>('select')
+const activeMode = ref<'select' | 'chat' | 'mood'>('chat')
 
 // ==========================================
 // LOGIC CHẾ ĐỘ 1: CINEAI ASSISTANT (CHATBOT)
@@ -197,9 +200,64 @@ const submitMood = async () => {
 }
 
 // ==========================================
+// PERSISTENCE LOGIC (30 MIN SLIDING EXPIRY)
+// ==========================================
+const CHAT_EXPIRY_MS = 30 * 60 * 1000 // 30 minutes
+
+const saveHistory = () => {
+  const data = {
+    messages: messages.value,
+    expiresAt: Date.now() + CHAT_EXPIRY_MS
+  }
+  localStorage.setItem('cineai_chat_history', JSON.stringify(data))
+}
+
+const loadHistory = () => {
+  try {
+    const raw = localStorage.getItem('cineai_chat_history')
+    if (!raw) return
+    const data = JSON.parse(raw)
+    if (Date.now() > data.expiresAt) {
+      localStorage.removeItem('cineai_chat_history')
+      return
+    }
+    if (data.messages && Array.isArray(data.messages)) {
+      messages.value = data.messages
+    }
+  } catch (e) {
+    console.error('Failed to load chat history:', e)
+  }
+}
+
+const clearChat = () => {
+  if (confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử chat không?')) {
+    messages.value = [
+      {
+        id: 'welcome',
+        role: 'model',
+        text: 'Xin chào! Tôi là **CineAI Assistant** 🤖, trợ lý đặt vé thông minh của bạn tại CineAI.\n\nTôi có thể giúp bạn tìm kiếm phim, rạp chiếu, suất chiếu phù hợp dựa trên ngôn ngữ nói tự nhiên. Hãy gõ yêu cầu của bạn bên dưới, ví dụ:\n\n* *"Tôi muốn xem phim Trí Tuệ Nhân Tạo ở quận 1 khoảng 1-4h chiều"* \n* *"Tối nay lúc 8h có phim nào hay ở Hùng Vương không?"* \n* *"Tìm suất chiếu của phim Thành Phố Vô Hình"*'
+      }
+    ]
+    if (process.client) {
+      localStorage.removeItem('cineai_chat_history')
+    }
+  }
+}
+
+// Auto-save history whenever messages change
+watch(messages, () => {
+  if (process.client) {
+    saveHistory()
+  }
+}, { deep: true })
+
+// ==========================================
 // HOOKS
 // ==========================================
 onMounted(() => {
+  if (process.client) {
+    loadHistory()
+  }
   if (activeMode.value === 'chat') {
     void scrollToBottom()
   }
@@ -277,9 +335,6 @@ onMounted(() => {
       <!-- Header -->
       <header class="flex items-center justify-between pb-4 mb-4 border-b border-white/5 relative z-10">
         <div class="flex items-center gap-4">
-          <button @click="activeMode = 'select'" class="p-2 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-gray-300 hover:text-white transition flex items-center justify-center" title="Quay lại">
-            <span class="material-symbols-outlined text-base">arrow_back</span>
-          </button>
           <div class="relative">
             <span class="material-symbols-outlined rounded-2xl bg-gradient-to-tr from-primary-container to-purple-600 p-3 text-white shadow-lg">smart_toy</span>
             <span class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-[#121414] rounded-full"></span>
@@ -292,6 +347,10 @@ onMounted(() => {
             </p>
           </div>
         </div>
+        <button @click="clearChat" class="px-3.5 py-2 text-xs font-bold text-gray-400 hover:text-red-400 bg-white/5 border border-white/10 hover:border-red-500/20 hover:bg-red-500/10 rounded-xl transition flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-sm">delete</span>
+          Xóa lịch sử
+        </button>
       </header>
 
       <!-- Chat Area -->
@@ -350,8 +409,8 @@ onMounted(() => {
                           </div>
                           <div class="flex justify-between items-end mt-2">
                             <div>
-                              <p class="text-sm font-black text-white">{{ formatDate(st.startsAt.split('T')[0]) }}</p>
-                              <p class="text-base font-black text-red-400 mt-0.5">{{ st.startsAt.split('T')[1].slice(0, 5) }}</p>
+                              <p class="text-sm font-black text-white">{{ formatDate(st.date) }}</p>
+                              <p class="text-base font-black text-red-400 mt-0.5">{{ st.time }}</p>
                             </div>
                             <button @click="handleQuickBook(st, getMovieForShowtime(st, msg))"
                                     :disabled="isShowtimeExpired(st)"
