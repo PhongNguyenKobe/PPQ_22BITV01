@@ -570,7 +570,7 @@ onMounted(() => {
 
             <!-- Movie Poster -->
             <div class="w-full md:w-[140px] aspect-[2/3] rounded-2xl overflow-hidden bg-slate-800 flex-shrink-0 relative mx-auto md:mx-0">
-              <img v-if="item.movie.poster" :src="item.movie.poster" :alt="item.movie.name" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+              <img v-if="item.movie.poster" :src="item.movie.poster" :alt="item.movie.title" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
               <div v-else class="w-full h-full flex flex-col items-center justify-center p-4 text-center">
                 <span class="material-symbols-outlined text-4xl text-gray-600">local_movies</span>
               </div>
@@ -581,14 +581,14 @@ onMounted(() => {
               <div class="space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
                   <h4 class="text-lg sm:text-xl font-black text-white group-hover:text-purple-400 transition-colors leading-tight">
-                    {{ item.movie.name }}
+                    {{ item.movie.title }}
                   </h4>
-                  <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-gray-400 font-bold uppercase tracking-wider">
-                    {{ item.movie.category }}
+                  <span v-if="item.movie.genre && item.movie.genre.length" class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                    {{ item.movie.genre[0] }}
                   </span>
                 </div>
                 <p class="text-[11px] text-gray-500 font-medium">
-                  Thời lượng: {{ item.movie.price * 1000 }} phút | Thể loại: {{ item.movie.category }}
+                  Thời lượng: {{ item.movie.duration }} phút | Thể loại: {{ item.movie.genre ? item.movie.genre.join(', ') : 'Đang cập nhật' }}
                 </p>
                 <p class="text-xs sm:text-sm text-gray-400 line-clamp-3 leading-relaxed">
                   {{ item.movie.description || 'Chưa có mô tả chi tiết cho phim này.' }}

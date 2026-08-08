@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.tickets import parse_ticket_qr_payload, ticket_checkin_state
 from app.models.commerce import Booking, BookingSeat, Payment, PaymentStatusHistory
 from app.services.vnpay import query_transaction, refund_transaction, verify_refund_response
-from app.models.user import Role, User
+from app.models.user import AuditEvent, Role, User
 from app.schemas.admin import (
     AdminStatsResponse,
     AdminUserCreate,

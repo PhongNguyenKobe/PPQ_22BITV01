@@ -17,21 +17,74 @@ const mapUrl = computed(() => {
   return `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`
 })
 
-// Group showtimes by movie
+const selectedDay = ref(0)
+
+// Compute list of days from showtimes
+const days = computed(() => {
+  if (!branch.value || !branch.value.showtimes) return []
+  
+  const mappedShowtimes = branch.value.showtimes.map(mapBackendShowtimeToFrontend)
+  const dateSet = new Set<string>()
+  mappedShowtimes.forEach(st => {
+    if (st.date) dateSet.add(st.date)
+  })
+
+  // Nếu API chưa có dữ liệu ngày, phát sinh tự động 14 ngày bắt đầu từ HÔM NAY
+  if (dateSet.size === 0) {
+    const today = new Date()
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() + i)
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      dateSet.add(`${yyyy}-${mm}-${dd}`)
+    }
+  }
+
+  const sortedDates = Array.from(dateSet).sort()
+  const todayStr = new Date().toISOString().split('T')[0]
+
+  return sortedDates.map((dateStr) => {
+    const parts = dateStr.split("-").map(Number)
+    const dateObj = new Date(parts[0], parts[1] - 1, parts[2])
+
+    const dayOfWeekNames = ["Chủ Nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
+    const dayOfWeek = dayOfWeekNames[dateObj.getDay()]
+    const dayNum = String(parts[2]).padStart(2, '0')
+    const monthNum = String(parts[1]).padStart(2, '0')
+    const isToday = dateStr === todayStr
+
+    return {
+      dayOfWeek: isToday ? "Hôm nay" : dayOfWeek,
+      dateNum: dayNum,
+      monthLabel: `Thg ${monthNum}`,
+      fullDate: dateStr,
+      isToday
+    }
+  })
+})
+
+// Group showtimes by movie, filtered by selected date
 const groupedMovies = computed(() => {
   if (!branch.value || !branch.value.showtimes) return []
   
   const mappedShowtimes = branch.value.showtimes.map(mapBackendShowtimeToFrontend)
+  const selectedDateStr = days.value[selectedDay.value]?.fullDate || ''
+  
+  const filteredSts = selectedDateStr
+    ? mappedShowtimes.filter(st => st.date === selectedDateStr)
+    : mappedShowtimes
   
   // Group by movieId
-  const map = new Map<string, typeof mappedShowtimes>()
-  mappedShowtimes.forEach(st => {
+  const map = new Map<string, typeof filteredSts>()
+  filteredSts.forEach(st => {
     const list = map.get(st.movieId) || []
     list.push(st)
     map.set(st.movieId, list)
   })
   
-  const result: { movie: any; showtimes: typeof mappedShowtimes }[] = []
+  const result: { movie: any; showtimes: typeof filteredSts }[] = []
   map.forEach((sts, movieId) => {
     const movie = branch.value?.movies.find(m => String(m.id) === movieId)
     if (movie) {
@@ -55,6 +108,11 @@ const paginatedMovies = computed(() => {
 const totalPages = computed(() => Math.ceil(groupedMovies.value.length / pageSize))
 
 watch(branch, () => {
+  currentPage.value = 1
+  selectedDay.value = 0
+})
+
+watch(selectedDay, () => {
   currentPage.value = 1
 })
 
@@ -100,6 +158,29 @@ onMounted(async () => {
 
       <!-- Toàn bộ lịch chiếu (Grouped & Paginated) -->
       <h2 class="mb-5 text-2xl font-bold">Toàn bộ lịch chiếu</h2>
+
+      <!-- Horizontal Date Picker Bar (Thanh Chọn Thứ / Ngày) -->
+      <div v-if="days && days.length" class="relative mb-8">
+        <div class="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-none snap-x">
+          <button v-for="(d, i) in days" :key="d.fullDate" @click="selectedDay = i"
+            class="flex-none snap-start min-w-[100px] py-3.5 px-4 rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center group relative overflow-hidden"
+            :class="selectedDay === i
+              ? 'bg-orange-500 border-orange-500 text-white shadow-[0_0_20px_rgba(249,115,22,0.5)] scale-105'
+              : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/30 hover:text-white hover:bg-white/10'">
+            <!-- Label Thứ / Hôm Nay -->
+            <span class="text-[11px] uppercase font-bold tracking-wider mb-1 transition-colors"
+              :class="selectedDay === i ? 'text-white' : d.isToday ? 'text-orange-400 font-extrabold' : 'text-gray-400'">
+              {{ d.dayOfWeek }}
+            </span>
+
+            <!-- Ngày -->
+            <span class="text-2xl font-black leading-none">{{ d.dateNum }}</span>
+
+            <!-- Tháng -->
+            <span class="text-[10px] opacity-70 mt-1 font-medium">{{ d.monthLabel }}</span>
+          </button>
+        </div>
+      </div>
 
       <!-- Empty State -->
       <div v-if="groupedMovies.length === 0" class="py-20 text-center bg-white/5 rounded-3xl border border-white/10">
@@ -231,3 +312,13 @@ onMounted(async () => {
     </template>
   </main>
 </template>
+
+<style scoped>
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>
