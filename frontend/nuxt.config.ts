@@ -1,5 +1,8 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 
+const siteUrl = process.env.NUXT_PUBLIC_SITE_URL 
+  || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
 
@@ -42,13 +45,13 @@ export default defineNuxtConfig({
         { property: 'og:type', content: 'website' },
         { property: 'og:title', content: 'CineAI - Đặt vé xem phim thông minh với AI' },
         { property: 'og:description', content: 'CineAI - Hệ thống đặt vé xem phim thông minh ứng dụng Trí Tuệ Nhân Tạo (AI). Khám phá phim hay đang chiếu, tìm kiếm lịch chiếu suất chiếu ngữ nghĩa chuẩn xác, đặt vé và combo bắp nước nhanh chóng, an toàn cùng nhiều chương trình khuyến mãi ưu đãi cực kỳ hấp dẫn mỗi ngày.' },
-        { property: 'og:image', content: 'http://localhost:3000/images/icons8-cinema-ticket-16.png' },
-        { property: 'og:url', content: 'http://localhost:3000' },
+        { property: 'og:image', content: `${siteUrl}/images/icons8-cinema-ticket-16.png` },
+        { property: 'og:url', content: siteUrl },
         // Twitter
         { name: 'twitter:card', content: 'summary_large_image' },
         { name: 'twitter:title', content: 'CineAI - Đặt vé xem phim thông minh với AI' },
         { name: 'twitter:description', content: 'CineAI - Hệ thống đặt vé xem phim thông minh ứng dụng Trí Tuệ Nhân Tạo (AI). Khám phá phim hay đang chiếu, tìm kiếm lịch chiếu suất chiếu ngữ nghĩa chuẩn xác, đặt vé và combo bắp nước nhanh chóng, an toàn cùng nhiều chương trình khuyến mãi ưu đãi cực kỳ hấp dẫn mỗi ngày.' },
-        { name: 'twitter:image', content: 'http://localhost:3000/images/icons8-cinema-ticket-16.png' }
+        { name: 'twitter:image', content: `${siteUrl}/images/icons8-cinema-ticket-16.png` }
       ],
       link: [
         {
@@ -58,7 +61,7 @@ export default defineNuxtConfig({
         },
         {
           rel: 'canonical',
-          href: 'http://localhost:3000'
+          href: siteUrl
         },
         {
           rel: 'stylesheet',
@@ -77,11 +80,11 @@ export default defineNuxtConfig({
             "@context": "https://schema.org",
             "@type": "WebSite",
             "name": "CineAI",
-            "url": "http://localhost:3000",
+            "url": siteUrl,
             "description": "Hệ thống đặt vé xem phim dạng Multi-vendor tích hợp AI gợi ý và tìm kiếm ngữ nghĩa.",
             "potentialAction": {
               "@type": "SearchAction",
-              "target": "http://localhost:3000/ai-discovery?q={search_term_string}",
+              "target": `${siteUrl}/ai-discovery?q={search_term_string}`,
               "query-input": "required name=search_term_string"
             }
           })
