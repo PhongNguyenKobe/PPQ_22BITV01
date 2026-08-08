@@ -47,12 +47,106 @@ export interface ApiError {
   status?: number
 }
 
+const VI_FIELD_LABELS: Record<string, string> = {
+  email: 'Email',
+  password: 'Mật khẩu',
+  phone: 'Số điện thoại',
+  full_name: 'Họ và tên',
+  role_code: 'Phân quyền',
+  branch_id: 'Chi nhánh',
+  code: 'Mã',
+  name: 'Tên',
+  city: 'Thành phố',
+  district: 'Quận/Huyện',
+  address_line: 'Địa chỉ',
+}
+
+function getFieldLabelVi(field?: string): string {
+  if (!field) return 'Trường dữ liệu'
+  return VI_FIELD_LABELS[field] || field
+}
+
+function translateValidationMessage(msg: string, field?: string): string {
+  const clean = msg.replace(/^Value error,\s*/i, '').trim()
+  const label = getFieldLabelVi(field)
+
+  if (/^Field required$/i.test(clean)) return `${label} là bắt buộc.`
+  if (/^Input should be a valid email address$/i.test(clean)) return 'Email không hợp lệ.'
+  if (/^Input should be a valid UUID/i.test(clean)) return `${label} không đúng định dạng.`
+  if (/^Input should be a valid integer$/i.test(clean)) return `${label} phải là số nguyên.`
+  if (/^Input should be a valid number$/i.test(clean)) return `${label} phải là số hợp lệ.`
+  if (/^Input should be a valid string$/i.test(clean)) return `${label} phải là chuỗi ký tự hợp lệ.`
+
+  const minLenMatch = clean.match(/^String should have at least (\d+) characters$/i)
+  if (minLenMatch) return `${label} phải có ít nhất ${minLenMatch[1]} ký tự.`
+
+  const maxLenMatch = clean.match(/^String should have at most (\d+) characters$/i)
+  if (maxLenMatch) return `${label} không được vượt quá ${maxLenMatch[1]} ký tự.`
+
+  const geMatch = clean.match(/^Input should be greater than or equal to (.+)$/i)
+  if (geMatch) return `${label} phải lớn hơn hoặc bằng ${geMatch[1]}.`
+
+  const gtMatch = clean.match(/^Input should be greater than (.+)$/i)
+  if (gtMatch) return `${label} phải lớn hơn ${gtMatch[1]}.`
+
+  const leMatch = clean.match(/^Input should be less than or equal to (.+)$/i)
+  if (leMatch) return `${label} phải nhỏ hơn hoặc bằng ${leMatch[1]}.`
+
+  const ltMatch = clean.match(/^Input should be less than (.+)$/i)
+  if (ltMatch) return `${label} phải nhỏ hơn ${ltMatch[1]}.`
+
+  return clean
+}
+
+function translateDetailToVietnamese(detail: any): string | null {
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        const loc = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : undefined
+        const field = typeof loc === 'string' ? loc : undefined
+        return translateValidationMessage(String(item?.msg || 'Dữ liệu chưa hợp lệ'), field)
+      })
+      .filter(Boolean)
+    return messages.length ? messages.join('. ') : null
+  }
+
+  if (typeof detail === 'string') {
+    return translateValidationMessage(detail)
+  }
+
+  return null
+}
+
 export function handleApiError(error: unknown): ApiError {
   if (axios.isAxiosError(error)) {
     const detail = (error.response?.data as any)?.detail
-    const friendlyDetail = Array.isArray(detail)
-      ? detail.map(item => item?.msg || 'Dữ liệu chưa hợp lệ').join('. ')
-      : detail
+    const translatedDetail = translateDetailToVietnamese(detail)
+    const friendlyDetail = translatedDetail
+      || (detail?.code === 'MOVIE_HAS_FUTURE_SHOWTIMES'
+        ? `Không thể kết thúc phim vì còn ${detail.count} suất chiếu tương lai đang mở.`
+        : detail?.code === 'MOVIE_NEEDS_OPEN_SHOWTIME'
+          ? 'Phim cần có ít nhất một suất chiếu tương lai đang mở trước khi chuyển sang Đang chiếu.'
+          : detail?.code === 'NEW_MOVIE_MUST_BE_UPCOMING'
+            ? 'Phim mới phải được tạo ở trạng thái Sắp chiếu.'
+        : detail === 'CANNOT_LOCK_YOURSELF' ? 'Bạn không thể tự khóa tài khoản đang đăng nhập.'
+          : detail === 'CANNOT_CHANGE_YOUR_OWN_ROLE' ? 'Bạn không thể tự thay đổi quyền của tài khoản đang đăng nhập.'
+            : detail === 'LAST_ACTIVE_SUPER_ADMIN' ? 'Hệ thống phải luôn còn ít nhất một Super Admin đang hoạt động.'
+              : detail === 'BRANCH_ADMIN_REQUIRES_ONE_ACTIVE_BRANCH' ? 'Branch Admin phải được phân công đúng một chi nhánh đang hoạt động trước khi mở khóa.'
+                : detail === 'BRANCH_HAS_FUTURE_SHOWTIMES' ? 'Không thể tạm đóng chi nhánh khi còn suất chiếu tương lai. Hãy xử lý các suất chiếu trước.'
+                  : detail === 'BRANCH_HAS_OPERATIONAL_DATA' ? 'Chi nhánh đã có dữ liệu vận hành nên không thể xóa vĩnh viễn. Hãy chuyển sang Tạm đóng.'
+                    : detail === 'AUDITORIUM_HAS_FUTURE_SHOWTIMES' ? 'Phòng còn suất chiếu tương lai nên chưa thể tạm ngưng. Hãy xử lý lịch chiếu trước.'
+                      : detail === 'AUDITORIUM_NEEDS_ACTIVE_SEATS' ? 'Phòng cần có ít nhất một ghế hoạt động trước khi mở lại hoặc xếp lịch.'
+                        : detail === 'AUDITORIUM_IS_INACTIVE' ? 'Phòng đang tạm ngưng nên không thể xếp lịch chiếu.'
+                          : detail === 'AUDITORIUM_HAS_OPERATIONAL_DATA' ? 'Phòng đã có lịch sử suất chiếu nên không thể xóa. Hãy dùng Tạm ngưng.'
+                    : detail === 'USED_PROMOTION_DISCOUNT_IMMUTABLE' ? 'Khuyến mãi đã phát sinh lượt dùng nên không thể đổi loại hoặc giá trị giảm.'
+                      : detail?.code === 'COMBO_NAME_EXISTS' ? 'Chi nhánh đã có combo trùng tên.'
+                        : detail?.code === 'COMBO_HAS_ORDER_HISTORY' ? 'Combo đã phát sinh đơn nên không thể xóa. Hãy chuyển sang Đã ẩn.'
+                          : detail?.code === 'COMBO_IMAGE_TYPE_INVALID' ? 'Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP.'
+                            : detail?.code === 'COMBO_IMAGE_TOO_LARGE' ? 'Ảnh combo không được vượt quá 5 MB.'
+                              : detail?.code === 'COMBO_IMAGE_EMPTY' ? 'Tệp ảnh đang trống.'
+                                : detail?.code === 'BOOKING_SHOWTIME_STARTED' ? 'Không thể hủy vì suất chiếu đã bắt đầu hoặc đã kết thúc.'
+                                  : detail?.code === 'BOOKING_ALREADY_CHECKED_IN' ? 'Không thể hủy vì vé trong đơn đã được check-in.'
+                                    : typeof detail === 'string' ? translateValidationMessage(detail) : null)
     return {
       message:
         friendlyDetail ||

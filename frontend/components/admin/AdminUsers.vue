@@ -12,6 +12,7 @@ const statusFilter = ref<'ALL' | 'ACTIVE' | 'LOCKED'>('ALL')
 const roleFilter = ref<'ALL' | 'admin' | 'branch-admin' | 'staff' | 'customer'>('ALL')
 const adminUsers = computed(() => users.value.filter(user => user.role !== 'customer'))
 const customerUsers = computed(() => users.value.filter(user => user.role === 'customer'))
+const activeBranches = computed(() => branches.value.filter(branch => branch.is_active))
 const filteredUsers = computed(() => {
   let result = accountGroup.value === 'ADMIN' ? adminUsers.value : customerUsers.value
   const query = userSearch.value.trim().toLocaleLowerCase('vi')
@@ -33,6 +34,17 @@ watch(accountGroup, () => {
 
 const showCreateForm = ref(false)
 const creating = ref(false)
+
+function validateAdminPassword(password: string): string | null {
+  if (password.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự.'
+  if (password.length > 16) return 'Mật khẩu tối đa 16 ký tự.'
+  if (/\s/.test(password)) return 'Mật khẩu không được chứa khoảng trắng.'
+  if (!/[a-z]/.test(password)) return 'Mật khẩu phải có ít nhất một chữ thường.'
+  if (!/[A-Z]/.test(password)) return 'Mật khẩu phải có ít nhất một chữ in hoa.'
+  if (!/\d/.test(password)) return 'Mật khẩu phải có ít nhất một chữ số.'
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Mật khẩu phải có ít nhất một ký tự đặc biệt.'
+  return null
+}
 
 const userForm = ref({
   fullName: '',
@@ -69,6 +81,19 @@ async function loadData() {
 
 async function createUser() {
   error.value = ''
+  if (!userForm.value.fullName.trim()) {
+    error.value = 'Vui lòng nhập họ và tên.'
+    return
+  }
+  if (!userForm.value.email.trim()) {
+    error.value = 'Vui lòng nhập email.'
+    return
+  }
+  const passwordError = validateAdminPassword(userForm.value.password)
+  if (passwordError) {
+    error.value = passwordError
+    return
+  }
   if (
     (userForm.value.roleCode === 'BRANCH_ADMIN' || userForm.value.roleCode === 'STAFF')
     && !userForm.value.branchId
@@ -94,12 +119,16 @@ async function createUser() {
     // Reload users
     users.value = await adminBackendService.getUsers()
   } catch (e: any) {
-    const message = e?.response?.data?.detail || e?.message || ''
+    const message = e?.message || ''
     error.value = message === 'EMAIL_EXISTS'
       ? 'Email này đã được sử dụng.'
       : message === 'PHONE_EXISTS'
         ? 'Số điện thoại này đã được sử dụng.'
-        : message || 'Không thể tạo tài khoản.'
+        : message === 'Branch is invalid or inactive'
+          ? 'Chi nhánh đã chọn không hợp lệ hoặc đang tạm đóng.'
+          : message === 'Role SUPER_ADMIN is not configured' || message === 'Role BRANCH_ADMIN is not configured'
+            ? 'Hệ thống chưa cấu hình vai trò quản trị. Hãy chạy seed quyền quản trị.'
+            : message || 'Không thể tạo tài khoản.'
   } finally {
     creating.value = false
   }

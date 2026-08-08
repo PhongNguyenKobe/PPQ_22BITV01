@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.api.deps import get_current_user, require_roles
 from app.core.permissions import require_admin, require_branch_admin
@@ -384,13 +384,20 @@ async def create_admin_user(
             ),
             default_role_code="CUSTOMER",
         )
-
         if payload.role_code != "CUSTOMER":
             created = await set_user_role(
                 db,
                 created,
                 UserRoleUpdate(role_code=payload.role_code, branch_id=payload.branch_id),
             )
+    except ValidationError as exc:
+        if created is not None:
+            await db.delete(created)
+            await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=exc.errors(include_context=False),
+        ) from None
     except ValueError as exc:
         if created is not None:
             await db.delete(created)
@@ -404,8 +411,19 @@ async def create_admin_user(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected role is not configured") from None
         raise
 
+    db.add(AuditEvent(
+        entity_type="USER",
+        entity_id=str(created.id),
+        action="CREATE_ADMIN_ACCOUNT",
+        new_data={"role": payload.role_code, "branch_id": str(payload.branch_id) if payload.branch_id else None},
+        transaction_id=str(current_user.id),
+    ))
+    await db.commit()
+    refreshed = await get_user_by_id(db, created.id)
+    if refreshed is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     branch_map = await _branch_id_map(db)
-    return AdminUserRead.model_validate(created).model_copy(update={"branch_id": branch_map.get(created.id)})
+    return AdminUserRead.model_validate(refreshed).model_copy(update={"branch_id": branch_map.get(refreshed.id)})
 
 
 @router.patch("/users/{user_id}", response_model=AdminUserRead)

@@ -272,9 +272,5 @@ async def set_user_role(db: AsyncSession, user: User, payload: UserRoleUpdate) -
 
     db.add(user)
     await db.commit()
-
-    refreshed = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == user.id))
-    updated_user = refreshed.scalar_one_or_none()
-    if updated_user is None:
-        raise RuntimeError("User role update failed")
-    return updated_user
+    await db.refresh(user, attribute_names=["roles"])
+    return user
