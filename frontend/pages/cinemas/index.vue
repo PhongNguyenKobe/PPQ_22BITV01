@@ -204,7 +204,7 @@ watch(selectedChain, () => {
                     </div>
                     <div class="flex items-center justify-between">
                       <span class="text-primary-container font-bold text-label-md">{{ m.rating }}</span>
-                      <NuxtLink :to="`/movies/${m.id}`" class="bg-primary-container/10 hover:bg-primary-container text-primary-container hover:text-white px-4 py-2 rounded-lg font-label-md text-label-md transition-all">Xem lịch chiếu</NuxtLink>
+                      <NuxtLink :to="getMovieSlugUrl({ id: m.id, title: m.name })" class="bg-primary-container/10 hover:bg-primary-container text-primary-container hover:text-white px-4 py-2 rounded-lg font-label-md text-label-md transition-all">Xem lịch chiếu</NuxtLink>
                     </div>
                   </div>
                 </div>

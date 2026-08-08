@@ -88,7 +88,7 @@ onMounted(async () => {
 
       <template v-else-if="featuredMovie">
         <section class="mt-8 grid overflow-hidden rounded-3xl border border-white/10 bg-[#1a1c1c] shadow-2xl lg:grid-cols-[1.4fr_0.6fr]">
-          <NuxtLink :to="`/products/${featuredMovie.id}`" class="group relative min-h-[430px] overflow-hidden">
+          <NuxtLink :to="getProductSlugUrl(featuredMovie)" class="group relative min-h-[430px] overflow-hidden">
             <img :src="featuredMovie.imageUrl" :alt="featuredMovie.name" class="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105">
             <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
             <div class="absolute inset-x-0 bottom-0 p-7 md:p-10">
@@ -108,7 +108,7 @@ onMounted(async () => {
           </NuxtLink>
 
           <aside class="divide-y divide-white/10">
-            <NuxtLink v-for="movie in secondaryStories" :key="movie.id" :to="`/products/${movie.id}`" class="group flex gap-4 p-5 transition hover:bg-white/[0.04]">
+            <NuxtLink v-for="movie in secondaryStories" :key="movie.id" :to="getProductSlugUrl(movie)" class="group flex gap-4 p-5 transition hover:bg-white/[0.04]">
               <img :src="movie.imageUrl" :alt="movie.name" class="h-24 w-16 flex-none rounded-lg object-cover">
               <div class="min-w-0">
                 <span class="text-[10px] font-black uppercase tracking-wider" :class="movie.status === 'NOW_SHOWING' ? 'text-red-400' : 'text-amber-400'">{{ movie.status === 'NOW_SHOWING' ? 'Đang chiếu' : 'Sắp chiếu' }}</span>
@@ -137,7 +137,7 @@ onMounted(async () => {
           </div>
 
           <div v-if="filteredMovies.length" class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <NuxtLink v-for="movie in filteredMovies" :key="movie.id" :to="`/products/${movie.id}`" class="group grid grid-cols-[110px_1fr] overflow-hidden rounded-2xl border border-white/10 bg-[#1a1c1c] transition hover:-translate-y-1 hover:border-red-500/40">
+            <NuxtLink v-for="movie in filteredMovies" :key="movie.id" :to="getProductSlugUrl(movie)" class="group grid grid-cols-[110px_1fr] overflow-hidden rounded-2xl border border-white/10 bg-[#1a1c1c] transition hover:-translate-y-1 hover:border-red-500/40">
               <img :src="movie.imageUrl" :alt="movie.name" class="h-full min-h-48 w-full object-cover">
               <div class="flex min-w-0 flex-col p-4">
                 <span class="text-[10px] font-black uppercase tracking-wider" :class="movie.status === 'NOW_SHOWING' ? 'text-red-400' : 'text-amber-400'">{{ movie.status === 'NOW_SHOWING' ? 'Đang chiếu' : 'Sắp chiếu' }}</span>
@@ -159,7 +159,7 @@ onMounted(async () => {
             <span class="text-xs text-gray-500">Dữ liệu từ lịch phim hệ thống</span>
           </div>
           <div class="mt-6 grid gap-3 md:grid-cols-2">
-            <NuxtLink v-for="movie in upcoming.slice(0, 6)" :key="movie.id" :to="`/products/${movie.id}`" class="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-amber-400/30 hover:bg-amber-400/[0.04]">
+            <NuxtLink v-for="movie in upcoming.slice(0, 6)" :key="movie.id" :to="getProductSlugUrl(movie)" class="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-amber-400/30 hover:bg-amber-400/[0.04]">
               <div class="min-w-20 rounded-lg bg-amber-400/10 px-3 py-2 text-center text-xs font-black text-amber-300">{{ formatReleaseDate(movie.releaseDate) }}</div>
               <div class="min-w-0"><h3 class="truncate font-bold text-white">{{ movie.name }}</h3><p class="mt-1 truncate text-xs text-gray-500">{{ movie.genres.join(' · ') || 'Đang cập nhật thể loại' }}</p></div>
               <span class="material-symbols-outlined ml-auto text-gray-600">arrow_forward</span>

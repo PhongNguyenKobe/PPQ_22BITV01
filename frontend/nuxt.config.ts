@@ -15,7 +15,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     tmdbToken: process.env.TMDB_API_TOKEN,
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1',
+      facebookPageId: process.env.NUXT_PUBLIC_FACEBOOK_PAGE_ID || '883225894869557',
+      facebookAppId: process.env.NUXT_PUBLIC_FACEBOOK_APP_ID || '844524511361538'
     }
   },
 
@@ -70,7 +72,7 @@ export default defineNuxtConfig({
         // Schema.org Structured Data
         {
           type: 'application/ld+json',
-          children: JSON.stringify({
+          innerHTML: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "WebSite",
             "name": "CineAI",
@@ -89,7 +91,7 @@ export default defineNuxtConfig({
           async: true
         },
         {
-          children: `
+          innerHTML: `
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());

@@ -11,6 +11,16 @@ const apiClient = axios.create({
   },
 })
 
+// Request interceptor to handle SSR inside Docker network
+apiClient.interceptors.request.use((config) => {
+  if (import.meta.server && config.baseURL) {
+    config.baseURL = config.baseURL
+      .replace('localhost:8000', 'backend:8000')
+      .replace('127.0.0.1:8000', 'backend:8000')
+  }
+  return config
+})
+
 function notify(message: string, type: 'success' | 'error') {
   if (import.meta.client) window.dispatchEvent(new CustomEvent('cineai:toast', { detail: { message, type } }))
 }

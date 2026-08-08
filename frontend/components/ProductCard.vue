@@ -109,7 +109,7 @@ function startBooking() {
             </NuxtLink>
             <NuxtLink
               v-else-if="status === 'UPCOMING'"
-              :to="{ path: `/products/${id}`, query: detailQuery }"
+              :to="{ path: getProductSlugUrl({ id, name }), query: detailQuery }"
               class="overlay-btn overlay-btn-primary"
             >
               Xem thông tin
@@ -120,7 +120,7 @@ function startBooking() {
 
             <div class="grid grid-cols-2 gap-2">
               <NuxtLink
-                :to="{ path: `/products/${id}`, query: detailQuery }"
+                :to="{ path: getProductSlugUrl({ id, name }), query: detailQuery }"
                 class="overlay-btn overlay-btn-secondary"
               >
                 Xem chi tiết

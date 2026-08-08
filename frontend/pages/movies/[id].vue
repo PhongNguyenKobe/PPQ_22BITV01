@@ -12,6 +12,18 @@ definePageMeta({
 const route = useRoute()
 const ticketsStore = useTicketsStore()
 
+const requestUrl = useRequestURL()
+
+useSeoMeta({
+  title: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
+  ogTitle: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
+  description: () => tmdbDetail.value?.description || '',
+  ogDescription: () => tmdbDetail.value?.description || '',
+  ogImage: () => tmdbDetail.value?.poster || '',
+  ogUrl: () => requestUrl.href,
+  twitterCard: 'summary_large_image',
+})
+
 // State
 const tmdbDetail = ref<TmdbMovieDetail | null>(null)
 const showtimes = ref<Showtime[]>([])
@@ -23,8 +35,9 @@ const selectedDate = ref('')
 const trailerEmbedUrl = computed(() => youtubeEmbedUrl(tmdbDetail.value?.trailerUrl))
 
 onMounted(async () => {
-  const id = route.params.id as string
-  if (!id) return
+  const slug = route.params.id as string
+  if (!slug) return
+  const id = extractIdFromSlug(slug)
 
   loading.value = true
   try {

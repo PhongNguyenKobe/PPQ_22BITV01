@@ -14,6 +14,7 @@
     <!-- AI Widgets (Only run on client browser) -->
     <ClientOnly>
       <FloatingAiChat />
+      <FacebookMessengerChat />
     </ClientOnly>
   </div>
 </template>

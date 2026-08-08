@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     paypal_client_id: str = Field("", validation_alias="PAYPAL_CLIENT_ID")
     paypal_client_secret: str = Field("", validation_alias="PAYPAL_CLIENT_SECRET")
     paypal_mode: str = Field("sandbox", validation_alias="PAYPAL_MODE")
+    facebook_page_id: str = Field("", validation_alias="NUXT_PUBLIC_FACEBOOK_PAGE_ID")
+    facebook_app_id: str = Field("", validation_alias="NUXT_PUBLIC_FACEBOOK_APP_ID")
+    facebook_app_secret: str = Field("", validation_alias="FACEBOOK_APP_SECRET")
     backend_cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [
             "http://localhost:3000",

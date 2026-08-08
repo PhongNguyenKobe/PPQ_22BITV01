@@ -441,7 +441,7 @@ onMounted(() => {
                           <h4 class="font-bold text-white text-base truncate">{{ m.title }}</h4>
                           <p class="text-xs text-gray-400 mt-1 line-clamp-3 leading-relaxed">{{ m.description || 'Chưa có mô tả chi tiết cho phim này.' }}</p>
                         </div>
-                        <NuxtLink :to="`/movies/${m.id}`" class="text-xs font-bold text-purple-400 hover:underline flex items-center gap-0.5 mt-2">
+                        <NuxtLink :to="getMovieSlugUrl(m)" class="text-xs font-bold text-purple-400 hover:underline flex items-center gap-0.5 mt-2">
                           Xem chi tiết lịch chiếu <span class="material-symbols-outlined text-xs">arrow_forward</span>
                         </NuxtLink>
                       </div>
@@ -611,14 +611,14 @@ onMounted(() => {
               <!-- Buttons -->
               <div class="flex flex-wrap items-center gap-3 pt-1">
                 <NuxtLink
-                  :to="`/movies/${item.movie.id}`"
+                  :to="getMovieSlugUrl(item.movie)"
                   class="px-4 py-2 bg-white/5 hover:bg-white/10 text-white font-bold text-xs rounded-xl border border-white/10 hover:border-white/20 transition-all flex items-center gap-1.5"
                 >
                   <span class="material-symbols-outlined text-sm">info</span>
                   Chi tiết phim
                 </NuxtLink>
                 <NuxtLink
-                  :to="`/movies/${item.movie.id}`"
+                  :to="getMovieSlugUrl(item.movie)"
                   class="px-4 py-2 bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5"
                 >
                   <span class="material-symbols-outlined text-sm">confirmation_number</span>

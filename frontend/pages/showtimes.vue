@@ -305,7 +305,7 @@ function handleSelectShowtime(movie: any, showtime: Showtime) {
                   <p class="text-red-400 font-bold truncate">{{ c.theater }}</p>
                   <p class="text-[10px] text-gray-400">{{ c.time }}</p>
                 </div>
-                <NuxtLink :to="`/movies/${c.movieId}`"
+                <NuxtLink :to="getMovieSlugUrl({ id: c.movieId, title: c.movie })"
                   class="w-8 h-8 rounded-full bg-white/10 hover:bg-red-600 text-white flex items-center justify-center transition-colors">
                   <span class="material-symbols-outlined text-sm">arrow_forward</span>
                 </NuxtLink>

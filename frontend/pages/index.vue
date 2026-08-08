@@ -490,7 +490,7 @@ function chooseQuickShowtime(movie: any, showtime: Showtime) {
         <div v-if="nowShowingMovies.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <article v-for="movie in nowShowingMovies" :key="'mov-' + movie.id"
             class="group overflow-hidden rounded-2xl border border-[#343535] bg-[#181a1a] hover:border-[#e50914]/70 hover:-translate-y-1 transition-all duration-300">
-            <NuxtLink :to="`/products/${movie.id}`" class="block relative aspect-[2/3] overflow-hidden bg-[#202222]">
+            <NuxtLink :to="getProductSlugUrl(movie)" class="block relative aspect-[2/3] overflow-hidden bg-[#202222]">
               <img :src="getMovieImage(movie)" :alt="getMovieTitle(movie)"
                 class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
               <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#181a1a] to-transparent"></div>

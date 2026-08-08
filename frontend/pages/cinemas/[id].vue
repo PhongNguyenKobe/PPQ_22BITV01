@@ -91,7 +91,7 @@ onMounted(async () => {
       <!-- Phim đang chiếu tại rạp (Grid Poster) -->
       <h2 class="mb-5 text-2xl font-bold">Phim đang chiếu tại rạp</h2>
       <div class="mb-10 grid grid-cols-2 gap-5 md:grid-cols-4 lg:grid-cols-5">
-        <NuxtLink v-for="movie in branch.movies" :key="movie.id" :to="`/movies/${movie.id}`" class="overflow-hidden rounded-2xl bg-white/5 hover:scale-[1.03] transition-transform duration-200 border border-white/5 hover:border-orange-500/30">
+        <NuxtLink v-for="movie in branch.movies" :key="movie.id" :to="getMovieSlugUrl(movie)" class="overflow-hidden rounded-2xl bg-white/5 hover:scale-[1.03] transition-transform duration-200 border border-white/5 hover:border-orange-500/30">
           <img :src="movie.poster" :alt="movie.title" class="aspect-[2/3] w-full object-cover">
           <h3 class="p-3 font-bold text-sm truncate">{{ movie.title }}</h3>
         </NuxtLink>
@@ -118,7 +118,7 @@ onMounted(async () => {
                 class="w-24 sm:w-32 lg:w-[200px] aspect-[2/3] object-cover rounded-2xl shadow-2xl border border-white/10 flex-shrink-0"
                 @error="($event.target as HTMLImageElement).src = '/images/movie-placeholder.svg'" />
               <div>
-                <NuxtLink :to="`/movies/${movie.id}`" class="text-lg md:text-xl font-black text-white leading-tight mb-2 hover:text-orange-500 transition-colors block">
+                <NuxtLink :to="getMovieSlugUrl(movie)" class="text-lg md:text-xl font-black text-white leading-tight mb-2 hover:text-orange-500 transition-colors block">
                   {{ movie.title }}
                 </NuxtLink>
 

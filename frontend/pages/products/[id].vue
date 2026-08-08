@@ -17,6 +17,18 @@ const productsStore = useProductsStore()
 const ticketsStore = useTicketsStore()
 const userStore = useUserStore()
 
+const requestUrl = useRequestURL()
+
+useSeoMeta({
+  title: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
+  ogTitle: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
+  description: () => currentProduct.value?.description || '',
+  ogDescription: () => currentProduct.value?.description || '',
+  ogImage: () => currentProduct.value?.imageUrl || '',
+  ogUrl: () => requestUrl.href,
+  twitterCard: 'summary_large_image',
+})
+
 const { products } = storeToRefs(productsStore)
 const { currentUser } = storeToRefs(userStore)
 const loading = ref(true)
@@ -58,6 +70,12 @@ onMounted(async () => {
     if (selectedBranchId.value) {
       selectedBranchCatalog.value = await branchesService.getById(selectedBranchId.value)
     }
+    console.log('DEBUG MOUNTED:', {
+      routeParamId: route.params.id,
+      extractedId: extractIdFromSlug(String(route.params.id || '')),
+      currentProduct: currentProduct?.value,
+      reviewMovieId: reviewMovieId.value
+    })
     await loadReviews()
   } catch (error) {
     console.error('Lỗi tải sản phẩm:', error)
@@ -68,10 +86,11 @@ onMounted(async () => {
 
 // Current Product
 const currentProduct = computed(() => {
-  const id = String(route.params.id as string)
+  const slug = String(route.params.id as string)
+  const id = extractIdFromSlug(slug)
   return products.value.find((p) => String(p.id) === id)
 })
-const reviewMovieId = computed(() => currentProduct.value?.backendMovieId || String(route.params.id || ''))
+const reviewMovieId = computed(() => currentProduct.value?.backendMovieId || extractIdFromSlug(String(route.params.id || '')))
 const myReview = computed(() => reviewsData.value.reviews.find(review => review.user_id === currentUser.value?.id) || null)
 
 const trailerHref = computed(() => {
