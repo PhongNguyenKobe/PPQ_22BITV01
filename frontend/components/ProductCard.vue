@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { getProductSlugUrl } from '~/utils/slug';
 import { useRouter } from 'vue-router'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'

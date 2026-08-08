@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Movie } from '~/services/api'
+import { getProductSlugUrl } from '~/utils/slug'
 
 defineProps<{
   movie: Movie

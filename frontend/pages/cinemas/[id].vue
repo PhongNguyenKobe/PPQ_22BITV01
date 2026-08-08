@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { branchesService, mapBackendShowtimeToFrontend, type BranchDetail } from '~/services/api'
 import { formatDate } from '~/utils/date'
+import { getMovieSlugUrl } from '~/utils/slug'
 
 const route = useRoute()
 const branch = ref<BranchDetail | null>(null)

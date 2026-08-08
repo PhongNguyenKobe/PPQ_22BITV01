@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue"
 import { branchesService, type BranchDetail } from "~/services/api"
+import { getMovieSlugUrl } from "~/utils/slug"
 
 definePageMeta({ layout: "default" })
 

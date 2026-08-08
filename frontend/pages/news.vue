@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProductsStore } from '~/store/products'
 import { movieService, type Showtime } from '~/services/api'
+import { getProductSlugUrl } from '~/utils/slug'
 
 definePageMeta({ layout: 'default' })
 

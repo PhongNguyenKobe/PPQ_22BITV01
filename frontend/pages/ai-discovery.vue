@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useTicketsStore } from '~/store/tickets'
 import { aiDiscoveryService, type AiMoodMatchItem } from '~/services/api'
 import { isShowtimeExpired } from '~/utils/showtime'
+import { getMovieSlugUrl } from '~/utils/slug'
 
 definePageMeta({
   layout: 'default',

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue"
 import { movieService, type Movie, type Showtime } from "~/services/api"
 import { useTicketsStore } from "~/store/tickets"
+import { getMovieSlugUrl } from "~/utils/slug"
 
 const ticketsStore = useTicketsStore()
 

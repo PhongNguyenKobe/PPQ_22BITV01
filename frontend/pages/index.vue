@@ -6,6 +6,7 @@ import { movieService, youtubeTrailerLink, type Showtime } from '~/services/api'
 import { useRouter } from 'vue-router'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
+import { getProductSlugUrl } from '~/utils/slug'
 
 definePageMeta({
   layout: 'default'

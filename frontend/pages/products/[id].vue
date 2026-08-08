@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
+import { extractIdFromSlug } from '~/utils/slug'
 import { useProductsStore } from '~/store/products'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
@@ -19,15 +20,11 @@ const userStore = useUserStore()
 
 const requestUrl = useRequestURL()
 
-useSeoMeta({
-  title: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
-  ogTitle: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
-  description: () => currentProduct.value?.description || '',
-  ogDescription: () => currentProduct.value?.description || '',
-  ogImage: () => currentProduct.value?.imageUrl || '',
-  ogUrl: () => requestUrl.href,
-  twitterCard: 'summary_large_image',
-})
+
+function shareOnFacebook() {
+  const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`
+  window.open(shareUrl, '_blank', 'width=600,height=400')
+}
 
 const { products } = storeToRefs(productsStore)
 const { currentUser } = storeToRefs(userStore)
@@ -61,34 +58,49 @@ const reviewsData = ref<MovieReviewsResponse>({
 const editingReviewId = ref<string | null>(null)
 const ratingLabels = ['', 'Không hay', 'Tạm được', 'Bình thường', 'Hay', 'Rất hay']
 
-// Fetch products
+const slug = String(route.params.id || '')
+const id = extractIdFromSlug(slug)
+
+const { data: currentProduct, error: movieError } = await useAsyncData(`product-detail-${id}`, async () => {
+  const movie = await movieService.getById(id)
+  return {
+    id: movie.id,
+    backendMovieId: movie.id,
+    name: movie.title,
+    originalTitle: movie.originalTitle,
+    price: 90,
+    category: movie.genre[0] || 'Khác',
+    genres: movie.genre || [],
+    status: movie.status || 'UPCOMING',
+    imageUrl: movie.poster,
+    description: movie.description,
+    rating: movie.rating,
+    trailerUrl: movie.trailer,
+    duration: movie.duration,
+    releaseDate: movie.releaseDate,
+    director: movie.director || '',
+    cast: movie.cast || [],
+  }
+})
+
+// Fetch reviews and branch details
 onMounted(async () => {
   try {
-    if (products.value.length === 0) {
-      await productsStore.fetchProducts()
-    }
     if (selectedBranchId.value) {
       selectedBranchCatalog.value = await branchesService.getById(selectedBranchId.value)
     }
     console.log('DEBUG MOUNTED:', {
       routeParamId: route.params.id,
-      extractedId: extractIdFromSlug(String(route.params.id || '')),
+      extractedId: id,
       currentProduct: currentProduct?.value,
       reviewMovieId: reviewMovieId.value
     })
     await loadReviews()
   } catch (error) {
-    console.error('Lỗi tải sản phẩm:', error)
+    console.error('Lỗi tải dữ liệu chi tiết:', error)
   } finally {
     loading.value = false
   }
-})
-
-// Current Product
-const currentProduct = computed(() => {
-  const slug = String(route.params.id as string)
-  const id = extractIdFromSlug(slug)
-  return products.value.find((p) => String(p.id) === id)
 })
 const reviewMovieId = computed(() => currentProduct.value?.backendMovieId || extractIdFromSlug(String(route.params.id || '')))
 const myReview = computed(() => reviewsData.value.reviews.find(review => review.user_id === currentUser.value?.id) || null)
@@ -201,6 +213,20 @@ function reviewerInitials(name: string) {
 function reviewDate(value: string) {
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
+
+useSeoMeta({
+  title: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
+  ogTitle: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
+  description: () => currentProduct.value?.description || '',
+  ogDescription: () => currentProduct.value?.description || '',
+  ogImage: () => currentProduct.value?.imageUrl || '',
+  ogUrl: () => requestUrl.href,
+  fbAppId: '844524511361538',
+  twitterCard: 'summary_large_image',
+  twitterTitle: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
+  twitterDescription: () => currentProduct.value?.description || '',
+  twitterImage: () => currentProduct.value?.imageUrl || '',
+})
 </script>
 
 <template>
@@ -351,6 +377,14 @@ function reviewDate(value: string) {
                   <span class="material-symbols-outlined text-xl text-red-500">play_circle</span>
                   XEM TRAILER
                 </a>
+                
+                <button @click="shareOnFacebook"
+                  class="flex-1 sm:flex-none px-8 py-4 bg-[#1877F2]/10 hover:bg-[#1877F2]/25 text-[#1877F2] border border-[#1877F2]/30 hover:border-[#1877F2]/60 font-bold text-sm rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 backdrop-blur-md">
+                  <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  CHIA SẺ FACEBOOK
+                </button>
               </div>
 
               <!-- Facts Grid -->

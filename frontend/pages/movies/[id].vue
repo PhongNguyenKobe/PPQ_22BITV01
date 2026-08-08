@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
+import { extractIdFromSlug } from '~/utils/slug'
 import { useTicketsStore } from '~/store/tickets'
 import { tmdbService, movieService, youtubeEmbedUrl, type Showtime, type TmdbMovieDetail } from '~/services/api'
 
@@ -14,61 +15,55 @@ const ticketsStore = useTicketsStore()
 
 const requestUrl = useRequestURL()
 
-useSeoMeta({
-  title: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
-  ogTitle: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
-  description: () => tmdbDetail.value?.description || '',
-  ogDescription: () => tmdbDetail.value?.description || '',
-  ogImage: () => tmdbDetail.value?.poster || '',
-  ogUrl: () => requestUrl.href,
-  twitterCard: 'summary_large_image',
-})
+
+
+function shareOnFacebook() {
+  const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`
+  window.open(shareUrl, '_blank', 'width=600,height=400')
+}
 
 // State
-const tmdbDetail = ref<TmdbMovieDetail | null>(null)
 const showtimes = ref<Showtime[]>([])
 const loading = ref(true)
 const error = ref('')
 
 const selectedBranch = ref('')
 const selectedDate = ref('')
+
+const slug = String(route.params.id || '')
+const id = extractIdFromSlug(slug)
+
+const { data: tmdbDetail, error: tmdbError } = await useAsyncData(`movie-detail-${id}`, async () => {
+  try {
+    return await tmdbService.getMovieDetail(id)
+  } catch (e) {
+    console.error('TMDB fetch failed, falling back to movieService:', e)
+    const movie = await movieService.getById(id)
+    return {
+      id: movie.id,
+      title: movie.title,
+      description: movie.description,
+      poster: movie.poster,
+      rating: movie.rating,
+      duration: movie.duration,
+      releaseDate: movie.releaseDate,
+      genre: movie.genre,
+      director: movie.director || '',
+      cast: movie.cast || [],
+      trailerUrl: movie.trailer || '',
+    }
+  }
+})
+
+if (tmdbError.value) {
+  error.value = 'Không thể tải thông tin phim.'
+}
+
 const trailerEmbedUrl = computed(() => youtubeEmbedUrl(tmdbDetail.value?.trailerUrl))
 
 onMounted(async () => {
-  const slug = route.params.id as string
-  if (!slug) return
-  const id = extractIdFromSlug(slug)
-
+  if (!id) return
   loading.value = true
-  try {
-    // 1. Fetch movie metadata from TMDB (poster, trailer, cast, director, rating, genres)
-    tmdbDetail.value = await tmdbService.getMovieDetail(id)
-  } catch (e) {
-    console.error('TMDB fetch failed, falling back to movieService:', e)
-    // Fallback: try backend/mock
-    try {
-      const movie = await movieService.getById(id)
-      tmdbDetail.value = {
-        id: movie.id,
-        title: movie.title,
-        description: movie.description,
-        poster: movie.poster,
-        rating: movie.rating,
-        duration: movie.duration,
-        releaseDate: movie.releaseDate,
-        genre: movie.genre,
-        director: movie.director,
-        cast: movie.cast,
-        trailerUrl: movie.trailer,
-      }
-    } catch (e2) {
-      error.value = 'Không thể tải thông tin phim.'
-      loading.value = false
-      return
-    }
-  }
-
-  // 2. Fetch showtimes from backend/mock (not from TMDB)
   try {
     showtimes.value = await movieService.getShowtimes(id)
     if (showtimes.value.length > 0) {
@@ -119,6 +114,20 @@ function changeBranch(branch: string) {
     selectedDate.value = availableDates[0]
   }
 }
+
+useSeoMeta({
+  title: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
+  ogTitle: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
+  description: () => tmdbDetail.value?.description || '',
+  ogDescription: () => tmdbDetail.value?.description || '',
+  ogImage: () => tmdbDetail.value?.poster || '',
+  ogUrl: () => requestUrl.href,
+  fbAppId: '844524511361538',
+  twitterCard: 'summary_large_image',
+  twitterTitle: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
+  twitterDescription: () => tmdbDetail.value?.description || '',
+  twitterImage: () => tmdbDetail.value?.poster || '',
+})
 </script>
 
 <template>
@@ -175,6 +184,17 @@ function changeBranch(branch: string) {
                 <span>•</span>
                 <!-- Release Date -->
                 <span>Khởi chiếu: {{ tmdbDetail.releaseDate }}</span>
+              </div>
+
+              <!-- Share Facebook Button -->
+              <div class="mt-4 flex justify-center md:justify-start">
+                <button @click="shareOnFacebook"
+                  class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-[#1877F2] bg-[#1877F2]/10 border border-[#1877F2]/25 hover:bg-[#1877F2] hover:text-white rounded-xl transition-all duration-300">
+                  <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  CHIA SẺ FACEBOOK
+                </button>
               </div>
             </div>
           </div>
