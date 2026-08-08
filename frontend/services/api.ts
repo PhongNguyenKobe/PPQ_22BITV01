@@ -2,21 +2,30 @@ import axios from 'axios'
 
 // Set this to false when backend (FastAPI) is running
 const USE_MOCK = false
-const API_BASE_URL = import.meta.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
-
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// Request interceptor to handle SSR inside Docker network
+// Request interceptor to handle dynamic API URL and SSR inside Docker network
 apiClient.interceptors.request.use((config) => {
-  if (import.meta.server && config.baseURL) {
-    config.baseURL = config.baseURL
+  let apiBase = 'http://localhost:8000/api/v1'
+  try {
+    const runtimeConfig = useRuntimeConfig()
+    if (runtimeConfig.public?.apiBase) {
+      apiBase = runtimeConfig.public.apiBase
+    }
+  } catch (e) {
+    // useRuntimeConfig might fail if called in a non-Nuxt context
+  }
+
+  if (import.meta.server) {
+    config.baseURL = apiBase
       .replace('localhost:8000', 'backend:8000')
       .replace('127.0.0.1:8000', 'backend:8000')
+  } else {
+    config.baseURL = apiBase
   }
   return config
 })
