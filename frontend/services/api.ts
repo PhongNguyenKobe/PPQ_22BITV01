@@ -1725,7 +1725,16 @@ export const movieService = {
   },
 
   watchSeats(showtimeId: string, onUpdate: () => void): WebSocket {
-    const apiUrl = new URL(API_BASE_URL)
+    let apiBase = 'http://localhost:8000/api/v1'
+    try {
+      const runtimeConfig = useRuntimeConfig()
+      if (runtimeConfig.public?.apiBase) {
+        apiBase = runtimeConfig.public.apiBase
+      }
+    } catch (e) {
+      // Fallback
+    }
+    const apiUrl = new URL(apiBase)
     const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'
     const token = process.client ? sessionStorage.getItem('cineai_token') || '' : ''
     const socket = new WebSocket(`${protocol}//${apiUrl.host}${apiUrl.pathname}/showtimes/${showtimeId}/ws?token=${encodeURIComponent(token)}`)
