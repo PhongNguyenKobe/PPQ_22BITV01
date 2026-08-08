@@ -66,6 +66,17 @@ class Settings(BaseSettings):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def assemble_db_connection(cls, v: str) -> str:
+        if not v:
+            return v
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        if v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
     @property
     def vnpay_enabled(self) -> bool:
         return bool(self.vnpay_tmn_code and self.vnpay_hash_secret)
