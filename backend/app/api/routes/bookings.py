@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, status, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -24,12 +25,44 @@ from app.schemas.booking import (
     BookingListResponse,
 )
 from app.models.user import User
-from app.models.commerce import BookingCombo, Combo
-from app.models.catalog import Auditorium, Showtime
-from sqlalchemy import select
-from decimal import Decimal
+from app.models.commerce import Booking, Ticket
+from app.models.catalog import Auditorium, Branch, Movie, Showtime
 
 router = APIRouter()
+
+
+@router.get("/tickets/verify/{scan_code}")
+async def verify_public_ticket(scan_code: str, db: AsyncSession = Depends(get_db)):
+    """Read-only phone view; intentionally excludes customer personal data."""
+    from app.core.tickets import parse_ticket_scan_code, ticket_checkin_state
+
+    try:
+        normalized = parse_ticket_scan_code(scan_code)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Ticket not found") from None
+    row = (await db.execute(
+        select(Ticket, Booking, Showtime, Movie, Auditorium, Branch)
+        .join(Booking, Booking.id == Ticket.booking_id)
+        .join(Showtime, Showtime.id == Booking.showtime_id)
+        .join(Movie, Movie.id == Showtime.movie_id)
+        .join(Auditorium, Auditorium.id == Showtime.auditorium_id)
+        .join(Branch, Branch.id == Auditorium.branch_id)
+        .where(Ticket.scan_code == normalized)
+    )).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket, booking, showtime, movie, auditorium, branch = row
+    booking_tickets = list((await db.execute(
+        select(Ticket).where(Ticket.booking_id == booking.id).order_by(Ticket.ticket_code)
+    )).scalars().all())
+    state = ticket_checkin_state(booking.status, showtime.ends_at, None, datetime.now(timezone.utc), showtime.starts_at)
+    if any(item.status == "CANCELLED" for item in booking_tickets): state = "CANCELLED"
+    elif booking_tickets and all(item.status == "USED" for item in booking_tickets): state = "ALREADY_USED"
+    return {"ticket_code": booking.ticket_code, "state": state, "movie_title": movie.title,
+            "poster_url": movie.poster_url, "branch_name": branch.name,
+            "auditorium_name": auditorium.name,
+            "seats": [f"{item.seat_row}{item.seat_number}" for item in booking_tickets],
+            "starts_at": showtime.starts_at, "ends_at": showtime.ends_at}
 
 
 @router.put("/{booking_id}/cancel-request")
@@ -89,6 +122,7 @@ async def get_showtime_seats(
 @router.post("", response_model=BookingRead, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     payload: BookingCreate,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BookingRead:
@@ -101,6 +135,18 @@ async def create_booking(
     - **total_price**: Total booking price
     - Returns: Booking confirmation
     """
+    if idempotency_key:
+        idempotency_key = idempotency_key.strip()
+        if not idempotency_key or len(idempotency_key) > 100:
+            raise HTTPException(status_code=422, detail="Invalid Idempotency-Key")
+        existing_id = await db.scalar(select(Booking.id).where(
+            Booking.user_id == current_user.id,
+            Booking.idempotency_key == idempotency_key,
+        ))
+        if existing_id:
+            existing = await get_user_booking(db, existing_id, current_user.id)
+            return BookingRead(**booking_to_dict(existing))
+
     # Validate showtime
     if not await validate_showtime_exists(db, payload.showtime_id):
         raise HTTPException(
@@ -118,8 +164,13 @@ async def create_booking(
     
     if payload.quantity != len(payload.seat_ids):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="quantity must match seat_ids")
+    combo_items = {item.combo_id: item.quantity for item in payload.combo_items}
+    if len(combo_items) != len(payload.combo_items):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate combos are not allowed")
     try:
-        booking = await create_user_booking(db, current_user.id, payload.showtime_id, payload.seat_ids)
+        booking = await create_user_booking(
+            db, current_user.id, payload.showtime_id, payload.seat_ids, combo_items, idempotency_key
+        )
     except ValueError as exc:
         if str(exc) == "SHOWTIME_UNAVAILABLE":
             raise HTTPException(
@@ -131,29 +182,12 @@ async def create_booking(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Your seat hold expired. Please select the seats again.",
             ) from None
+        if str(exc) == "COMBO_UNAVAILABLE":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Combo is unavailable at this branch") from None
+        if str(exc).startswith("COMBO_OUT_OF_STOCK:"):
+            combo_name = str(exc).split(":", 1)[1]
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Combo {combo_name} is out of stock") from None
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="One or more seats are already booked") from None
-    if payload.combo_items:
-        branch_id = await db.scalar(
-            select(Auditorium.branch_id).join(Showtime, Showtime.auditorium_id == Auditorium.id).where(Showtime.id == payload.showtime_id)
-        )
-        requested = {item.combo_id: item.quantity for item in payload.combo_items}
-        combos = list((await db.execute(
-            select(Combo).where(Combo.id.in_(requested), Combo.branch_id == branch_id, Combo.is_active.is_(True))
-        )).scalars().all())
-        if len(combos) != len(requested):
-            raise HTTPException(status_code=400, detail="Một combo không còn bán tại chi nhánh này")
-        combo_total = Decimal("0")
-        for combo in combos:
-            quantity = requested[combo.id]
-            if combo.stock_quantity is not None and combo.stock_quantity < quantity:
-                raise HTTPException(status_code=409, detail=f"Combo {combo.name} không đủ số lượng")
-            line_total = combo.price * quantity
-            combo_total += line_total
-            db.add(BookingCombo(booking_id=booking.id, combo_id=combo.id, combo_name=combo.name, unit_price=combo.price, quantity=quantity, line_total=line_total))
-        booking.subtotal_price += combo_total
-        booking.total_price += combo_total
-        await db.commit()
-        booking = await get_user_booking(db, booking.id, current_user.id)
     return BookingRead(**booking_to_dict(booking))
 
 

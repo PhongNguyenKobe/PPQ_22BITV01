@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { adminService, type SuperAdminStats } from '~/services/api'
 
 const superStats = ref<SuperAdminStats | null>(null)
 const loading = ref(true)
 const error = ref('')
+const selectedBranch = useState<string>('admin-selected-branch', () => 'ALL')
 
 async function loadData() {
   loading.value = true
   error.value = ''
   try {
-    superStats.value = await adminService.getSuperAdminStats()
+    superStats.value = await adminService.getSuperAdminStats(
+      selectedBranch.value !== 'ALL' ? selectedBranch.value : undefined
+    )
   } catch (e: any) {
     error.value = e?.message || 'Không thể tải dữ liệu tổng quan.'
   } finally {
@@ -24,6 +27,22 @@ function fmtCurrency(value: number) {
 
 onMounted(() => {
   loadData()
+})
+
+watch(selectedBranch, () => loadData())
+
+const updatedAt = computed(() => {
+  if (!superStats.value?.generatedAt) return ''
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    timeZone: 'Asia/Ho_Chi_Minh'
+  }).format(new Date(superStats.value.generatedAt))
+})
+
+const monthPeriod = computed(() => {
+  const now = new Date()
+  return `01/${String(now.getMonth() + 1).padStart(2, '0')} – ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}`
 })
 
 const maxChartValue = () => {
@@ -41,15 +60,16 @@ const maxChartValue = () => {
       
       <div class="relative z-10">
         <h2 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">
-          Tổng quan Hệ thống
+          Tổng quan · {{ superStats?.scopeName || 'Toàn hệ thống' }}
         </h2>
-        <p class="text-sm text-on-surface-variant mt-1">Theo dõi hoạt động kinh doanh, doanh thu và hiệu suất các chi nhánh theo thời gian thực.</p>
+        <p class="text-sm text-on-surface-variant mt-1">Doanh thu thuần, đơn đặt vé và hiệu quả vận hành từ dữ liệu thanh toán thực tế.</p>
       </div>
       
       <button @click="loadData" class="relative z-10 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-on-surface hover:bg-white/10 hover:border-white/20 transition-all">
         <span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': loading }">sync</span>
-        Làm mới
+        Làm mới dữ liệu
       </button>
+      <p v-if="updatedAt" class="absolute right-5 bottom-2 text-[10px] text-on-surface-variant">Cập nhật: {{ updatedAt }}</p>
     </div>
     
     <div v-if="loading" class="flex justify-center items-center py-20">
@@ -70,8 +90,9 @@ const maxChartValue = () => {
           <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <div class="flex items-start justify-between relative z-10">
             <div>
-              <p class="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant mb-1">Tổng doanh thu</p>
+              <p class="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant mb-1">Doanh thu thuần lũy kế</p>
               <h3 class="text-2xl lg:text-3xl font-black text-emerald-400">{{ fmtCurrency(superStats.totalRevenue) }}</h3>
+              <p v-if="superStats.refundedRevenue" class="mt-1 text-[11px] text-rose-300">Đã hoàn {{ fmtCurrency(superStats.refundedRevenue) }}</p>
             </div>
             <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
               <span class="material-symbols-outlined text-2xl">account_balance</span>
@@ -100,6 +121,7 @@ const maxChartValue = () => {
             <div>
               <p class="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant mb-1">Doanh thu tháng này</p>
               <h3 class="text-2xl lg:text-3xl font-black text-indigo-400">{{ fmtCurrency(superStats.monthRevenue) }}</h3>
+              <p class="mt-1 text-[11px] text-on-surface-variant">{{ monthPeriod }}</p>
             </div>
             <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
               <span class="material-symbols-outlined text-2xl">calendar_month</span>
@@ -126,7 +148,7 @@ const maxChartValue = () => {
           <div class="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <div class="flex items-start justify-between relative z-10">
             <div>
-              <p class="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant mb-1">Giao dịch thành công</p>
+              <p class="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant mb-1">Đơn đặt vé thành công</p>
               <h3 class="text-2xl lg:text-3xl font-black text-pink-400">{{ superStats.successfulBookings.toLocaleString('vi-VN') }}</h3>
             </div>
             <div class="w-12 h-12 rounded-2xl bg-pink-500/10 text-pink-400 flex items-center justify-center">
@@ -140,8 +162,9 @@ const maxChartValue = () => {
           <div class="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <div class="flex items-start justify-between relative z-10">
             <div>
-              <p class="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant mb-1">Quy mô hệ thống</p>
-              <h3 class="text-2xl lg:text-3xl font-black text-purple-400">{{ superStats.totalBranches }} <span class="text-lg text-purple-400/60 font-medium">Cụm rạp</span></h3>
+              <p class="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant mb-1">{{ selectedBranch === 'ALL' ? 'Quy mô hệ thống' : 'Quy mô chi nhánh' }}</p>
+              <h3 v-if="selectedBranch === 'ALL'" class="text-2xl lg:text-3xl font-black text-purple-400">{{ superStats.activeBranches }}/{{ superStats.totalBranches }} <span class="text-lg text-purple-400/60 font-medium">đang hoạt động</span></h3>
+              <h3 v-else class="text-2xl lg:text-3xl font-black text-purple-400">{{ superStats.totalAuditoriums }} <span class="text-lg text-purple-400/60 font-medium">phòng chiếu</span></h3>
             </div>
             <div class="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
               <span class="material-symbols-outlined text-2xl">storefront</span>
@@ -190,7 +213,7 @@ const maxChartValue = () => {
           <div class="p-5 border-b border-white/5">
             <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
               <span class="material-symbols-outlined text-amber-500">donut_large</span>
-              Trạng thái giao dịch
+              Trạng thái đơn đặt vé
             </h3>
           </div>
           
@@ -201,7 +224,7 @@ const maxChartValue = () => {
                   <span class="material-symbols-outlined">check_circle</span>
                 </div>
                 <div>
-                  <p class="text-xs text-emerald-400/80 font-bold uppercase">Thành công</p>
+                  <p class="text-xs text-emerald-400/80 font-bold uppercase">Đã xác nhận</p>
                   <p class="text-lg font-black text-emerald-400">{{ superStats.successfulBookings.toLocaleString('vi-VN') }}</p>
                 </div>
               </div>
@@ -213,7 +236,7 @@ const maxChartValue = () => {
                   <span class="material-symbols-outlined">hourglass_empty</span>
                 </div>
                 <div>
-                  <p class="text-xs text-amber-400/80 font-bold uppercase">Đang chờ</p>
+                  <p class="text-xs text-amber-400/80 font-bold uppercase">Chờ thanh toán</p>
                   <p class="text-lg font-black text-amber-400">{{ superStats.pendingBookings.toLocaleString('vi-VN') }}</p>
                 </div>
               </div>
@@ -225,8 +248,8 @@ const maxChartValue = () => {
                   <span class="material-symbols-outlined">cancel</span>
                 </div>
                 <div>
-                  <p class="text-xs text-rose-400/80 font-bold uppercase">Đã huỷ / Lỗi</p>
-                  <p class="text-lg font-black text-rose-400">{{ superStats.cancelledBookings.toLocaleString('vi-VN') }}</p>
+                  <p class="text-xs text-rose-400/80 font-bold uppercase">Đã hủy / Hết hạn</p>
+                  <p class="text-lg font-black text-rose-400">{{ (superStats.cancelledBookings + superStats.expiredBookings).toLocaleString('vi-VN') }}</p>
                 </div>
               </div>
             </div>
@@ -238,7 +261,7 @@ const maxChartValue = () => {
           <div class="p-5 border-b border-white/5 flex items-center justify-between bg-black/20">
             <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
               <span class="material-symbols-outlined text-purple-400">local_movies</span>
-              Phim có doanh thu cao nhất
+              Top phim theo doanh thu vé
             </h3>
           </div>
           <div class="overflow-x-auto flex-1">
@@ -247,7 +270,7 @@ const maxChartValue = () => {
                 <tr>
                   <th class="px-5 py-4 text-left font-semibold">Tên Phim</th>
                   <th class="px-5 py-4 text-right font-semibold">Lượng vé bán</th>
-                  <th class="px-5 py-4 text-right font-semibold">Doanh thu</th>
+                  <th class="px-5 py-4 text-right font-semibold">Doanh thu vé</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5">
@@ -283,7 +306,7 @@ const maxChartValue = () => {
           <div class="p-5 border-b border-white/5 bg-black/20">
             <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
               <span class="material-symbols-outlined text-blue-400">storefront</span>
-              Hiệu suất chi nhánh
+              {{ selectedBranch === 'ALL' ? 'Xếp hạng chi nhánh' : 'Kết quả chi nhánh' }}
             </h3>
           </div>
           <div class="overflow-x-auto flex-1">
@@ -291,7 +314,7 @@ const maxChartValue = () => {
               <thead class="bg-black/40 text-on-surface-variant border-b border-white/10">
                 <tr>
                   <th class="px-5 py-4 text-left font-semibold">Chi nhánh</th>
-                  <th class="px-5 py-4 text-right font-semibold">Doanh thu</th>
+                  <th class="px-5 py-4 text-right font-semibold">Doanh thu thuần</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5">

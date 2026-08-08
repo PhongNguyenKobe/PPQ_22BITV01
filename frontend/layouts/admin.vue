@@ -7,6 +7,7 @@ import { adminBackendService, branchesService, type BackendBranch } from '~/serv
 const userStore = useUserStore()
 const { currentUser } = storeToRefs(userStore)
 const route = useRoute()
+const showBranchSelector = computed(() => ['overview', 'schedule-monitor', 'bookings', 'payments', 'reports'].includes(String(route.query.tab || 'overview')))
 
 const isCollapsed = ref(false)
 const showNotifications = ref(false)
@@ -16,8 +17,13 @@ const previewQuery = computed(() => {
   const branchId = currentUser.value?.role === 'branch-admin'
     ? currentUser.value.branchId
     : selectedBranch.value !== 'ALL' ? selectedBranch.value : undefined
-  return { preview: 'admin', ...(branchId ? { branch_id: branchId } : {}) }
+  return {
+    preview: 'admin',
+    return_tab: String(route.query.tab || 'overview'),
+    ...(branchId ? { branch_id: branchId } : {}),
+  }
 })
+const dashboardPath = computed(() => currentUser.value?.role === 'branch-admin' ? '/branch-admin/dashboard' : '/admin/dashboard')
 
 onMounted(async () => {
   try {
@@ -56,6 +62,7 @@ const adminMenu = [
   { tab: 'reports', label: 'Báo cáo', icon: 'analytics' },
 ]
 const branchMenu = [
+  { tab: 'overview', label: 'Tổng quan chi nhánh', icon: 'dashboard' },
   { tab: 'auditoriums', label: 'Phòng chiếu', icon: 'theaters' },
   { tab: 'seats', label: 'Ghế ngồi', icon: 'event_seat' },
   { tab: 'showtimes', label: 'Suất chiếu', icon: 'schedule' },
@@ -66,7 +73,7 @@ const branchMenu = [
 ]
 
 function isCurrentTab(tab: string) {
-  const fallback = currentUser.value?.role === 'branch-admin' ? 'auditoriums' : 'overview'
+  const fallback = 'overview'
   return String(route.query.tab || fallback) === tab
 }
 
@@ -92,7 +99,7 @@ function handleLogout() {
         <div class="min-h-0 flex-1 overflow-y-auto">
           <!-- Sidebar Brand -->
           <div class="admin-sidebar-brand flex items-center justify-between" :class="isCollapsed ? 'px-4' : 'px-6'">
-            <NuxtLink :to="{ path: '/products', query: previewQuery }" class="brand-link flex items-center gap-3">
+            <NuxtLink :to="dashboardPath" class="brand-link flex items-center gap-3">
               <span class="material-symbols-outlined text-primary-container text-3xl">local_activity</span>
               <span v-if="!isCollapsed" class="font-headline-md font-black tracking-wider text-on-surface text-lg">
                 Cine<span class="text-primary-container">AI</span>
@@ -144,13 +151,6 @@ function handleLogout() {
               <span v-if="!isCollapsed" class="text-sm font-semibold">{{ item.label }}</span>
             </NuxtLink>
 
-            <NuxtLink
-              :to="{ path: '/products', query: previewQuery }"
-              class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
-            >
-              <span class="material-symbols-outlined text-xl font-light">movie</span>
-              <span v-if="!isCollapsed" class="text-sm font-semibold">Xem trước trang bán vé</span>
-            </NuxtLink>
           </nav>
         </div>
 
@@ -202,7 +202,7 @@ function handleLogout() {
 
         <div class="flex items-center gap-3">
           <!-- Switch quick branch (if super admin) -->
-          <div v-if="currentUser?.role === 'admin'" class="hidden md:flex items-center gap-2 bg-white/5 border border-glass-stroke rounded-xl px-3 py-1.5">
+          <div v-if="currentUser?.role === 'admin' && showBranchSelector" class="hidden md:flex items-center gap-2 bg-white/5 border border-glass-stroke rounded-xl px-3 py-1.5">
             <span class="material-symbols-outlined text-sm text-ai-accent">location_on</span>
             <select v-model="selectedBranch" class="bg-transparent border-0 text-xs font-bold text-on-surface p-0 focus:ring-0 cursor-pointer">
               <option value="ALL">Tất cả chi nhánh</option>
@@ -251,9 +251,9 @@ function handleLogout() {
           </div>
 
           <!-- Return to main ticket view -->
-          <NuxtLink :to="{ path: '/products', query: previewQuery }" class="back-btn hidden lg:flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-glass-stroke bg-white/5 hover:bg-white/10 text-xs font-bold text-on-surface transition-all">
-            <span class="material-symbols-outlined text-sm">visibility</span>
-            Xem trước trang bán vé
+          <NuxtLink :to="{ path: '/products', query: previewQuery }" target="_blank" class="back-btn hidden lg:flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-glass-stroke bg-white/5 hover:bg-white/10 text-xs font-bold text-on-surface transition-all">
+            <span class="material-symbols-outlined text-sm">open_in_new</span>
+            Mở trang khách hàng
           </NuxtLink>
         </div>
       </header>

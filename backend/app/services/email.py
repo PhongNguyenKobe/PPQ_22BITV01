@@ -69,3 +69,22 @@ Trân trọng,
     except Exception as e:
         print(f"Lỗi khi gửi email SMTP: {e}")
         return False
+
+
+def send_transactional_email(to_email: str, subject: str, body: str) -> bool:
+    smtp_pass = settings.smtp_password.split("#")[0].strip().strip('"').strip("'")
+    from_email = settings.from_email.strip().strip('"').strip("'")
+    msg = MIMEMultipart()
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+    try:
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+        server.starttls()
+        server.login(from_email, smtp_pass)
+        server.sendmail(from_email, to_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception:
+        return False

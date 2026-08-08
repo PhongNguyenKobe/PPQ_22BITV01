@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_roles
 from app.crud.booking import booking_to_dict, list_user_booking_rows
 from app.crud.user import get_user_by_id, list_users, update_user
 from app.db.session import get_db
@@ -70,7 +70,7 @@ async def read_users(
     skip: int = 0,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
 ) -> list[UserRead]:
     users = await list_users(db, skip=skip, limit=limit)
     return [UserRead.model_validate(user) for user in users]
@@ -80,7 +80,7 @@ async def read_users(
 async def read_user(
     user_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
 ) -> UserRead:
     user = await get_user_by_id(db, user_id)
     if user is None:

@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     app_name: str = "PPQ API"
+    environment: str = Field("development", validation_alias="ENVIRONMENT")
     api_v1_prefix: str = "/api/v1"
     database_url: str = Field(
         "postgresql+asyncpg://user:password@localhost:5432/dbname",
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
     smtp_host: str = Field("smtp.gmail.com", validation_alias="SMTP_HOST")
     smtp_port: int = Field(587, validation_alias="SMTP_PORT")
     cancellation_cutoff_minutes: int = Field(120, validation_alias="CANCELLATION_CUTOFF_MINUTES")
+    showtime_turnaround_minutes: int = Field(15, validation_alias="SHOWTIME_TURNAROUND_MINUTES")
+    business_timezone: str = Field("Asia/Ho_Chi_Minh", validation_alias="BUSINESS_TIMEZONE")
     vnpay_tmn_code: str = Field("", validation_alias="VNPAY_TMN_CODE")
     vnpay_hash_secret: str = Field("", validation_alias="VNPAY_HASH_SECRET")
     vnpay_payment_url: str = Field(

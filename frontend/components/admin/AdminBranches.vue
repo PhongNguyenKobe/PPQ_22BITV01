@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { adminBackendService, type AdminBranchManage } from '~/services/api'
 
 const branches = ref<AdminBranchManage[]>([])
@@ -8,6 +8,13 @@ const error = ref('')
 
 const showCreateForm = ref(false)
 const creating = ref(false)
+const saving = ref(false)
+const search = ref('')
+const statusFilter = ref<'ALL' | 'ACTIVE' | 'INACTIVE' | 'NOT_READY'>('ALL')
+const cityFilter = ref('ALL')
+const sortBy = ref<'NAME' | 'ROOMS_DESC'>('NAME')
+const currentPage = ref(1)
+const pageSize = 6
 
 const branchForm = ref({
   code: '',
@@ -24,7 +31,32 @@ const editForm = ref({
   name: '',
   city: '',
   addressLine: '',
+  district: '',
+  phone: '',
 })
+
+const pendingStatus = ref<AdminBranchManage | null>(null)
+const cities = computed(() => [...new Set(branches.value.map(item => item.city).filter(Boolean))].sort())
+const filteredBranches = computed(() => {
+  const keyword = search.value.trim().toLocaleLowerCase('vi')
+  const result = branches.value.filter((branch) => {
+    const matchesSearch = !keyword || [branch.code, branch.name, branch.address_line, branch.city, branch.district || '']
+      .some(value => value.toLocaleLowerCase('vi').includes(keyword))
+    const matchesCity = cityFilter.value === 'ALL' || branch.city === cityFilter.value
+    const matchesStatus = statusFilter.value === 'ALL'
+      || (statusFilter.value === 'ACTIVE' && branch.is_active)
+      || (statusFilter.value === 'INACTIVE' && !branch.is_active)
+      || (statusFilter.value === 'NOT_READY' && !branch.is_ready)
+    return matchesSearch && matchesCity && matchesStatus
+  })
+  return [...result].sort((a, b) => sortBy.value === 'ROOMS_DESC'
+    ? b.auditoriums_count - a.auditoriums_count
+    : a.name.localeCompare(b.name, 'vi'))
+})
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredBranches.value.length / pageSize)))
+const paginatedBranches = computed(() => filteredBranches.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
+watch([search, statusFilter, cityFilter, sortBy], () => { currentPage.value = 1 })
+watch(totalPages, value => { if (currentPage.value > value) currentPage.value = value })
 
 async function loadData() {
   loading.value = true
@@ -67,6 +99,8 @@ function openEditModal(branch: AdminBranchManage) {
     name: branch.name,
     city: branch.city,
     addressLine: branch.address_line,
+    district: branch.district || '',
+    phone: branch.phone || '',
   }
 }
 
@@ -82,6 +116,8 @@ async function saveBranchEdit() {
       name: editForm.value.name.trim(),
       city: editForm.value.city.trim(),
       address_line: editForm.value.addressLine.trim(),
+      district: editForm.value.district.trim() || null,
+      phone: editForm.value.phone.trim() || null,
     })
     branches.value = await adminBackendService.getBranchesManage()
     closeEditModal()
@@ -90,10 +126,13 @@ async function saveBranchEdit() {
   }
 }
 
-async function toggleBranchActive(branch: AdminBranchManage) {
+async function confirmStatusChange() {
+  const branch = pendingStatus.value
+  if (!branch) return
   try {
     await adminBackendService.updateBranch(branch.id, { is_active: !branch.is_active })
     branches.value = await adminBackendService.getBranchesManage()
+    pendingStatus.value = null
   } catch (e: any) {
     error.value = e?.message || 'Không thể cập nhật trạng thái chi nhánh.'
   }
@@ -121,7 +160,7 @@ onMounted(() => {
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-xl font-bold text-on-surface">Quản lý Cụm Rạp</h2>
+        <h2 class="text-2xl font-black text-on-surface">Quản lý Chi nhánh</h2>
         <p class="text-sm text-on-surface-variant mt-1">Quản lý danh sách các chi nhánh rạp phim trên toàn quốc.</p>
       </div>
       <button 
@@ -130,13 +169,31 @@ onMounted(() => {
         :class="{'!bg-surface-variant !text-on-surface hover:!bg-white/10': showCreateForm}"
       >
         <span class="material-symbols-outlined">{{ showCreateForm ? 'close' : 'add_business' }}</span>
-        {{ showCreateForm ? 'Đóng' : 'Tạo cụm rạp mới' }}
+        {{ showCreateForm ? 'Đóng' : 'Tạo chi nhánh mới' }}
       </button>
     </div>
 
     <p v-if="error" class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-400">
       {{ error }}
     </p>
+
+    <div class="panel p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <input v-model="search" class="field-input md:col-span-2" placeholder="Tìm theo tên, mã hoặc địa chỉ..." />
+      <select v-model="statusFilter" class="field-input">
+        <option value="ALL">Tất cả trạng thái</option>
+        <option value="ACTIVE">Đang mở</option>
+        <option value="INACTIVE">Tạm đóng</option>
+        <option value="NOT_READY">Chưa sẵn sàng bán vé</option>
+      </select>
+      <select v-model="cityFilter" class="field-input">
+        <option value="ALL">Tất cả thành phố</option>
+        <option v-for="city in cities" :key="city" :value="city">{{ city }}</option>
+      </select>
+      <select v-model="sortBy" class="field-input md:col-start-4">
+        <option value="NAME">Sắp xếp theo tên</option>
+        <option value="ROOMS_DESC">Nhiều phòng nhất</option>
+      </select>
+    </div>
 
     <!-- Create Form (Toggle) -->
     <div v-if="showCreateForm" class="panel p-6 border-primary/30 shadow-[0_0_30px_rgba(229,9,20,0.1)] animate-fade-in">
@@ -188,7 +245,7 @@ onMounted(() => {
     </div>
     
     <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-5">
-      <div v-for="b in branches" :key="b.id" class="panel p-0 overflow-hidden flex flex-col transition hover:border-white/20">
+      <div v-for="b in paginatedBranches" :key="b.id" class="panel p-0 overflow-hidden flex flex-col transition hover:border-white/20">
         <div class="p-5 flex justify-between items-start border-b border-white/5">
           <div class="flex gap-4">
             <div class="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 shrink-0 shadow-inner">
@@ -207,7 +264,7 @@ onMounted(() => {
           </div>
           
           <button 
-            @click="toggleBranchActive(b)"
+            @click="pendingStatus = b"
             class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
             :class="b.is_active ? 'bg-emerald-500' : 'bg-surface-variant/50'"
             :title="b.is_active ? 'Nhấn để đóng cửa rạp' : 'Nhấn để mở cửa rạp'"
@@ -232,6 +289,13 @@ onMounted(() => {
             <span class="text-xs text-on-surface-variant block mb-1">Địa chỉ</span>
             <span class="text-on-surface">{{ b.address_line }}<template v-if="b.district">, {{ b.district }}</template></span>
           </div>
+          <div><span class="text-xs text-on-surface-variant block mb-1">Quản trị viên</span><span class="font-medium">{{ b.active_staff_count }} người</span></div>
+          <div><span class="text-xs text-on-surface-variant block mb-1">Suất chiếu sắp tới</span><span class="font-medium">{{ b.future_showtimes_count }} suất</span></div>
+          <div class="col-span-2 flex items-center justify-between gap-3">
+            <span v-if="b.is_ready" class="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300">Sẵn sàng bán vé</span>
+            <span v-else class="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-300">Chưa sẵn sàng bán vé</span>
+            <span v-if="b.phone" class="text-xs text-on-surface-variant">{{ b.phone }}</span>
+          </div>
         </div>
         
         <div class="p-4 bg-black/40 border-t border-white/5 flex gap-2 justify-end">
@@ -239,14 +303,25 @@ onMounted(() => {
             <span class="material-symbols-outlined text-[18px]">edit</span> Chỉnh sửa
           </button>
           <button 
-            @click="b.auditoriums_count > 0 ? null : showDeleteConfirm = b" 
+            @click="b.can_delete ? showDeleteConfirm = b : null"
             class="px-4 py-2 rounded-lg font-bold transition text-sm flex items-center gap-1.5"
-            :class="b.auditoriums_count > 0 ? 'text-white/20 cursor-not-allowed' : 'text-rose-400 hover:bg-rose-400/10'"
+            :class="!b.can_delete ? 'text-white/20 cursor-not-allowed' : 'text-rose-400 hover:bg-rose-400/10'"
             :title="b.auditoriums_count > 0 ? 'Phải xoá phòng chiếu trước' : 'Xoá rạp này'"
           >
             <span class="material-symbols-outlined text-[18px]">delete</span> Xoá rạp
           </button>
         </div>
+      </div>
+      <div v-if="!paginatedBranches.length" class="panel p-10 text-center text-on-surface-variant xl:col-span-2">
+        Không tìm thấy chi nhánh phù hợp với bộ lọc.
+      </div>
+    </div>
+
+    <div v-if="totalPages > 1" class="flex items-center justify-between panel px-4 py-3">
+      <span class="text-sm text-on-surface-variant">Trang {{ currentPage }} / {{ totalPages }} · {{ filteredBranches.length }} chi nhánh</span>
+      <div class="flex gap-2">
+        <button class="px-4 py-2 rounded-lg border border-white/10 disabled:opacity-30" :disabled="currentPage === 1" @click="currentPage--">Trước</button>
+        <button class="px-4 py-2 rounded-lg border border-white/10 disabled:opacity-30" :disabled="currentPage === totalPages" @click="currentPage++">Sau</button>
       </div>
     </div>
 
@@ -280,6 +355,16 @@ onMounted(() => {
             <label class="text-xs font-semibold text-on-surface-variant uppercase">Địa chỉ chi tiết</label>
             <input v-model="editForm.addressLine" required class="field-input" />
           </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <label class="text-xs font-semibold text-on-surface-variant uppercase">Quận / Huyện</label>
+              <input v-model="editForm.district" class="field-input" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-semibold text-on-surface-variant uppercase">Số điện thoại</label>
+              <input v-model="editForm.phone" inputmode="tel" class="field-input" placeholder="0xxxxxxxxx" />
+            </div>
+          </div>
         </div>
         <div class="p-4 border-t border-white/10 bg-black/20 flex justify-end gap-3">
           <button @click="closeEditModal" class="px-5 py-2 rounded-xl font-bold text-on-surface-variant hover:bg-white/5 transition">Hủy</button>
@@ -288,6 +373,21 @@ onMounted(() => {
       </div>
     </div>
     
+    <div v-if="pendingStatus" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div class="bg-[#1a1c1c] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-xl font-bold text-on-surface mb-2">{{ pendingStatus.is_active ? 'Tạm đóng chi nhánh?' : 'Mở lại chi nhánh?' }}</h3>
+        <p class="text-sm text-on-surface-variant mb-3"><strong>{{ pendingStatus.name }}</strong></p>
+        <p v-if="pendingStatus.is_active && pendingStatus.future_showtimes_count" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          Chi nhánh còn {{ pendingStatus.future_showtimes_count }} suất chiếu tương lai. Hệ thống sẽ từ chối đóng cho đến khi các suất này được xử lý.
+        </p>
+        <p v-else class="text-sm text-on-surface-variant">Thao tác này sẽ thay đổi khả năng vận hành và bán vé của chi nhánh.</p>
+        <div class="flex justify-end gap-3 mt-6">
+          <button class="px-5 py-2.5 rounded-xl border border-white/10" @click="pendingStatus = null">Hủy</button>
+          <button class="action-primary" :disabled="saving" @click="confirmStatusChange">Xác nhận</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Delete Confirm Modal -->
     <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div class="bg-[#1a1c1c] border border-rose-500/30 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden text-center p-6">

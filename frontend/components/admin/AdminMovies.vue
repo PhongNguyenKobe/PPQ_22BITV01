@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { adminBackendService, movieService, tmdbService, type Movie, type TmdbPopularMovie, CANONICAL_MOVIE_GENRES } from '~/services/api'
 
 const movies = ref<Movie[]>([])
@@ -7,6 +7,11 @@ const tmdbMovies = ref<TmdbPopularMovie[]>([])
 const movieUsage = ref<Record<string, number>>({})
 const loading = ref(false)
 const error = ref('')
+const success = ref('')
+const catalogQuery = ref('')
+const catalogStatus = ref<'ALL' | 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'>('ALL')
+const currentPage = ref(1)
+const pageSize = 10
 
 const showManualCreate = ref(false)
 
@@ -19,16 +24,24 @@ const movieForm = ref({
   trailer: '',
   status: 'UPCOMING' as 'UPCOMING' | 'NOW_SHOWING' | 'ENDED',
   genres: [] as string[],
+  originalTitle: '',
+  ageRating: '',
+  language: '',
+  director: '',
+  castText: '',
 })
 
 const tmdbMovieQuery = ref('')
 const selectedTmdbMovieId = ref('')
-const tmdbImportStatus = ref<'UPCOMING' | 'NOW_SHOWING'>('UPCOMING')
 const tmdbImporting = ref(false)
+const tmdbSearching = ref(false)
+const duplicateImportConfirmed = ref(false)
+let tmdbSearchTimer: ReturnType<typeof setTimeout> | undefined
 
 const editingMovieId = ref('')
 const movieEditForm = ref({
   title: '',
+  originalTitle: '',
   description: '',
   duration: 120,
   releaseDate: '',
@@ -38,6 +51,8 @@ const movieEditForm = ref({
   genres: [] as string[],
   director: '',
   castText: '',
+  ageRating: '',
+  language: '',
 })
 
 const filteredTmdbMovies = computed(() => {
@@ -52,6 +67,63 @@ const filteredTmdbMovies = computed(() => {
 const selectedTmdbMovie = computed(() =>
   tmdbMovies.value.find((movie) => String(movie.tmdb_id) === selectedTmdbMovieId.value),
 )
+const existingCatalogMovie = computed(() => {
+  const selected = selectedTmdbMovie.value
+  if (!selected) return null
+  const normalize = (value?: string | null) => String(value || '').trim().toLocaleLowerCase('vi')
+  const selectedTitles = new Set([normalize(selected.title), normalize(selected.original_title)].filter(Boolean))
+  return movies.value.find(movie =>
+    movie.tmdbId === selected.tmdb_id
+    || selectedTitles.has(normalize(movie.title))
+    || selectedTitles.has(normalize(movie.originalTitle)),
+  ) || null
+})
+
+const filteredMovies = computed(() => {
+  const query = catalogQuery.value.trim().toLocaleLowerCase('vi')
+  return movies.value.filter(movie =>
+    (catalogStatus.value === 'ALL' || movie.status === catalogStatus.value)
+    && (!query || movie.title.toLocaleLowerCase('vi').includes(query)
+      || movie.genre.some(genre => genre.toLocaleLowerCase('vi').includes(query)))
+  )
+})
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredMovies.value.length / pageSize)))
+const paginatedMovies = computed(() => filteredMovies.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
+const statusCounts = computed(() => ({
+  ALL: movies.value.length,
+  NOW_SHOWING: movies.value.filter(movie => movie.status === 'NOW_SHOWING').length,
+  UPCOMING: movies.value.filter(movie => movie.status === 'UPCOMING').length,
+  ENDED: movies.value.filter(movie => movie.status === 'ENDED').length,
+}))
+
+watch([catalogQuery, catalogStatus], () => { currentPage.value = 1 })
+watch(selectedTmdbMovieId, () => { duplicateImportConfirmed.value = false })
+watch(tmdbMovieQuery, (query) => {
+  if (tmdbSearchTimer) clearTimeout(tmdbSearchTimer)
+  selectedTmdbMovieId.value = ''
+  const normalized = query.trim()
+  if (!normalized) {
+    loadPopularTmdb()
+    return
+  }
+  if (normalized.length < 2) return
+  tmdbSearchTimer = setTimeout(async () => {
+    tmdbSearching.value = true
+    try {
+      tmdbMovies.value = await tmdbService.searchMovies(normalized)
+    } catch (e: any) {
+      error.value = e?.data?.statusMessage || e?.message || 'Không thể tìm kiếm TMDB.'
+    } finally {
+      tmdbSearching.value = false
+    }
+  }, 450)
+})
+
+async function loadPopularTmdb() {
+  tmdbSearching.value = true
+  try { tmdbMovies.value = await movieService.getPopularFromTmdb() }
+  finally { tmdbSearching.value = false }
+}
 
 async function loadData() {
   loading.value = true
@@ -74,20 +146,31 @@ async function loadData() {
 
 async function createMovie() {
   error.value = ''
+  success.value = ''
+  if (!movieForm.value.genres.length) {
+    error.value = 'Vui lòng chọn ít nhất một thể loại.'
+    return
+  }
   try {
     await adminBackendService.createMovie({
       title: movieForm.value.title,
+      original_title: movieForm.value.originalTitle || undefined,
       description: movieForm.value.description || undefined,
       duration_min: Number(movieForm.value.duration),
       release_date: movieForm.value.releaseDate || null,
       poster_url: movieForm.value.poster || undefined,
       trailer_url: movieForm.value.trailer || undefined,
+      age_rating: movieForm.value.ageRating || undefined,
+      language: movieForm.value.language || undefined,
+      director: movieForm.value.director || undefined,
+      cast_names: movieForm.value.castText.split(',').map(value => value.trim()).filter(Boolean),
       status: movieForm.value.status,
       genres: movieForm.value.genres,
     })
     movies.value = await movieService.getAll()
-    movieForm.value = { title: '', description: '', duration: 120, releaseDate: '', poster: '', trailer: '', status: 'UPCOMING', genres: [] }
+    movieForm.value = { title: '', description: '', duration: 120, releaseDate: '', poster: '', trailer: '', status: 'UPCOMING', genres: [], originalTitle: '', ageRating: '', language: '', director: '', castText: '' }
     showManualCreate.value = false
+    success.value = 'Đã thêm phim thủ công vào kho.'
   } catch (e: any) {
     error.value = e?.message || 'Không thể tạo phim thủ công.'
   }
@@ -99,28 +182,37 @@ async function importTmdbMovieToCatalog() {
     error.value = 'Vui lòng chọn một phim TMDB.'
     return
   }
+  if (existingCatalogMovie.value && !duplicateImportConfirmed.value) {
+    duplicateImportConfirmed.value = true
+    error.value = `Phim “${existingCatalogMovie.value.title}” đã tồn tại trong kho với trạng thái ${existingCatalogMovie.value.status === 'NOW_SHOWING' ? 'Đang chiếu' : existingCatalogMovie.value.status === 'UPCOMING' ? 'Chờ mở bán' : 'Đã kết thúc'}. Nếu muốn cập nhật lại thông tin TMDB, hãy nhấn “Xác nhận đồng bộ” lần nữa.`
+    success.value = ''
+    return
+  }
   error.value = ''
+  success.value = ''
   tmdbImporting.value = true
   try {
     const detail = await tmdbService.getMovieDetail(movie.tmdb_id)
-    await adminBackendService.importTmdbMovie({
+    const result = await adminBackendService.importTmdbMovie({
       tmdb_id: movie.tmdb_id,
       title: detail.title || movie.title,
       overview: detail.description || movie.overview || null,
       poster_path: movie.poster_path || null,
       release_date: detail.releaseDate || movie.release_date || null,
       original_title: movie.original_title || null,
-      language: 'vi-VN',
+      language: null,
       duration_min: detail.duration || 120,
       trailer_url: detail.trailerUrl || null,
       genres: detail.genre || [],
       director: detail.director || null,
       cast_names: detail.cast || [],
-      status: tmdbImportStatus.value,
+      status: 'UPCOMING',
     })
     movies.value = await movieService.getAll()
     selectedTmdbMovieId.value = ''
     tmdbMovieQuery.value = ''
+    duplicateImportConfirmed.value = false
+    success.value = result.imported ? 'Đã thêm phim từ TMDB vào kho.' : 'Đã đồng bộ lại thông tin TMDB. Trạng thái vận hành của phim được giữ nguyên.'
   } catch (e: any) {
     error.value = e?.message || 'Không thể import phim từ TMDB.'
   } finally {
@@ -132,6 +224,7 @@ function openEditModal(movie: Movie) {
   editingMovieId.value = movie.id
   movieEditForm.value = {
     title: movie.title,
+    originalTitle: movie.originalTitle || '',
     description: movie.description,
     duration: movie.duration,
     releaseDate: movie.releaseDate,
@@ -141,6 +234,8 @@ function openEditModal(movie: Movie) {
     genres: [...movie.genre],
     director: movie.director,
     castText: movie.cast.join(', '),
+    ageRating: movie.ageRating || '',
+    language: movie.language || '',
   }
 }
 
@@ -152,14 +247,18 @@ async function saveMovieEdit() {
   const form = movieEditForm.value
   if (!editingMovieId.value || !form.title.trim()) return
   error.value = ''
+  success.value = ''
   try {
     const updated = await adminBackendService.updateMovie(editingMovieId.value, {
       title: form.title.trim(),
+      original_title: form.originalTitle.trim() || null,
       description: form.description.trim() || null,
       duration_min: form.duration,
       release_date: form.releaseDate || null,
       poster_url: form.poster || null,
       trailer_url: form.trailer || null,
+      age_rating: form.ageRating.trim() || null,
+      language: form.language.trim() || null,
       status: form.status,
       genres: form.genres,
       director: form.director.trim() || null,
@@ -167,6 +266,7 @@ async function saveMovieEdit() {
     })
     movies.value = movies.value.map((item) => item.id === updated.id ? updated : item)
     closeEditModal()
+    success.value = 'Đã lưu thông tin phim.'
   } catch (e: any) {
     error.value = e?.message || 'Không thể lưu thay đổi.'
   }
@@ -205,6 +305,7 @@ async function executeAction() {
       movies.value = movies.value.filter((item) => item.id !== movie.id)
       delete movieUsage.value[movie.id]
       closeConfirmModal()
+      success.value = 'Đã xóa phim chưa sử dụng khỏi kho.'
     } catch (e: any) {
       error.value = e?.message || 'Không thể xóa phim vì đang có dữ liệu lịch chiếu liên quan.'
     }
@@ -212,12 +313,14 @@ async function executeAction() {
     try {
       const updated = await adminBackendService.updateMovie(movie.id, {
         title: movie.title,
-        original_title: movie.title,
+        original_title: movie.originalTitle || movie.title,
         description: movie.description || null,
         duration_min: movie.duration,
         release_date: movie.releaseDate || null,
         poster_url: movie.poster === '/images/movie-placeholder.svg' ? null : movie.poster,
         trailer_url: movie.trailer || null,
+        age_rating: movie.ageRating || null,
+        language: movie.language || null,
         status: 'ENDED',
         genres: movie.genre,
         director: movie.director || null,
@@ -225,10 +328,17 @@ async function executeAction() {
       })
       movies.value = movies.value.map((item) => item.id === updated.id ? updated : item)
       closeConfirmModal()
+      success.value = 'Đã chuyển phim sang trạng thái kết thúc.'
     } catch (e: any) {
-      error.value = e?.message || 'Không thể ngừng phát hành phim.'
+      error.value = e?.message
+        ? `${e.message} Hãy xử lý tại Giám sát lịch chiếu.`
+        : 'Không thể ngừng phát hành phim.'
     }
   }
+}
+
+function openScheduleMonitor(movie: Movie) {
+  navigateTo({ path: '/admin/dashboard', query: { tab: 'schedule-monitor', movie_id: movie.id } })
 }
 
 onMounted(() => {
@@ -238,19 +348,23 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="panel flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
       <div>
-        <h2 class="text-xl font-bold text-on-surface">Kho Phim</h2>
-        <p class="text-sm text-on-surface-variant mt-1">Quản lý catalog phim và đồng bộ dữ liệu từ TMDB.</p>
+        <h2 class="text-xl font-bold text-on-surface">Kho phim toàn hệ thống</h2>
+        <p class="text-sm text-on-surface-variant mt-1">Nội dung phim dùng chung; lịch chiếu được vận hành riêng tại từng chi nhánh.</p>
       </div>
-      <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-surface-variant/30 border border-white/10 rounded-full text-xs font-bold text-white">
-        Tổng số: {{ movies.length }} phim
-      </span>
+      <div class="flex flex-wrap gap-2 text-xs font-bold">
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Tất cả {{ statusCounts.ALL }}</span>
+        <span class="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-300">Đang chiếu {{ statusCounts.NOW_SHOWING }}</span>
+        <span class="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-blue-300">Chờ mở bán {{ statusCounts.UPCOMING }}</span>
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-on-surface-variant">Kết thúc {{ statusCounts.ENDED }}</span>
+      </div>
     </div>
 
     <p v-if="error" class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-400">
       {{ error }}
     </p>
+    <p v-if="success" class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300">{{ success }}</p>
 
     <!-- Import Tool -->
     <div class="panel p-6 shadow-[0_0_30px_rgba(30,136,229,0.1)] border-blue-500/20 relative overflow-hidden">
@@ -264,7 +378,7 @@ onMounted(() => {
         </h3>
         <p class="text-sm text-on-surface-variant mb-5">Poster, mô tả, ngày phát hành, trailer và thể loại sẽ được đồng bộ tự động.</p>
         
-        <form class="grid gap-3 md:grid-cols-[1.5fr_2fr_1fr_auto]" @submit.prevent="importTmdbMovieToCatalog">
+        <form class="grid gap-3 md:grid-cols-[1.5fr_2fr_auto]" @submit.prevent="importTmdbMovieToCatalog">
           <div class="relative">
             <label for="tmdb-movie-filter" class="sr-only">Tìm nhanh trong danh sách phim TMDB</label>
             <span
@@ -274,7 +388,7 @@ onMounted(() => {
             <input
               id="tmdb-movie-filter"
               v-model="tmdbMovieQuery"
-              placeholder="Tìm nhanh trong danh sách TMDB..."
+              placeholder="Tìm trực tiếp trên TMDB..."
               class="field-input tmdb-search-input"
             />
           </div>
@@ -284,16 +398,12 @@ onMounted(() => {
               {{ movie.title }}{{ movie.release_date ? ` (${movie.release_date.slice(0, 4)})` : '' }}
             </option>
           </select>
-          <select v-model="tmdbImportStatus" class="field-input font-medium">
-            <option value="UPCOMING">Sắp chiếu</option>
-            <option value="NOW_SHOWING">Đang chiếu</option>
-          </select>
-          <button class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold px-6 py-2 rounded-xl transition hover:shadow-lg hover:shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50" :disabled="tmdbImporting">
-            {{ tmdbImporting ? 'Đang import...' : 'Import phim' }}
+          <button class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold px-6 py-2 rounded-xl transition hover:shadow-lg hover:shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50" :class="existingCatalogMovie ? '!from-amber-600 !to-orange-600' : ''" :disabled="tmdbImporting">
+            {{ tmdbImporting ? 'Đang xử lý...' : duplicateImportConfirmed ? 'Xác nhận đồng bộ' : existingCatalogMovie ? 'Phim đã tồn tại' : 'Import phim' }}
           </button>
         </form>
         <p class="mt-2 text-xs text-on-surface-variant">
-          Ô tìm kiếm chỉ thu hẹp danh sách ở mục “Chọn phim từ TMDB” bên cạnh, không lọc kho phim đã import phía dưới.
+          {{ tmdbSearching ? 'Đang tìm trên TMDB...' : 'Import chỉ thêm phim vào kho ở trạng thái Chờ mở bán. Khi Branch Admin công bố suất chiếu đầu tiên, phim tự chuyển thành Đang chiếu. Import lại không làm thay đổi trạng thái đang bán.' }}
         </p>
 
         <div v-if="selectedTmdbMovie" class="mt-4 flex gap-4 bg-black/30 p-4 rounded-xl border border-white/5 animate-fade-in">
@@ -327,6 +437,14 @@ onMounted(() => {
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Tên phim</label>
           <input v-model="movieForm.title" class="field-input" required />
         </div>
+        <div v-if="existingCatalogMovie" class="mt-3 flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+          <span class="material-symbols-outlined mt-0.5">warning</span>
+          <div><p class="font-bold">Phim này đã có trong kho CineAI</p><p class="mt-0.5 text-xs text-amber-100/70">{{ existingCatalogMovie.title }} · {{ existingCatalogMovie.status === 'NOW_SHOWING' ? 'Đang chiếu' : existingCatalogMovie.status === 'UPCOMING' ? 'Chờ mở bán' : 'Đã kết thúc' }}. Đồng bộ lại chỉ cập nhật nội dung TMDB, không đổi trạng thái vận hành.</p></div>
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-on-surface-variant uppercase">Tên gốc</label>
+          <input v-model="movieForm.originalTitle" class="field-input" />
+        </div>
         <div class="space-y-1">
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Thời lượng (phút)</label>
           <input v-model.number="movieForm.duration" type="number" min="1" class="field-input" required />
@@ -336,17 +454,42 @@ onMounted(() => {
           <input v-model="movieForm.releaseDate" type="date" class="field-input" />
         </div>
         <div class="space-y-1">
-          <label class="text-xs font-semibold text-on-surface-variant uppercase">Trạng thái</label>
-          <select v-model="movieForm.status" class="field-input">
-            <option value="UPCOMING">Sắp chiếu</option>
-            <option value="NOW_SHOWING">Đang chiếu</option>
-            <option value="ENDED">Đã kết thúc</option>
-          </select>
+          <label class="text-xs font-semibold text-on-surface-variant uppercase">Trạng thái ban đầu</label>
+          <div class="field-input flex items-center text-blue-300">Chờ mở bán</div>
         </div>
         <div class="space-y-1 md:col-span-2">
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Poster URL</label>
-          <input v-model="movieForm.poster" class="field-input" placeholder="https://..." />
+          <input v-model="movieForm.poster" type="url" class="field-input" placeholder="https://..." />
         </div>
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-on-surface-variant uppercase">Phân loại tuổi</label>
+          <input v-model="movieForm.ageRating" class="field-input" placeholder="P, K, T13, T16, T18" />
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-on-surface-variant uppercase">Ngôn ngữ</label>
+          <input v-model="movieForm.language" class="field-input" placeholder="Tiếng Việt" />
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-on-surface-variant uppercase">Đạo diễn</label>
+          <input v-model="movieForm.director" class="field-input" />
+        </div>
+        <div class="space-y-1 md:col-span-2">
+          <label class="text-xs font-semibold text-on-surface-variant uppercase">Diễn viên</label>
+          <input v-model="movieForm.castText" class="field-input" placeholder="Ngăn cách bằng dấu phẩy" />
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-on-surface-variant uppercase">Trailer URL</label>
+          <input v-model="movieForm.trailer" type="url" class="field-input" placeholder="https://youtube.com/..." />
+        </div>
+        <fieldset class="space-y-2 md:col-span-3">
+          <legend class="text-xs font-semibold text-on-surface-variant uppercase">Thể loại *</legend>
+          <div class="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-black/20 p-3 md:grid-cols-4">
+            <label v-for="genre in CANONICAL_MOVIE_GENRES" :key="genre" class="flex items-center gap-2 text-sm text-on-surface-variant">
+              <input v-model="movieForm.genres" type="checkbox" :value="genre" class="accent-primary" />
+              {{ genre }}
+            </label>
+          </div>
+        </fieldset>
         <div class="space-y-1 md:col-span-3">
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Mô tả</label>
           <textarea v-model="movieForm.description" class="field-input" rows="2"></textarea>
@@ -356,6 +499,19 @@ onMounted(() => {
           <button class="action-primary px-8">Tạo phim thủ công</button>
         </div>
       </form>
+    </div>
+
+    <div class="panel grid gap-3 p-4 md:grid-cols-[1fr_220px]">
+      <div class="relative">
+        <span class="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+        <input v-model="catalogQuery" class="field-input pl-11" placeholder="Tìm theo tên phim hoặc thể loại..." />
+      </div>
+      <select v-model="catalogStatus" class="field-input">
+        <option value="ALL">Tất cả trạng thái</option>
+        <option value="NOW_SHOWING">Đang chiếu</option>
+        <option value="UPCOMING">Chờ mở bán</option>
+        <option value="ENDED">Đã kết thúc</option>
+      </select>
     </div>
 
     <!-- Movies List -->
@@ -375,7 +531,7 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
-            <tr v-for="movie in movies" :key="movie.id" class="group hover:bg-white/[0.02] transition-colors">
+            <tr v-for="movie in paginatedMovies" :key="movie.id" class="group hover:bg-white/[0.02] transition-colors">
               <td class="px-5 py-3">
                 <div class="flex gap-3 items-center">
                   <img :src="movie.poster" :alt="movie.title" class="w-10 h-14 rounded object-cover shadow border border-white/10" />
@@ -398,14 +554,14 @@ onMounted(() => {
                     movie.status === 'UPCOMING' ? 'bg-blue-400' :
                     'bg-on-surface-variant'
                   "></span>
-                  {{ movie.status === 'NOW_SHOWING' ? 'Đang chiếu' : movie.status === 'UPCOMING' ? 'Sắp chiếu' : 'Đã kết thúc' }}
+                  {{ movie.status === 'NOW_SHOWING' ? 'Đang chiếu' : movie.status === 'UPCOMING' ? 'Chờ mở bán' : 'Đã kết thúc' }}
                 </span>
               </td>
               <td class="px-5 py-3 text-on-surface-variant">{{ movie.duration }} phút</td>
               <td class="px-5 py-3 text-center">
-                <span class="inline-flex items-center justify-center min-w-[2rem] h-6 px-2 rounded-lg text-xs font-bold bg-black/40 border border-white/10">
+                <button @click="openScheduleMonitor(movie)" class="inline-flex items-center justify-center min-w-[2rem] h-6 px-2 rounded-lg text-xs font-bold bg-black/40 border border-white/10 hover:border-primary/50 hover:text-primary transition" title="Mở giám sát lịch chiếu của phim">
                   {{ movieUsage[movie.id] || 0 }}
-                </span>
+                </button>
               </td>
               <td class="px-5 py-3">
                 <div class="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
@@ -428,6 +584,14 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
+        <div v-if="!paginatedMovies.length" class="py-12 text-center text-sm text-on-surface-variant">Không tìm thấy phim phù hợp.</div>
+      </div>
+      <div v-if="totalPages > 1" class="flex items-center justify-between border-t border-white/10 px-5 py-3 text-sm">
+        <span class="text-on-surface-variant">Trang {{ currentPage }}/{{ totalPages }} · {{ filteredMovies.length }} phim</span>
+        <div class="flex gap-2">
+          <button class="rounded-lg border border-white/10 px-3 py-1.5 disabled:opacity-30" :disabled="currentPage === 1" @click="currentPage--">Trước</button>
+          <button class="rounded-lg border border-white/10 px-3 py-1.5 disabled:opacity-30" :disabled="currentPage === totalPages" @click="currentPage++">Sau</button>
+        </div>
       </div>
     </div>
 
@@ -447,6 +611,10 @@ onMounted(() => {
               <input v-model="movieEditForm.title" class="field-input" required />
             </div>
             <div class="space-y-1">
+              <label class="text-xs font-semibold text-on-surface-variant uppercase">Tên gốc</label>
+              <input v-model="movieEditForm.originalTitle" class="field-input" />
+            </div>
+            <div class="space-y-1">
               <label class="text-xs font-semibold text-on-surface-variant uppercase">Thời lượng (phút)</label>
               <input v-model.number="movieEditForm.duration" type="number" class="field-input" required />
             </div>
@@ -455,20 +623,27 @@ onMounted(() => {
               <input v-model="movieEditForm.releaseDate" type="date" class="field-input" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-semibold text-on-surface-variant uppercase">Trạng thái</label>
-              <select v-model="movieEditForm.status" class="field-input font-medium">
-                <option value="UPCOMING">Sắp chiếu</option>
-                <option value="NOW_SHOWING">Đang chiếu</option>
-                <option value="ENDED">Đã kết thúc</option>
-              </select>
+              <label class="text-xs font-semibold text-on-surface-variant uppercase">Trạng thái vận hành</label>
+              <div class="field-input flex items-center font-medium" :class="movieEditForm.status === 'NOW_SHOWING' ? 'text-emerald-300' : movieEditForm.status === 'UPCOMING' ? 'text-blue-300' : 'text-on-surface-variant'">
+                {{ movieEditForm.status === 'NOW_SHOWING' ? 'Đang chiếu' : movieEditForm.status === 'UPCOMING' ? 'Chờ mở bán' : 'Đã kết thúc' }}
+              </div>
+              <p class="mt-1 text-[11px] text-on-surface-variant">Trạng thái được cập nhật theo việc công bố suất chiếu, không chỉnh tay tại đây.</p>
             </div>
             <div class="space-y-1">
               <label class="text-xs font-semibold text-on-surface-variant uppercase">Đạo diễn</label>
               <input v-model="movieEditForm.director" class="field-input" />
             </div>
             <div class="space-y-1">
+              <label class="text-xs font-semibold text-on-surface-variant uppercase">Phân loại tuổi</label>
+              <input v-model="movieEditForm.ageRating" class="field-input" placeholder="P, K, T13, T16, T18" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-semibold text-on-surface-variant uppercase">Ngôn ngữ</label>
+              <input v-model="movieEditForm.language" class="field-input" />
+            </div>
+            <div class="space-y-1">
               <label class="text-xs font-semibold text-on-surface-variant uppercase">Poster URL</label>
-              <input v-model="movieEditForm.poster" class="field-input" />
+              <input v-model="movieEditForm.poster" type="url" class="field-input" />
             </div>
             <div class="space-y-1 md:col-span-2">
               <label class="text-xs font-semibold text-on-surface-variant uppercase">Diễn viên (cách nhau bởi dấu phẩy)</label>
@@ -476,7 +651,7 @@ onMounted(() => {
             </div>
             <div class="space-y-1 md:col-span-2">
               <label class="text-xs font-semibold text-on-surface-variant uppercase">Trailer URL</label>
-              <input v-model="movieEditForm.trailer" class="field-input" />
+              <input v-model="movieEditForm.trailer" type="url" class="field-input" />
             </div>
             <div class="space-y-1 md:col-span-2">
               <label class="text-xs font-semibold text-on-surface-variant uppercase block mb-2">Thể loại</label>

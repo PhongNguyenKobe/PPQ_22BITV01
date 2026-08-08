@@ -42,7 +42,31 @@ export function handleApiError(error: unknown): ApiError {
     const detail = (error.response?.data as any)?.detail
     const friendlyDetail = Array.isArray(detail)
       ? detail.map(item => item?.msg || 'Dữ liệu chưa hợp lệ').join('. ')
-      : detail
+      : detail?.code === 'MOVIE_HAS_FUTURE_SHOWTIMES'
+        ? `Không thể kết thúc phim vì còn ${detail.count} suất chiếu tương lai đang mở.`
+        : detail?.code === 'MOVIE_NEEDS_OPEN_SHOWTIME'
+          ? 'Phim cần có ít nhất một suất chiếu tương lai đang mở trước khi chuyển sang Đang chiếu.'
+          : detail?.code === 'NEW_MOVIE_MUST_BE_UPCOMING'
+            ? 'Phim mới phải được tạo ở trạng thái Sắp chiếu.'
+        : detail === 'CANNOT_LOCK_YOURSELF' ? 'Bạn không thể tự khóa tài khoản đang đăng nhập.'
+          : detail === 'CANNOT_CHANGE_YOUR_OWN_ROLE' ? 'Bạn không thể tự thay đổi quyền của tài khoản đang đăng nhập.'
+            : detail === 'LAST_ACTIVE_SUPER_ADMIN' ? 'Hệ thống phải luôn còn ít nhất một Super Admin đang hoạt động.'
+              : detail === 'BRANCH_ADMIN_REQUIRES_ONE_ACTIVE_BRANCH' ? 'Branch Admin phải được phân công đúng một chi nhánh đang hoạt động trước khi mở khóa.'
+                : detail === 'BRANCH_HAS_FUTURE_SHOWTIMES' ? 'Không thể tạm đóng chi nhánh khi còn suất chiếu tương lai. Hãy xử lý các suất chiếu trước.'
+                  : detail === 'BRANCH_HAS_OPERATIONAL_DATA' ? 'Chi nhánh đã có dữ liệu vận hành nên không thể xóa vĩnh viễn. Hãy chuyển sang Tạm đóng.'
+                    : detail === 'AUDITORIUM_HAS_FUTURE_SHOWTIMES' ? 'Phòng còn suất chiếu tương lai nên chưa thể tạm ngưng. Hãy xử lý lịch chiếu trước.'
+                      : detail === 'AUDITORIUM_NEEDS_ACTIVE_SEATS' ? 'Phòng cần có ít nhất một ghế hoạt động trước khi mở lại hoặc xếp lịch.'
+                        : detail === 'AUDITORIUM_IS_INACTIVE' ? 'Phòng đang tạm ngưng nên không thể xếp lịch chiếu.'
+                          : detail === 'AUDITORIUM_HAS_OPERATIONAL_DATA' ? 'Phòng đã có lịch sử suất chiếu nên không thể xóa. Hãy dùng Tạm ngưng.'
+                    : detail === 'USED_PROMOTION_DISCOUNT_IMMUTABLE' ? 'Khuyến mãi đã phát sinh lượt dùng nên không thể đổi loại hoặc giá trị giảm.'
+                      : detail?.code === 'COMBO_NAME_EXISTS' ? 'Chi nhánh đã có combo trùng tên.'
+                        : detail?.code === 'COMBO_HAS_ORDER_HISTORY' ? 'Combo đã phát sinh đơn nên không thể xóa. Hãy chuyển sang Đã ẩn.'
+                          : detail?.code === 'COMBO_IMAGE_TYPE_INVALID' ? 'Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP.'
+                            : detail?.code === 'COMBO_IMAGE_TOO_LARGE' ? 'Ảnh combo không được vượt quá 5 MB.'
+                              : detail?.code === 'COMBO_IMAGE_EMPTY' ? 'Tệp ảnh đang trống.'
+                                : detail?.code === 'BOOKING_SHOWTIME_STARTED' ? 'Không thể hủy vì suất chiếu đã bắt đầu hoặc đã kết thúc.'
+                                  : detail?.code === 'BOOKING_ALREADY_CHECKED_IN' ? 'Không thể hủy vì vé trong đơn đã được check-in.'
+                                    : typeof detail === 'string' ? detail : null
     return {
       message:
         friendlyDetail ||
@@ -88,8 +112,11 @@ export function setAuthToken(token: string | null) {
 // TypeScript interfaces
 export interface Movie {
   id: string
+  tmdbId?: number | null
   title: string
   originalTitle?: string
+  ageRating?: string
+  language?: string
   rating: number
   genre: string[]
   format: string[]
@@ -137,21 +164,32 @@ export interface Seat {
 
 export interface UserTicket {
   id: string
-  ticketCode?: string
+  bookingId?: string
+  ticketCode?: string | null
   movieTitle: string
   poster: string
   branchName: string
   screenName: string
   date: string
   time: string
+  startsAt: string
+  endsAt: string
   seats: string[]
   totalAmount: number
   paymentMethod: string
-  qrCode: string
+  qrCode: string | null
   bookingDate: string
   status: string
   checkedInAt?: string | null
   cancellationReason?: string | null
+  perSeatTickets?: Array<{
+    id: string
+    ticketCode: string
+    seat: string
+    status: string
+    qrCode: string | null
+    checkedInAt?: string | null
+  }>
 }
 
 interface BackendUserTicket {
@@ -164,12 +202,22 @@ interface BackendUserTicket {
   branch_name: string
   auditorium_name: string
   starts_at: string
+  ends_at: string
   seats?: Array<{ row: string; number: number }>
   total_price: number | string
   payment_method?: string | null
   booking_date: string
   status: string
   cancellation_reason?: string | null
+  tickets?: Array<{
+    id: string
+    ticket_code: string
+    seat: string
+    status: string
+    qr_code?: string | null
+    checked_in_at?: string | null
+    unit_price?: number | string
+  }>
 }
 
 export interface UserProfile {
@@ -182,6 +230,8 @@ export interface UserProfile {
   phone?: string | null
   dateOfBirth?: string | null
   gender?: string | null
+  isVerified?: boolean
+  createdAt?: string
   token?: string
 }
 
@@ -193,6 +243,7 @@ export interface BackendAdminUser {
   date_of_birth: string | null
   gender: string | null
   is_active: boolean
+  is_verified: boolean
   created_at: string
   updated_at: string
   roles: BackendRole[]
@@ -288,6 +339,10 @@ export interface AdminBranchManage {
   phone: string | null
   is_active: boolean
   auditoriums_count: number
+  active_staff_count: number
+  future_showtimes_count: number
+  is_ready: boolean
+  can_delete: boolean
 }
 
 export interface AdminAuditorium {
@@ -299,6 +354,11 @@ export interface AdminAuditorium {
   total_seats: number
   screen_type: string | null
   is_active: boolean
+  active_seats_count: number
+  total_showtimes_count: number
+  future_showtimes_count: number
+  is_ready: boolean
+  can_delete: boolean
 }
 
 export interface AdminSeatType {
@@ -343,22 +403,43 @@ export interface AdminShowtime {
   booking_count: number
   sold_seats: number
   revenue: number
+  total_seats: number
+  occupancy_rate: number
+  branch_is_active: boolean
+  auditorium_is_active: boolean
 }
 
 export interface AdminBooking {
   id: string
+  ticket_code: string | null
+  movie_id: string
   movie_title: string
   branch_name: string
   auditorium_name: string
   starts_at: string
   seats: Array<{ id: string; row: string; number: number }>
   quantity: number
+  ticket_count: number
+  checked_in_count: number
+  checkin_status: 'NOT_ISSUED' | 'NOT_CHECKED_IN' | 'PARTIAL' | 'CHECKED_IN'
+  checked_in_at: string | null
+  can_cancel: boolean
   total_price: number
+  subtotal_price: number
+  discount_amount: number
+  sales_channel: string
+  customer_name: string
+  customer_email: string | null
+  customer_phone: string | null
+  promotion_code: string | null
+  combos: Array<{ name: string; quantity: number; unit_price: number; line_total: number; inventory_status: string }>
+  payments: Array<{ id: string; method: string; status: string; amount: number; provider_ref: string | null; transaction_no: string | null; paid_at: string | null; refund_error: string | null }>
   status: string
   cancellation_reason: string | null
   cancellation_requested_at: string | null
   cancellation_review_note: string | null
   cancellation_reviewed_at: string | null
+  cancelled_at: string | null
   created_at: string
 }
 
@@ -389,6 +470,18 @@ export interface AdminPayment {
   refunded_at: string | null
   paid_at: string | null
   created_at: string
+  booking_status: string
+  booking_code: string | null
+  movie_title: string
+  showtime_starts_at: string
+  branch_name: string
+  auditorium_name: string
+  customer_name: string
+  customer_email: string | null
+  customer_phone: string | null
+  seats: Array<{ row: string; number: number }>
+  combos: Array<{ name: string; quantity: number; line_total: number }>
+  promotion_code: string | null
 }
 
 export interface BranchAdminSalesPoint {
@@ -415,22 +508,38 @@ export interface BranchAdminStats {
   occupancyRate: number
   movieCount: number
   showtimeCount: number
-  salesChartData: BranchAdminSalesPoint[]
+  todayShowtimes?: number
+  showingNow?: number
+  upcomingToday?: number
+  attentionCount?: number
+  pendingPayments?: number
+  refundPending?: number
+  period?: 'today' | '7d' | 'month'
+  generatedAt?: string
+  topMovies?: { movie_id: string; title: string; poster_url?: string | null; tickets_sold: number; revenue: number }[]
+  salesChartData: (BranchAdminSalesPoint & { revenue?: number })[]
   showtimesList: AdminShowtime[]
   promotionsList: BranchAdminPromo[]
 }
 
 export interface SuperAdminStats {
+  scopeName: string
   totalBranches: number
+  activeBranches: number
+  totalAuditoriums: number
   totalMovies: number
   totalUsers: number
   totalRevenue: number
+  refundedRevenue: number
   todayRevenue: number
   monthRevenue: number
   ticketsSold: number
   successfulBookings: number
   cancelledBookings: number
   pendingBookings: number
+  expiredBookings: number
+  occupancyRate: number
+  generatedAt: string
   revenueChartData: { label: string; value: number }[]
   branchPerformance: { label: string; revenue: number; tickets: number }[]
   topMovies: { label: string; revenue: number; tickets: number }[]
@@ -476,7 +585,7 @@ export interface AdminCreateUserPayload {
   phone?: string | null
   date_of_birth?: string | null
   gender?: string | null
-  role_code: 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN'
+  role_code: 'BRANCH_ADMIN' | 'SUPER_ADMIN'
   branch_id?: string | null
 }
 
@@ -516,6 +625,8 @@ export interface AdminCreateAuditoriumPayload {
   total_seats: number
   screen_type?: string | null
   is_active?: boolean
+  rows?: number
+  seats_per_row?: number
 }
 
 export interface AdminUpdateAuditoriumPayload {
@@ -697,6 +808,8 @@ export function mapBackendAdminUserToProfile(user: BackendAdminUser): UserProfil
     dateOfBirth: user.date_of_birth,
     gender: user.gender,
     branchId: user.branch_id || undefined,
+    isVerified: user.is_verified,
+    createdAt: user.created_at,
   }
 }
 
@@ -773,31 +886,46 @@ export const usersApi = {
       !ticket.movie_title ||
       !ticket.branch_name ||
       !ticket.auditorium_name ||
-      !ticket.starts_at
+      !ticket.starts_at ||
+      !ticket.ends_at
     )
     if (invalidTicket) {
       throw new Error('Backend đang chạy phiên bản cũ. Hãy khởi động lại backend để tải đầy đủ thông tin vé.')
     }
     return res.data
       .filter(ticket => ['CONFIRMED', 'CANCEL_REQUESTED', 'CANCELLED'].includes(ticket.status))
-      .map(ticket => ({
-        id: ticket.id,
-        ticketCode: ticket.ticket_code || ticket.id.slice(0, 8).toUpperCase(),
-        movieTitle: ticket.movie_title,
-        poster: ticket.poster_url || '/images/movie-placeholder.svg',
-        branchName: ticket.branch_name,
-        screenName: ticket.auditorium_name,
-        date: ticket.starts_at.slice(0, 10),
-        time: ticket.starts_at.slice(11, 16),
-        seats: (ticket.seats || []).map(seat => `${seat.row}${seat.number}`),
-        totalAmount: Number(ticket.total_price),
-        paymentMethod: ticket.payment_method || 'Không xác định',
-        qrCode: ticket.qr_code || `CINEAI_E_TICKET_${ticket.id}`,
-        bookingDate: ticket.booking_date,
-        status: ticket.status,
-        checkedInAt: ticket.checked_in_at,
-        cancellationReason: ticket.cancellation_reason,
-      }))
+      .map(ticket => {
+        const startsAt = new Date(ticket.starts_at)
+        return {
+          id: ticket.id,
+          bookingId: ticket.id,
+          ticketCode: ticket.ticket_code || null,
+          movieTitle: ticket.movie_title,
+          poster: ticket.poster_url || '/images/movie-placeholder.svg',
+          branchName: ticket.branch_name,
+          screenName: ticket.auditorium_name,
+          date: startsAt.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }),
+          time: startsAt.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false }),
+          startsAt: ticket.starts_at,
+          endsAt: ticket.ends_at,
+          seats: (ticket.seats || []).map(seat => `${seat.row}${seat.number}`),
+          totalAmount: Number(ticket.total_price),
+          paymentMethod: ticket.payment_method || 'Không xác định',
+          qrCode: ticket.status === 'CONFIRMED' ? (ticket.tickets?.[0]?.qr_code || ticket.qr_code || null) : null,
+          bookingDate: ticket.booking_date,
+          status: ticket.status,
+          checkedInAt: ticket.checked_in_at,
+          cancellationReason: ticket.cancellation_reason,
+          perSeatTickets: (ticket.tickets || []).map(item => ({
+            id: item.id,
+            ticketCode: item.ticket_code,
+            seat: item.seat,
+            status: item.status,
+            qrCode: item.qr_code || null,
+            checkedInAt: item.checked_in_at,
+          })),
+        }
+      })
   },
 
   async requestTicketCancellation(bookingId: string, reason: string): Promise<void> {
@@ -843,6 +971,15 @@ export interface Promotion {
   ends_at: string
   usage_limit: number | null
   used_count: number
+  per_user_limit: number | null
+  budget_amount: number | null
+  used_amount: number
+  branch_ids: string[]
+  movie_ids: string[]
+  payment_methods: string[]
+  excluded_dates: string[]
+  created_at: string
+  updated_at: string
   is_active: boolean
 }
 
@@ -859,7 +996,7 @@ export const adminBackendService = {
     return res.data
   },
 
-  async createPromotion(payload: Omit<Promotion, 'id' | 'used_count'>): Promise<Promotion> {
+  async createPromotion(payload: Record<string, unknown>): Promise<Promotion> {
     const res = await apiClient.post<Promotion>('/promotions', payload)
     return res.data
   },
@@ -875,13 +1012,18 @@ export const adminBackendService = {
 
   async createMovie(payload: {
     title: string
+    original_title?: string
     description?: string
     duration_min: number
     release_date?: string | null
     poster_url?: string
     trailer_url?: string
+    age_rating?: string
+    language?: string
+    director?: string
+    cast_names?: string[]
     status: 'UPCOMING' | 'NOW_SHOWING' | 'ENDED'
-    genres?: string[]
+    genres: string[]
   }): Promise<Movie> {
     const res = await apiClient.post<BackendMovie>('/admin/movies', payload)
     return mapBackendMovieToFrontend(res.data)
@@ -911,7 +1053,7 @@ export const adminBackendService = {
     return res.data.map(mapBackendAdminUserToProfile)
   },
 
-  async updateUserRole(userId: string, roleCode: 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN', branchId?: string | null): Promise<UserProfile> {
+  async updateUserRole(userId: string, roleCode: 'CUSTOMER' | 'BRANCH_ADMIN' | 'SUPER_ADMIN', branchId?: string | null): Promise<UserProfile> {
     const res = await apiClient.patch<BackendAdminUser>(`/admin/users/${userId}/role`, {
       role_code: roleCode,
       branch_id: branchId || null,
@@ -1010,9 +1152,13 @@ export const adminBackendService = {
     return res.data
   },
 
-  async getShowtimes(branchId?: string): Promise<AdminShowtime[]> {
+  async getShowtimes(branchId?: string, startsFrom?: string, startsTo?: string): Promise<AdminShowtime[]> {
     const res = await apiClient.get<AdminShowtime[]>('/admin/showtimes', {
-      params: branchId ? { branch_id: branchId } : undefined,
+      params: {
+        ...(branchId ? { branch_id: branchId } : {}),
+        ...(startsFrom ? { starts_from: startsFrom } : {}),
+        ...(startsTo ? { starts_to: startsTo } : {}),
+      },
     })
     return res.data
   },
@@ -1043,7 +1189,7 @@ export const adminBackendService = {
     await apiClient.delete(`/admin/showtimes/${showtimeId}`)
   },
 
-  async getBookings(params: Record<string, string | number | undefined> = {}): Promise<{ total: number; bookings: AdminBooking[] }> {
+  async getBookings(params: Record<string, string | number | undefined> = {}): Promise<{ total: number; summary: Record<string, number>; bookings: AdminBooking[] }> {
     const res = await apiClient.get('/admin/bookings', { params })
     return res.data
   },
@@ -1058,7 +1204,7 @@ export const adminBackendService = {
     return res.data
   },
 
-  async getPayments(params: Record<string, string | number | undefined> = {}): Promise<{ total: number; payments: AdminPayment[] }> {
+  async getPayments(params: Record<string, string | number | boolean | undefined> = {}): Promise<{ total: number; summary: Record<string, number>; payments: AdminPayment[] }> {
     const res = await apiClient.get('/admin/payments', { params })
     return res.data
   },
@@ -1096,15 +1242,6 @@ export const adminBackendService = {
     return res.data
   },
 
-  async getMyMovieRequests(): Promise<MovieRequest[]> {
-    const res = await apiClient.get<MovieRequest[]>('/branch-admin/movie-requests')
-    return res.data
-  },
-
-  async submitMovieRequest(payload: MovieRequestCreatePayload): Promise<MovieRequest> {
-    const res = await apiClient.post<MovieRequest>('/branch-admin/movie-requests', payload)
-    return res.data
-  },
 }
 
 // ----------------------------------------------------
@@ -1394,8 +1531,11 @@ export interface BackendSeat {
 export function mapBackendMovieToFrontend(bm: BackendMovie): Movie {
   return {
     id: bm.id,
+    tmdbId: bm.tmdb_id,
     title: bm.title,
     originalTitle: bm.original_title || '',
+    ageRating: bm.age_rating || '',
+    language: bm.language || '',
     rating: 0, // backend không có rating, để 0
     genre: normalizeMovieGenres(bm.genres.map(g => g.name)),
     format: [], // backend không có format, để trống
@@ -1482,7 +1622,20 @@ export const tmdbService = {
   async getMovieDetail(id: string | number): Promise<TmdbMovieDetail> {
     const data = await $fetch<TmdbMovieDetail>(`/api/movies/${id}`)
     return data
-  }
+  },
+
+  async searchMovies(query: string): Promise<TmdbPopularMovie[]> {
+    const data = await $fetch<{ results?: any[] }>('/api/movies/search', { query: { query } })
+    return (data.results || []).map(item => ({
+      tmdb_id: Number(item.id),
+      title: String(item.title || item.original_title || ''),
+      original_title: item.original_title ? String(item.original_title) : null,
+      overview: String(item.overview || ''),
+      poster_path: item.poster_path ? String(item.poster_path) : null,
+      release_date: item.release_date ? String(item.release_date) : null,
+      suggested_ticket_price: 90000,
+    }))
+  },
 }
 
 // ----------------------------------------------------
@@ -1529,6 +1682,11 @@ export const comboService = {
   async create(payload: Omit<CinemaCombo, 'id'>): Promise<CinemaCombo> { return (await apiClient.post('/combos/manage', payload)).data },
   async update(id: string, payload: Omit<CinemaCombo, 'id'>): Promise<CinemaCombo> { return (await apiClient.patch(`/combos/manage/${id}`, payload)).data },
   async remove(id: string): Promise<void> { await apiClient.delete(`/combos/manage/${id}`) },
+  async uploadImage(file: File): Promise<string> {
+    const body = new FormData()
+    body.append('image', file)
+    return (await apiClient.post<{ image_url: string }>('/combos/manage/upload-image', body, { headers: { 'Content-Type': 'multipart/form-data' } })).data.image_url
+  },
 }
 
 export const movieService = {
@@ -1668,8 +1826,20 @@ export const movieService = {
   }
 }
 
+function checkoutRequestKey(signature: string): string {
+  if (!process.client) return crypto.randomUUID()
+  const storageKey = 'cineai_checkout_idempotency'
+  try {
+    const current = JSON.parse(sessionStorage.getItem(storageKey) || '{}')
+    if (current.signature === signature && current.key) return current.key
+  } catch { /* replace malformed state below */ }
+  const key = crypto.randomUUID()
+  sessionStorage.setItem(storageKey, JSON.stringify({ signature, key }))
+  return key
+}
+
 export const checkoutService = {
-  async validatePromotion(code: string, subtotal: number): Promise<{
+  async validatePromotion(code: string, subtotal: number, showtimeId: string, paymentMethod: string): Promise<{
     promotion_id: string
     code: string
     subtotal: number
@@ -1677,7 +1847,9 @@ export const checkoutService = {
     total_amount: number
     message: string
   }> {
-    const response = await apiClient.post('/promotions/validate', { code, subtotal })
+    const response = await apiClient.post('/promotions/validate', {
+      code, subtotal, showtime_id: showtimeId, payment_method: paymentMethod,
+    })
     return response.data
   },
 
@@ -1688,19 +1860,20 @@ export const checkoutService = {
     promotionCode?: string
     comboItems?: Array<{ combo_id: string; quantity: number }>
   }): Promise<{ paymentUrl: string; transactionRef: string }> {
+    const requestKey = checkoutRequestKey(JSON.stringify({ method: 'VNPAY', ...bookingDetails }))
     const bookingRes = await apiClient.post<any>('/bookings', {
       showtime_id: bookingDetails.showtimeId,
       seat_ids: bookingDetails.seats,
       quantity: bookingDetails.seats.length,
       total_price: bookingDetails.totalAmount,
       combo_items: bookingDetails.comboItems || [],
-    })
+    }, { headers: { 'Idempotency-Key': `booking-${requestKey}` } })
     const response = await apiClient.post<any>('/payments/checkout', {
       booking_id: bookingRes.data.id,
       amount: bookingDetails.totalAmount,
       payment_method: 'VNPAY',
       promotion_code: bookingDetails.promotionCode || null,
-    })
+    }, { headers: { 'Idempotency-Key': `payment-${requestKey}` } })
     return {
       paymentUrl: response.data.payment_url,
       transactionRef: response.data.payment_id,
@@ -1712,19 +1885,22 @@ export const checkoutService = {
     seats: string[]
     totalAmount: number
     promotionCode?: string
+    comboItems?: Array<{ combo_id: string; quantity: number }>
   }): Promise<{ paymentUrl: string; transactionRef: string }> {
+    const requestKey = checkoutRequestKey(JSON.stringify({ method: 'PAYPAL', ...bookingDetails }))
     const bookingRes = await apiClient.post<any>('/bookings', {
       showtime_id: bookingDetails.showtimeId,
       seat_ids: bookingDetails.seats,
       quantity: bookingDetails.seats.length,
       total_price: bookingDetails.totalAmount,
-    })
+      combo_items: bookingDetails.comboItems || [],
+    }, { headers: { 'Idempotency-Key': `booking-${requestKey}` } })
     const response = await apiClient.post<any>('/payments/checkout', {
       booking_id: bookingRes.data.id,
       amount: bookingDetails.totalAmount,
       payment_method: 'PAYPAL',
       promotion_code: bookingDetails.promotionCode || null,
-    })
+    }, { headers: { 'Idempotency-Key': `payment-${requestKey}` } })
     return {
       paymentUrl: response.data.payment_url,
       transactionRef: response.data.payment_id,
@@ -1905,19 +2081,26 @@ export const aiService = {
 }
 
 export const adminService = {
-  async getSuperAdminStats(): Promise<SuperAdminStats> {
+  async getSuperAdminStats(branchId?: string): Promise<SuperAdminStats> {
     if (USE_MOCK) {
       return {
+        scopeName: 'Toàn hệ thống',
         totalBranches: 5,
+        activeBranches: 5,
+        totalAuditoriums: 12,
         totalMovies: mockMovies.length,
         totalUsers: 1420,
         totalRevenue: 285900000,
+        refundedRevenue: 0,
         todayRevenue: 12000000,
         monthRevenue: 285900000,
         ticketsSold: 1200,
         successfulBookings: 900,
         cancelledBookings: 12,
         pendingBookings: 8,
+        expiredBookings: 0,
+        occupancyRate: 68.5,
+        generatedAt: new Date().toISOString(),
         revenueChartData: [
           { label: 'T12', value: 45000000 },
           { label: 'T01', value: 68000000 },
@@ -1938,11 +2121,13 @@ export const adminService = {
         ]
       }
     }
-    const res = await apiClient.get('/admin/stats')
+    const res = await apiClient.get('/admin/stats', {
+      params: branchId ? { branch_id: branchId } : undefined
+    })
     return res.data
   },
 
-  async getBranchAdminStats(branchId?: string): Promise<BranchAdminStats> {
+  async getBranchAdminStats(branchId?: string, period: 'today' | '7d' | 'month' = 'today'): Promise<BranchAdminStats> {
     if (USE_MOCK) {
       return {
         branchId: 'b1',
@@ -2007,7 +2192,7 @@ export const adminService = {
 
     // Gọi API thật từ Server
     const res = await apiClient.get<any>('/branch-admin/stats', {
-      params: branchId ? { branchId } : undefined,
+      params: { period, ...(branchId ? { branchId } : {}) },
     })
 
     const rawData = res.data
@@ -2024,6 +2209,15 @@ export const adminService = {
       occupancyRate: rawData.occupancyRate || 0,
       movieCount: rawData.movieCount || 0,
       showtimeCount: rawData.showtimeCount || 0,
+      todayShowtimes: rawData.todayShowtimes || 0,
+      showingNow: rawData.showingNow || 0,
+      upcomingToday: rawData.upcomingToday || 0,
+      attentionCount: rawData.attentionCount || 0,
+      pendingPayments: rawData.pendingPayments || 0,
+      refundPending: rawData.refundPending || 0,
+      period: rawData.period || period,
+      generatedAt: rawData.generatedAt,
+      topMovies: rawData.topMovies || [],
       salesChartData: rawData.salesChartData || [],
       showtimesList: (rawData.showtimesList || []).map((item: any): AdminShowtime => ({
         id: String(item.id),

@@ -41,7 +41,7 @@ const isBranchAdmin = computed(() => currentUser.value?.role === 'branch-admin')
 const tabItems = computed(() =>
   allTabItems.filter((tab) =>
     isBranchAdmin.value
-      ? ['auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(tab.key)
+      ? ['overview', 'auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(tab.key)
       : ['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'bookings', 'payments', 'reports'].includes(tab.key),
   ),
 )
@@ -49,7 +49,7 @@ const tabItems = computed(() =>
 const requestedTab = String(route.query.tab || '')
 const activeTab = ref<AdminTab>(
   currentUser.value?.role === 'branch-admin'
-    ? (['auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(requestedTab) ? requestedTab as AdminTab : 'auditoriums')
+    ? (['overview', 'auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(requestedTab) ? requestedTab as AdminTab : 'overview')
     : (['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'bookings', 'payments', 'reports'].includes(requestedTab) ? requestedTab as AdminTab : 'overview'),
 )
 
@@ -87,7 +87,7 @@ function refreshActiveTab() {
 </script>
 <template>
   <div class="admin-page space-y-5 px-6 py-6 lg:px-8">
-    <section class="hero-panel">
+    <section v-if="!['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'reports'].includes(activeTab)" class="hero-panel">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p class="hero-kicker">{{ isBranchAdmin ? 'CineAI Branch Admin' : 'CineAI Super Admin' }}</p>
@@ -106,7 +106,8 @@ function refreshActiveTab() {
     </section>
 
     <section v-if="activeTab === 'overview'" class="space-y-4">
-      <AdminOverview :key="tabRenderKeys.overview" />
+      <AdminBranchOverview v-if="isBranchAdmin" :key="tabRenderKeys.overview" />
+      <AdminOverview v-else :key="tabRenderKeys.overview" />
     </section>
 
     <section v-if="activeTab === 'promotions'" class="space-y-4">

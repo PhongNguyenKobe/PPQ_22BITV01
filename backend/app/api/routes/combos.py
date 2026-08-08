@@ -1,16 +1,21 @@
-from uuid import UUID
+from pathlib import Path
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, text
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
-from app.models.commerce import Combo
+from app.models.commerce import BookingCombo, Combo
 from app.models.user import User
 from app.schemas.combo import ComboRead, ComboWrite
 
 router = APIRouter()
+UPLOAD_DIR = Path(__file__).resolve().parents[3] / "uploads" / "combos"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
 def _super(user: User) -> bool:
@@ -28,7 +33,7 @@ async def _branch(db: AsyncSession, user: User) -> UUID | None:
 
 @router.get("", response_model=list[ComboRead])
 async def public_combos(branch_id: UUID, db: AsyncSession = Depends(get_db)):
-    rows = await db.execute(select(Combo).where(Combo.branch_id == branch_id, Combo.is_active.is_(True)).order_by(Combo.name))
+    rows = await db.execute(select(Combo).where(Combo.branch_id == branch_id, Combo.is_active.is_(True), (Combo.stock_quantity.is_(None) | (Combo.stock_quantity > 0))).order_by(Combo.name))
     return list(rows.scalars().all())
 
 
@@ -41,12 +46,34 @@ async def manage_combos(current_user: User = Depends(require_roles("SUPER_ADMIN"
     return list((await db.execute(query)).scalars().all())
 
 
+@router.post("/manage/upload-image")
+async def upload_combo_image(
+    request: Request,
+    image: UploadFile = File(...),
+    current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")),
+):
+    if image.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(415, {"code": "COMBO_IMAGE_TYPE_INVALID"})
+    content = await image.read(MAX_IMAGE_BYTES + 1)
+    if len(content) > MAX_IMAGE_BYTES:
+        raise HTTPException(413, {"code": "COMBO_IMAGE_TOO_LARGE"})
+    if not content:
+        raise HTTPException(400, {"code": "COMBO_IMAGE_EMPTY"})
+    extension = ALLOWED_IMAGE_TYPES[image.content_type]
+    filename = f"{uuid4().hex}{extension}"
+    (UPLOAD_DIR / filename).write_bytes(content)
+    return {"image_url": str(request.base_url).rstrip("/") + f"/uploads/combos/{filename}"}
+
+
 @router.post("/manage", response_model=ComboRead, status_code=201)
 async def create_combo(payload: ComboWrite, current_user: User = Depends(require_roles("SUPER_ADMIN", "BRANCH_ADMIN")), db: AsyncSession = Depends(get_db)):
     assigned = await _branch(db, current_user)
     if assigned is not None and payload.branch_id != assigned:
         raise HTTPException(403, "Không thể tạo combo cho chi nhánh khác")
-    combo = Combo(**payload.model_dump(), created_by=current_user.id)
+    duplicate = await db.scalar(select(func.count(Combo.id)).where(Combo.branch_id == payload.branch_id, func.lower(Combo.name) == payload.name.strip().lower()))
+    if duplicate:
+        raise HTTPException(409, {"code": "COMBO_NAME_EXISTS"})
+    combo = Combo(**{**payload.model_dump(), "name": payload.name.strip()}, created_by=current_user.id)
     db.add(combo)
     await db.commit(); await db.refresh(combo)
     return combo
@@ -77,7 +104,11 @@ async def update_combo(combo_id: UUID, payload: ComboWrite, current_user: User =
     assigned = await _branch(db, current_user)
     if assigned is not None and (combo.branch_id != assigned or payload.branch_id != assigned):
         raise HTTPException(403, "Không thể quản lý combo của chi nhánh khác")
-    for key, value in payload.model_dump().items(): setattr(combo, key, value)
+    duplicate = await db.scalar(select(func.count(Combo.id)).where(Combo.branch_id == payload.branch_id, Combo.id != combo.id, func.lower(Combo.name) == payload.name.strip().lower()))
+    if duplicate:
+        raise HTTPException(409, {"code": "COMBO_NAME_EXISTS"})
+    values = payload.model_dump(); values["name"] = payload.name.strip()
+    for key, value in values.items(): setattr(combo, key, value)
     await db.commit(); await db.refresh(combo)
     return combo
 
@@ -90,5 +121,8 @@ async def delete_combo(combo_id: UUID, current_user: User = Depends(require_role
     assigned = await _branch(db, current_user)
     if assigned is not None and combo.branch_id != assigned:
         raise HTTPException(403, "Không thể quản lý combo của chi nhánh khác")
+    used_count = await db.scalar(select(func.count(BookingCombo.id)).where(BookingCombo.combo_id == combo.id))
+    if used_count:
+        raise HTTPException(409, {"code": "COMBO_HAS_ORDER_HISTORY"})
     await db.delete(combo)
     await db.commit()
