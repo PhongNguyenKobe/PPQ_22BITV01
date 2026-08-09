@@ -16,19 +16,33 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "audit_events",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
-        sa.Column("entity_type", sa.String(50), nullable=False),
-        sa.Column("entity_id", sa.String(100), nullable=False),
-        sa.Column("action", sa.String(20), nullable=False),
-        sa.Column("old_data", postgresql.JSONB()), sa.Column("new_data", postgresql.JSONB()),
-        sa.Column("transaction_id", sa.String(50)),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-    )
-    op.create_index("ix_audit_events_entity_type", "audit_events", ["entity_type"])
-    op.create_index("ix_audit_events_entity_id", "audit_events", ["entity_id"])
-    op.create_index("ix_audit_events_created_at", "audit_events", ["created_at"])
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    tables = set(inspector.get_table_names())
+    if "audit_events" not in tables:
+        op.create_table(
+            "audit_events",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+            sa.Column("entity_type", sa.String(50), nullable=False),
+            sa.Column("entity_id", sa.String(100), nullable=False),
+            sa.Column("action", sa.String(100), nullable=False),
+            sa.Column("old_data", postgresql.JSONB()),
+            sa.Column("new_data", postgresql.JSONB()),
+            sa.Column("transaction_id", sa.String(50)),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        )
+    else:
+        columns = {column["name"] for column in inspector.get_columns("audit_events")}
+        if "old_data" not in columns:
+            op.add_column("audit_events", sa.Column("old_data", postgresql.JSONB()))
+
+    indexes = {index["name"] for index in sa.inspect(bind).get_indexes("audit_events")}
+    if "ix_audit_events_entity_type" not in indexes:
+        op.create_index("ix_audit_events_entity_type", "audit_events", ["entity_type"])
+    if "ix_audit_events_entity_id" not in indexes:
+        op.create_index("ix_audit_events_entity_id", "audit_events", ["entity_id"])
+    if "ix_audit_events_created_at" not in indexes:
+        op.create_index("ix_audit_events_created_at", "audit_events", ["created_at"])
     op.execute("""
         CREATE OR REPLACE FUNCTION cineai_audit_row() RETURNS trigger AS $$
         DECLARE row_id text;

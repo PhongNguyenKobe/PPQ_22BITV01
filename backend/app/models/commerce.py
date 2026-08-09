@@ -287,7 +287,7 @@ class NotificationOutbox(Base):
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     entity_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     action: Mapped[str] = mapped_column(String(20), nullable=False)

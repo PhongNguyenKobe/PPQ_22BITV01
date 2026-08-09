@@ -1,15 +1,15 @@
 """enforce one active branch assignment per administrator
 
-Revision ID: 0028_single_active_branch
-Revises: 0026_short_scan_code, 0027_single_branch_assignment
+Revision ID: 0029_single_active_branch
+Revises: 0026_short_scan_code, 0028_audit_events
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0028_single_active_branch"
-down_revision = ("0026_short_scan_code", "0027_single_branch_assignment")
+revision = "0029_single_active_branch"
+down_revision = ("0026_short_scan_code", "0028_audit_events")
 branch_labels = None
 depends_on = None
 
