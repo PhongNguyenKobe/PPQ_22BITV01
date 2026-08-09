@@ -1486,6 +1486,8 @@ export const mockTickets: UserTicket[] = [
     screenName: 'IMAX Phòng A',
     date: '2026-06-20',
     time: '15:30',
+    startsAt: '2026-06-20T15:30:00+07:00',
+    endsAt: '2026-06-20T17:30:00+07:00',
     seats: ['F5', 'F6'],
     totalAmount: 416000,
     paymentMethod: 'Ví Momo',
@@ -1963,6 +1965,11 @@ export const checkoutService = {
       const showtime = mockShowtimes.find(s => s.id === bookingDetails.showtimeId)
       const movie = mockMovies.find(m => m.id === showtime?.movieId)
 
+      const startsAt = showtime ? `${showtime.date}T${showtime.time}:00+07:00` : new Date().toISOString()
+      const endsAt = showtime
+        ? new Date(new Date(`${showtime.date}T${showtime.time}:00+07:00`).getTime() + 120 * 60 * 1000).toISOString()
+        : new Date(Date.now() + 120 * 60 * 1000).toISOString()
+
       const newTicket: UserTicket = {
         id: `t-${Math.floor(1000 + Math.random() * 9000)}`,
         movieTitle: movie?.title || 'Phim đã đặt',
@@ -1971,6 +1978,8 @@ export const checkoutService = {
         screenName: showtime?.screenName || 'Phòng 1',
         date: showtime?.date || '2026-06-25',
         time: showtime?.time || '20:00',
+        startsAt,
+        endsAt,
         seats: bookingDetails.seats,
         totalAmount: bookingDetails.totalAmount,
         paymentMethod: bookingDetails.paymentMethod,
@@ -2008,6 +2017,8 @@ export const checkoutService = {
       screenName: bookingDetails.screenName || 'Phòng chiếu',
       date: bookingDetails.date || String(booking.booking_date).slice(0, 10),
       time: bookingDetails.time || String(booking.booking_date).slice(11, 16),
+      startsAt: booking.starts_at || (bookingDetails.date && bookingDetails.time ? `${bookingDetails.date}T${bookingDetails.time}:00+07:00` : new Date().toISOString()),
+      endsAt: booking.ends_at || (bookingDetails.date && bookingDetails.time ? new Date(new Date(`${bookingDetails.date}T${bookingDetails.time}:00+07:00`).getTime() + 120 * 60 * 1000).toISOString() : new Date(Date.now() + 120 * 60 * 1000).toISOString()),
       seats: bookingDetails.seatLabels || booking.seats.map((seat: any) => `${seat.row}${seat.number}`),
       totalAmount: Number(payment.total_amount),
       paymentMethod: bookingDetails.paymentMethod,
@@ -2203,6 +2214,10 @@ export const adminService = {
               booking_count: 15,
               sold_seats: 15,
               revenue: showtime.price * 15,
+              total_seats: 100,
+              occupancy_rate: 15.0,
+              branch_is_active: true,
+              auditorium_is_active: true,
             }
           }),
         promotionsList: [
@@ -2261,6 +2276,10 @@ export const adminService = {
         booking_count: item.booking_count || 0,
         sold_seats: item.sold_seats || 0,
         revenue: item.revenue || 0,
+        total_seats: item.total_seats || item.totalSeats || 0,
+        occupancy_rate: item.occupancy_rate || item.occupancyRate || 0,
+        branch_is_active: item.branch_is_active !== undefined ? item.branch_is_active : (item.branchIsActive !== undefined ? item.branchIsActive : true),
+        auditorium_is_active: item.auditorium_is_active !== undefined ? item.auditorium_is_active : (item.auditoriumIsActive !== undefined ? item.auditoriumIsActive : true),
       })),
       promotionsList: rawData.promotionsList || [],
     }
@@ -2274,6 +2293,11 @@ export interface AiQueryResponse {
   showtimes: Showtime[]
 }
 
+export interface AiMoodMatchItem {
+  movie: Movie
+  reason: string
+}
+
 export const aiDiscoveryService = {
   async query(prompt: string, history: Array<{ role: string; parts: Array<{ text: string }> }>): Promise<AiQueryResponse> {
     const res = await apiClient.post<any>('/ai-discovery/query', { prompt, history })
@@ -2283,6 +2307,17 @@ export const aiDiscoveryService = {
       movies: (raw.movies || []).map(mapBackendMovieToFrontend),
       branches: raw.branches || [],
       showtimes: (raw.showtimes || []).map(mapBackendShowtimeToFrontend),
+    }
+  },
+
+  async matchMood(prompt: string): Promise<{ recommendations: AiMoodMatchItem[] }> {
+    const res = await apiClient.post<any>('/ai-discovery/mood-matcher', { prompt })
+    const raw = res.data
+    return {
+      recommendations: (raw.recommendations || []).map((item: any) => ({
+        movie: mapBackendMovieToFrontend(item.movie),
+        reason: item.reason || '',
+      })),
     }
   }
 }
