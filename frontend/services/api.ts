@@ -12,18 +12,37 @@ const apiClient = axios.create({
 // accidentally bake the localhost fallback into the browser bundle.
 apiClient.interceptors.request.use((config) => {
   let apiBase = 'http://localhost:8000/api/v1'
-  try {
-    const runtimeConfig = useRuntimeConfig()
-    if (runtimeConfig.public?.apiBase) apiBase = runtimeConfig.public.apiBase
-  } catch {
-    // Keep the local fallback for non-Nuxt contexts such as isolated tests.
+
+  // 1. Trên server-side (SSR), truy cập process.env trực tiếp để tránh lỗi mất context của Nuxt
+  if (import.meta.server) {
+    if (process.env.NUXT_PUBLIC_API_BASE) {
+      apiBase = process.env.NUXT_PUBLIC_API_BASE
+    } else {
+      try {
+        const runtimeConfig = useRuntimeConfig()
+        if (runtimeConfig.public?.apiBase) apiBase = runtimeConfig.public.apiBase
+      } catch {
+        // Fallback
+      }
+    }
+  } else {
+    // 2. Trên client-side (trình duyệt), lấy từ runtime config của Nuxt
+    try {
+      const runtimeConfig = useRuntimeConfig()
+      if (runtimeConfig.public?.apiBase) apiBase = runtimeConfig.public.apiBase
+    } catch {
+      // Fallback
+    }
   }
 
-  config.baseURL = import.meta.server
+  // Chỉ đổi sang tên miền mạng nội bộ 'backend:8000' nếu đang chạy trong môi trường Docker local
+  const isVercel = !!(process.env.VERCEL || process.env.NOW_BUILDER)
+  config.baseURL = (import.meta.server && !isVercel)
     ? apiBase
         .replace('localhost:8000', 'backend:8000')
         .replace('127.0.0.1:8000', 'backend:8000')
     : apiBase
+
   return config
 })
 
