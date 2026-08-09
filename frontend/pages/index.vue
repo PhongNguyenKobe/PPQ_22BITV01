@@ -181,6 +181,18 @@ onMounted(() => {
   heroTimer = setInterval(() => { if (heroMovies.value.length > 1) activeHeroIndex.value = (activeHeroIndex.value + 1) % heroMovies.value.length }, 6000)
 })
 onUnmounted(() => { if (heroTimer) clearInterval(heroTimer) })
+
+useSeoMeta({
+  title: 'CineAI - Hệ Thống Đặt Vé Xem Phim Thông Minh & Hiện Đại',
+  ogTitle: 'CineAI - Hệ Thống Đặt Vé Xem Phim Thông Minh & Hiện Đại',
+  description: 'CineAI - Hệ thống đặt vé xem phim thông minh hàng đầu. Trải nghiệm phòng chiếu IMAX cực đỉnh, công nghệ đặt vé tự động CineAI Assistant nhanh chóng và tiện lợi.',
+  ogDescription: 'CineAI - Hệ thống đặt vé xem phim thông minh hàng đầu. Trải nghiệm phòng chiếu IMAX cực đỉnh, công nghệ đặt vé tự động CineAI Assistant nhanh chóng và tiện lợi.',
+  ogUrl: () => useRequestURL().href,
+  fbAppId: '844524511361538',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'CineAI - Hệ Thống Đặt Vé Xem Phim Thông Minh & Hiện Đại',
+  twitterDescription: 'CineAI - Hệ thống đặt vé xem phim thông minh hàng đầu. Trải nghiệm phòng chiếu IMAX cực đỉnh, công nghệ đặt vé tự động CineAI Assistant nhanh chóng và tiện lợi.',
+})
 </script>
 
 <template>
@@ -273,6 +285,22 @@ onUnmounted(() => { if (heroTimer) clearInterval(heroTimer) })
 
       <section class="mx-auto max-w-7xl px-5 py-16 md:px-10"><div class="flex items-end justify-between"><div><p class="eyebrow">Theo rạp đã chọn</p><h2 class="section-title">Combo bắp nước tại {{ selectedBranch?.name }}</h2></div><span class="text-xs text-white/40">Tồn kho và giá từ backend</span></div><div v-if="combosLoading" class="empty">Đang tải combo...</div><div v-else-if="combos.length" class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4"><article v-for="combo in combos.slice(0, 4)" :key="combo.id" class="overflow-hidden rounded-2xl border border-white/10 bg-[#191b1d]"><img :src="combo.image_url || '/images/movie-placeholder.svg'" :alt="combo.name" class="h-44 w-full bg-white/5 object-cover" @error="($event.target as HTMLImageElement).src='/images/movie-placeholder.svg'"><div class="p-5"><h3 class="font-black">{{ combo.name }}</h3><p class="mt-2 line-clamp-2 min-h-10 text-xs text-white/45">{{ combo.description || 'Thông tin thành phần đang cập nhật.' }}</p><div class="mt-4 flex items-end justify-between"><b class="text-xl text-amber-300">{{ money(combo.price) }}</b><small :class="combo.stock_quantity === 0 ? 'text-red-400' : 'text-emerald-400'">{{ combo.stock_quantity == null ? 'Còn hàng' : combo.stock_quantity === 0 ? 'Hết hàng' : `Còn ${combo.stock_quantity}` }}</small></div></div></article></div><div v-else class="empty">Rạp này chưa mở bán combo. Bạn vẫn có thể tiếp tục đặt vé không kèm bắp nước.</div><p class="mt-5 text-center text-xs text-white/40">Combo được chọn sau khi chọn ghế để hệ thống kiểm tra tồn kho chính xác.</p></section>
     </template>
+
+    <!-- SEO & Introduction text block to optimize text/HTML ratio -->
+    <section class="border-t border-white/5 bg-[#0b0c10] py-16 text-white/50 text-xs sm:text-sm">
+      <div class="mx-auto max-w-7xl px-5 md:px-10 space-y-6">
+        <h2 class="text-white font-bold text-base sm:text-lg">CineAI - Hệ Thống Đặt Vé Xem Phim Hiện Đại & Tiện Lợi</h2>
+        <p class="leading-relaxed">
+          Chào mừng bạn đến với <strong>CineAI</strong>, hệ thống rạp chiếu phim hiện đại hàng đầu Việt Nam mang đến trải nghiệm điện ảnh đỉnh cao với hệ thống âm thanh vòm Dolby Atmos chân thực, màn hình chiếu IMAX siêu lớn sắc nét cùng không gian ghế ngồi cao cấp êm ái. Với cam kết đem lại cho người yêu điện ảnh những giây phút giải trí tuyệt vời nhất, CineAI không ngừng cập nhật nhanh nhất các siêu phẩm bom tấn trong nước và quốc tế đa dạng các thể loại từ hành động, phiêu lưu, kinh dị đến tình cảm và hoạt hình phù hợp với mọi độ tuổi.
+        </p>
+        <p class="leading-relaxed">
+          Hơn cả một rạp chiếu phim thông thường, CineAI đi đầu trong việc ứng dụng công nghệ trí tuệ nhân tạo thế hệ mới để tối ưu hóa trải nghiệm đặt vé của khách hàng thông qua tính năng <em>CineAI Assistant</em>. Giờ đây, chỉ cần trò chuyện bằng ngôn ngữ tự nhiên, hệ thống trợ lý thông minh sẽ lập tức tư vấn, đề xuất các bộ phim ăn khách phù hợp với sở thích của bạn và hỗ trợ đặt chỗ nhanh gọn trong vòng chưa đầy một phút. Bạn cũng có thể dễ dàng quản lý thông tin đặt vé, theo dõi lịch chiếu phim tại các chi nhánh gần nhất và chọn cho mình những combo bắp nước thơm ngon hấp dẫn nhất.
+        </p>
+        <p class="leading-relaxed">
+          Đặt vé trực tuyến an toàn và nhận ngay hàng loạt ưu đãi, voucher khuyến mãi hấp dẫn được cập nhật liên tục tại website CineAI. Hệ thống hỗ trợ đa dạng phương thức thanh toán trực tuyến hiện đại và bảo mật như VNPay, PayPal để giúp bạn hoàn tất giao dịch dễ dàng. Hãy chọn rạp chiếu phim CineAI gần nhất và cùng gia đình, bạn bè đắm chìm vào thế giới phim ảnh tràn đầy cảm xúc ngay hôm nay!
+        </p>
+      </div>
+    </section>
 
     <Teleport to="body"><div v-if="trailerMovie" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4" @click.self="trailerMovie = null"><div class="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#111]"><div class="flex items-center justify-between p-4"><h3 class="font-black">Trailer · {{ trailerMovie.name }}</h3><button class="material-symbols-outlined" @click="trailerMovie = null">close</button></div><div v-if="youtubeEmbedUrl(trailerMovie.trailerUrl)" class="aspect-video"><iframe class="h-full w-full" :src="youtubeEmbedUrl(trailerMovie.trailerUrl)" :title="`Trailer ${trailerMovie.name}`" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div><div v-else class="p-14 text-center"><span class="material-symbols-outlined text-5xl text-white/25">video_library</span><p class="mt-3 text-white/55">Phim chưa có trailer chính thức trong dữ liệu.</p><a :href="youtubeTrailerLink(null, trailerMovie.name)" target="_blank" rel="noopener" class="mt-5 inline-flex rounded-xl bg-red-600 px-5 py-3 font-bold">Tìm trailer trên YouTube</a></div></div></div></Teleport>
   </main>
