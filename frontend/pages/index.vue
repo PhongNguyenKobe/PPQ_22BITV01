@@ -23,6 +23,7 @@ const productsStore = useProductsStore()
 const ticketsStore = useTicketsStore()
 const userStore = useUserStore()
 const router = useRouter()
+const requestUrl = useRequestURL()
 const { products, loading: moviesLoading, error: moviesError } = storeToRefs(productsStore)
 
 const branches = ref<BackendBranch[]>([])
@@ -187,7 +188,7 @@ useSeoMeta({
   ogTitle: 'CineAI - Hệ Thống Đặt Vé Xem Phim Thông Minh & Hiện Đại',
   description: 'CineAI - Hệ thống đặt vé xem phim thông minh hàng đầu. Trải nghiệm phòng chiếu IMAX cực đỉnh, công nghệ đặt vé tự động CineAI Assistant nhanh chóng và tiện lợi.',
   ogDescription: 'CineAI - Hệ thống đặt vé xem phim thông minh hàng đầu. Trải nghiệm phòng chiếu IMAX cực đỉnh, công nghệ đặt vé tự động CineAI Assistant nhanh chóng và tiện lợi.',
-  ogUrl: () => useRequestURL().href,
+  ogUrl: () => requestUrl.href,
   fbAppId: '844524511361538',
   twitterCard: 'summary_large_image',
   twitterTitle: 'CineAI - Hệ Thống Đặt Vé Xem Phim Thông Minh & Hiện Đại',
