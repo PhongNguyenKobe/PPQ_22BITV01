@@ -102,8 +102,8 @@ watch(() => currentUser.value?.id, () => { if (process.client) void refreshTicke
             Lịch Chiếu
           </NuxtLink>
 
-          <!-- PHIM: đi thẳng tới /products -->
-          <NuxtLink to="/products" class="whitespace-nowrap transition-colors hover:text-white" active-class="text-white">
+          <!-- PHIM: đi thẳng tới /phim -->
+          <NuxtLink to="/phim" class="whitespace-nowrap transition-colors hover:text-white" active-class="text-white">
             Phim
           </NuxtLink>
 
@@ -274,12 +274,12 @@ watch(() => currentUser.value?.id, () => { if (process.client) void refreshTicke
             Lịch Chiếu
           </NuxtLink>
 
-          <NuxtLink :to="{ path: '/products', query: { status: 'NOW_SHOWING' } }" @click="showMobileMenu = false"
+          <NuxtLink :to="{ path: '/phim', query: { status: 'NOW_SHOWING' } }" @click="showMobileMenu = false"
             class="text-on-surface py-2 border-b border-glass-stroke/30">
             Phim Đang Chiếu
           </NuxtLink>
 
-          <NuxtLink :to="{ path: '/products', query: { status: 'UPCOMING' } }" @click="showMobileMenu = false"
+          <NuxtLink :to="{ path: '/phim', query: { status: 'UPCOMING' } }" @click="showMobileMenu = false"
             class="text-on-surface py-2 border-b border-glass-stroke/30">
             Phim Sắp Chiếu
           </NuxtLink>

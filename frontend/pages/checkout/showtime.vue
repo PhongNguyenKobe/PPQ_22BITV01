@@ -18,7 +18,7 @@ const loading = ref(false)
 // Redirect if no movie/cinema selected
 onMounted(async () => {
   if (!selectedMovie.value || !selectedCinema.value) {
-    return router.push('/products')
+    return router.push('/phim')
   }
   
   // Fetch showtimes from API

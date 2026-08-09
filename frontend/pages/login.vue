@@ -472,7 +472,7 @@ async function redirectAfterAuth() {
       && requestedRedirect.startsWith('/')
       && !requestedRedirect.startsWith('//')
       ? requestedRedirect
-      : '/products'
+      : '/phim'
     await navigateTo(safeRedirect)
   }
 }

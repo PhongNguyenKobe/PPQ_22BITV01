@@ -105,7 +105,7 @@ onMounted(loadPromotions)
               <p class="text-xs font-black uppercase tracking-[0.18em] text-red-400">Dùng ngay</p>
               <h2 class="mt-1 text-2xl font-black text-white">Khuyến mãi hiện có</h2>
             </div>
-            <NuxtLink to="/products" class="hidden text-sm font-bold text-red-400 hover:text-red-300 sm:block">Chọn phim →</NuxtLink>
+            <NuxtLink to="/phim" class="hidden text-sm font-bold text-red-400 hover:text-red-300 sm:block">Chọn phim →</NuxtLink>
           </div>
 
           <div v-if="currentPromotions.length" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -166,7 +166,7 @@ onMounted(loadPromotions)
             <h2 class="text-xl font-black text-white">Đã chọn được voucher phù hợp?</h2>
             <p class="mt-1 text-sm text-gray-400">Chọn phim và nhập mã tại bước thanh toán để hệ thống kiểm tra giá trị ưu đãi thực tế.</p>
           </div>
-          <NuxtLink to="/products" class="whitespace-nowrap rounded-xl bg-red-600 px-6 py-3 font-black text-white transition hover:bg-red-500">Đặt vé ngay</NuxtLink>
+          <NuxtLink to="/phim" class="whitespace-nowrap rounded-xl bg-red-600 px-6 py-3 font-black text-white transition hover:bg-red-500">Đặt vé ngay</NuxtLink>
         </section>
       </template>
     </div>

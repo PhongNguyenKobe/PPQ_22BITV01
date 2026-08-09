@@ -11,7 +11,7 @@ definePageMeta({ layout: 'default' })
         Chức năng mua sản phẩm và thanh toán đơn hàng chưa kết nối với hệ thống đơn hàng thật.
         Hiện tại CineAI chỉ hỗ trợ đặt và thanh toán vé xem phim.
       </p>
-      <NuxtLink to="/products" class="mt-7 inline-flex rounded-xl bg-primary-container px-6 py-3 font-bold text-white">
+      <NuxtLink to="/phim" class="mt-7 inline-flex rounded-xl bg-primary-container px-6 py-3 font-bold text-white">
         Xem phim và đặt vé
       </NuxtLink>
     </div>

@@ -19,7 +19,7 @@ const requiresCatalogMapping = ref(false)
 // Redirect if no movie selected
 onMounted(async () => {
   if (!selectedMovie.value) {
-    return router.push('/products')
+    return router.push('/phim')
   }
   
   // Fetch showtimes for the selected movie from API
@@ -245,7 +245,7 @@ function handleSelectCinema(cinema: string) {
               Chọn một rạp ở giữa để tiếp tục sang bước chọn suất chiếu.
             </div>
 
-            <NuxtLink to="/products" class="summary-back">
+            <NuxtLink to="/phim" class="summary-back">
               Đổi phim khác
             </NuxtLink>
           </div>

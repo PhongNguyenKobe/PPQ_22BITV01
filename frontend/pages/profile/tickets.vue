@@ -177,7 +177,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
       <div v-else-if="ticketHistory.length === 0" class="py-16 text-center text-on-surface-variant">
         <span class="material-symbols-outlined text-[48px] mb-2 text-on-surface-variant">confirmation_number</span>
         <p class="text-sm font-medium">Bạn chưa thực hiện bất kỳ giao dịch đặt vé nào.</p>
-        <NuxtLink to="/products" class="text-primary-container font-bold hover:underline mt-2 inline-block">Đặt vé ngay
+        <NuxtLink to="/phim" class="text-primary-container font-bold hover:underline mt-2 inline-block">Đặt vé ngay
         </NuxtLink>
       </div>
 

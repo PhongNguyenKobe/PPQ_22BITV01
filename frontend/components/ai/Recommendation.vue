@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMoviesStore } from '~/store/movies'
+import { getProductSlugUrl } from '~/utils/slug'
 
 const moviesStore = useMoviesStore()
 const { recommendations, loading } = storeToRefs(moviesStore)
@@ -72,7 +73,7 @@ onMounted(async () => {
             </div>
             
             <NuxtLink
-              :to="`/products/${movie.id}`"
+              :to="getProductSlugUrl(movie)"
               class="bg-primary-container hover:bg-opacity-90 text-on-primary-container px-5 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 red-glow"
             >
               Đặt Vé

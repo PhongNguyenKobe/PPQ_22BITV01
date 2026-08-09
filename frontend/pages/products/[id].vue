@@ -296,7 +296,7 @@ useSeoMeta({
       <div v-if="movieError" class="text-red-400 text-xs mb-6 bg-red-950/40 p-3 rounded-lg border border-red-900/30 max-w-md mx-auto">
         Lỗi liên kết: {{ movieError.message || movieError }}
       </div>
-      <NuxtLink :to="{ path: '/products', query: listQuery }"
+      <NuxtLink :to="{ path: '/phim', query: listQuery }"
         class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-red-600/30">
         <span class="material-symbols-outlined text-sm">arrow_back</span>
         Quay lại danh sách phim
@@ -327,7 +327,7 @@ useSeoMeta({
 
           <!-- Back Button -->
           <div class="mb-8">
-            <NuxtLink :to="{ path: '/products', query: listQuery }"
+            <NuxtLink :to="{ path: '/phim', query: listQuery }"
               class="inline-flex items-center gap-2 text-xs font-bold text-gray-300 hover:text-red-400 transition-colors uppercase tracking-wider bg-black/50 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/10 shadow-lg">
               <span class="material-symbols-outlined text-sm">arrow_back</span>
               Quay lại danh sách phim

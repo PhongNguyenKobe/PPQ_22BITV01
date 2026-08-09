@@ -13,7 +13,7 @@ const ticketTotal = computed(() => selectedSeats.value.reduce((sum, seat) => sum
 const quantity = (id: string) => selectedCombos.value.find(item => item.combo.id === id)?.quantity || 0
 
 onMounted(async () => {
-  if (!selectedShowtime.value || !selectedSeats.value.length) return navigateTo('/products')
+  if (!selectedShowtime.value || !selectedSeats.value.length) return navigateTo('/phim')
   try {
     const branches = await branchesService.getAll()
     const branch = branches.find(item => item.name === selectedShowtime.value?.branchName)
