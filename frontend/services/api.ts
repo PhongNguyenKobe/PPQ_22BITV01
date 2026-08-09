@@ -2293,11 +2293,6 @@ export interface AiQueryResponse {
   showtimes: Showtime[]
 }
 
-export interface AiMoodMatchItem {
-  movie: Movie
-  reason: string
-}
-
 export const aiDiscoveryService = {
   async query(prompt: string, history: Array<{ role: string; parts: Array<{ text: string }> }>): Promise<AiQueryResponse> {
     const res = await apiClient.post<any>('/ai-discovery/query', { prompt, history })
@@ -2307,17 +2302,6 @@ export const aiDiscoveryService = {
       movies: (raw.movies || []).map(mapBackendMovieToFrontend),
       branches: raw.branches || [],
       showtimes: (raw.showtimes || []).map(mapBackendShowtimeToFrontend),
-    }
-  },
-
-  async matchMood(prompt: string): Promise<{ recommendations: AiMoodMatchItem[] }> {
-    const res = await apiClient.post<any>('/ai-discovery/mood-matcher', { prompt })
-    const raw = res.data
-    return {
-      recommendations: (raw.recommendations || []).map((item: any) => ({
-        movie: mapBackendMovieToFrontend(item.movie),
-        reason: item.reason || '',
-      })),
     }
   }
 }
