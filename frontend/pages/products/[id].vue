@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { extractIdFromSlug } from '~/utils/slug'
+import { extractIdFromSlug, slugify } from '~/utils/slug'
 import { useProductsStore } from '~/store/products'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
@@ -59,9 +59,16 @@ const editingReviewId = ref<string | null>(null)
 const ratingLabels = ['', 'Không hay', 'Tạm được', 'Bình thường', 'Hay', 'Rất hay']
 
 const slug = String(route.params.id || '')
-const id = extractIdFromSlug(slug)
+const extractedId = extractIdFromSlug(slug)
 
-const { data: currentProduct, error: movieError } = await useAsyncData(`product-detail-${id}`, async () => {
+const { data: currentProduct, error: movieError } = await useAsyncData(`product-detail-${slug}`, async () => {
+  let id = extractedId
+  if (id === slug && !/^\d+$/.test(slug)) {
+    const movies = await movieService.getPublic()
+    const matchedMovie = movies.find(movie => slugify(movie.title || movie.name || '') === slugify(slug))
+    if (!matchedMovie) throw createError({ statusCode: 404, statusMessage: 'Không tìm thấy phim' })
+    id = String(matchedMovie.id)
+  }
   const movie = await movieService.getById(id)
   return {
     id: movie.id,
@@ -91,7 +98,7 @@ onMounted(async () => {
     }
     console.log('DEBUG MOUNTED:', {
       routeParamId: route.params.id,
-      extractedId: id,
+      extractedId,
       currentProduct: currentProduct?.value,
       reviewMovieId: reviewMovieId.value
     })

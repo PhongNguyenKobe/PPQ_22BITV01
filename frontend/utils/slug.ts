@@ -15,7 +15,7 @@ export function slugify(text: string): string {
 export function getProductSlugUrl(product: { id: string | number; name?: string; title?: string }): string {
   const name = product.name || product.title || ''
   const slug = slugify(name)
-  return `/products/${product.id}${slug ? '-' + slug : ''}`
+  return slug ? `/phim/${slug}` : `/products/${product.id}`
 }
 
 export function getMovieSlugUrl(movie: { id: string | number; title?: string; name?: string }): string {

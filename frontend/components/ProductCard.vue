@@ -2,6 +2,7 @@
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
 import { youtubeTrailerLink } from '~/services/api'
+import { getProductSlugUrl } from '~/utils/slug'
 
 const props = defineProps<{
   id: string | number
@@ -30,6 +31,7 @@ const formattedPrice = computed(() => new Intl.NumberFormat('vi-VN').format(prop
 const trailerHref = computed(() => youtubeTrailerLink(props.trailerUrl, props.name))
 const genreLabel = computed(() => props.genres?.length ? props.genres.slice(0, 2).join(' · ') : props.category)
 const detailQuery = computed(() => ({ ...(props.adminPreview ? { preview: 'admin' } : {}), ...(props.selectedBranchId ? { branch_id: props.selectedBranchId } : {}) }))
+const detailPath = computed(() => getProductSlugUrl({ id: props.id, name: props.name }))
 const releaseLabel = computed(() => {
   if (!props.releaseDate) return 'Ngày phát hành đang cập nhật'
   const date = new Date(props.releaseDate)
@@ -49,7 +51,7 @@ function startBooking() {
 
 <template>
   <article class="movie-card group">
-    <NuxtLink :to="{ path: `/products/${id}`, query: detailQuery }" class="poster-wrap" :aria-label="`Xem thông tin phim ${name}`">
+    <NuxtLink :to="{ path: detailPath, query: detailQuery }" class="poster-wrap" :aria-label="`Xem thông tin phim ${name}`">
       <img :src="imageUrl" :alt="name" class="poster" loading="lazy" @error="($event.target as HTMLImageElement).src = '/images/movie-placeholder.svg'">
       <div class="poster-shade" />
       <div class="absolute left-3 top-3 z-10 flex max-w-[75%] flex-wrap gap-1.5">
@@ -61,7 +63,7 @@ function startBooking() {
     </NuxtLink>
 
     <div class="flex flex-1 flex-col p-4 sm:p-5">
-      <NuxtLink :to="{ path: `/products/${id}`, query: detailQuery }"><h3 class="line-clamp-2 min-h-[48px] text-base font-black leading-6 text-white transition group-hover:text-red-400 sm:text-lg">{{ name }}</h3></NuxtLink>
+      <NuxtLink :to="{ path: detailPath, query: detailQuery }"><h3 class="line-clamp-2 min-h-[48px] text-base font-black leading-6 text-white transition group-hover:text-red-400 sm:text-lg">{{ name }}</h3></NuxtLink>
       <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/45">
         <span v-if="duration">{{ duration }} phút</span><span v-if="duration && genreLabel">•</span><span class="line-clamp-1">{{ genreLabel }}</span>
       </div>
@@ -71,7 +73,7 @@ function startBooking() {
       <div class="mt-auto pt-5">
         <p v-if="status !== 'UPCOMING'" class="mb-3 text-xs text-white/45">Giá vé từ <strong class="ml-1 text-base text-amber-300">{{ formattedPrice }}đ</strong></p>
         <div class="flex gap-2">
-          <NuxtLink v-if="status === 'UPCOMING' || adminPreview" :to="{ path: `/products/${id}`, query: detailQuery }" class="card-cta flex-1"><span class="material-symbols-outlined text-lg">{{ adminPreview ? 'visibility' : 'info' }}</span>{{ adminPreview ? 'Xem luồng bán vé' : 'Xem thông tin' }}</NuxtLink>
+          <NuxtLink v-if="status === 'UPCOMING' || adminPreview" :to="{ path: detailPath, query: detailQuery }" class="card-cta flex-1"><span class="material-symbols-outlined text-lg">{{ adminPreview ? 'visibility' : 'info' }}</span>{{ adminPreview ? 'Xem luồng bán vé' : 'Xem thông tin' }}</NuxtLink>
           <button v-else type="button" class="card-cta flex-1" @click="startBooking"><span class="material-symbols-outlined text-lg">confirmation_number</span>Chọn suất chiếu</button>
           <a :href="trailerHref" target="_blank" rel="noopener noreferrer" class="trailer-button" :aria-label="`Xem trailer ${name}`"><span class="material-symbols-outlined">play_arrow</span></a>
         </div>

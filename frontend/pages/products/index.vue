@@ -4,6 +4,7 @@ import ProductCard from '~/components/ProductCard.vue'
 import { useProductsStore } from '~/store/products'
 import { useUserStore } from '~/store/user'
 import { branchesService, type BackendBranch, type BranchDetail, youtubeTrailerLink } from '~/services/api'
+import { getProductSlugUrl } from '~/utils/slug'
 
 definePageMeta({ layout: 'default' })
 
@@ -157,7 +158,7 @@ watch(() => route.query.status, (value) => {
         </div>
         <p class="mt-5 max-w-2xl line-clamp-3 text-sm leading-7 text-white/65 md:text-base">{{ featuredProduct.description }}</p>
         <div class="mt-7 flex flex-wrap gap-3">
-          <NuxtLink :to="{ path: `/products/${featuredProduct.id}`, query: featuredQuery }" class="hero-primary"><span class="material-symbols-outlined">confirmation_number</span>{{ isAdminPreview ? 'Xem luồng bán vé' : 'Xem suất chiếu' }}</NuxtLink>
+          <NuxtLink :to="{ path: getProductSlugUrl(featuredProduct), query: featuredQuery }" class="hero-primary"><span class="material-symbols-outlined">confirmation_number</span>{{ isAdminPreview ? 'Xem luồng bán vé' : 'Xem suất chiếu' }}</NuxtLink>
           <a :href="youtubeTrailerLink(featuredProduct.trailerUrl, featuredProduct.name)" target="_blank" rel="noopener noreferrer" class="hero-secondary"><span class="material-symbols-outlined">play_circle</span>Xem trailer</a>
         </div>
       </div>

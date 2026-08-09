@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useProductsStore } from '~/store/products'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
+import { getProductSlugUrl } from '~/utils/slug'
 import {
   branchesService,
   comboService,
@@ -263,7 +264,7 @@ onUnmounted(() => { if (heroTimer) clearInterval(heroTimer) })
 
       <section class="mx-auto max-w-[1280px] px-6 py-20 md:px-12">
         <div class="flex items-end justify-between"><div><p class="eyebrow">Mở bán tại {{ selectedBranch?.name || 'hệ thống' }}</p><h2 class="section-title">Phim có suất để đặt ngay</h2></div><NuxtLink to="/products" class="more-link">Xem tất cả →</NuxtLink></div>
-        <div v-if="openMovies.length" class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4"><article v-for="movie in openMovies.slice(0, 8)" :key="movie.id" class="movie-card"><NuxtLink :to="`/products/${movie.id}`" class="relative block aspect-[2/3] overflow-hidden"><img :src="movie.imageUrl" :alt="movie.name" class="h-full w-full object-cover transition duration-500 hover:scale-105"><span class="absolute left-3 top-3 rounded-lg bg-red-600 px-2.5 py-1 text-[10px] font-black">ĐANG BÁN VÉ</span></NuxtLink><div class="p-4"><h3 class="line-clamp-1 text-lg font-black">{{ movie.name }}</h3><p class="mt-1 text-xs text-white/45">{{ movie.category }} · {{ movie.duration }} phút</p><div class="mt-4 flex flex-wrap gap-2"><button v-for="item in schedules(movie.id).slice(0, 4)" :key="item.id" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-xs hover:border-red-500 hover:bg-red-600" @click="chooseShowtime(movie, item)">{{ item.time }} · {{ item.date.slice(5).replace('-', '/') }}</button></div></div></article></div>
+        <div v-if="openMovies.length" class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4"><article v-for="movie in openMovies.slice(0, 8)" :key="movie.id" class="movie-card"><NuxtLink :to="getProductSlugUrl(movie)" class="relative block aspect-[2/3] overflow-hidden"><img :src="movie.imageUrl" :alt="movie.name" class="h-full w-full object-cover transition duration-500 hover:scale-105"><span class="absolute left-3 top-3 rounded-lg bg-red-600 px-2.5 py-1 text-[10px] font-black">ĐANG BÁN VÉ</span></NuxtLink><div class="p-4"><h3 class="line-clamp-1 text-lg font-black">{{ movie.name }}</h3><p class="mt-1 text-xs text-white/45">{{ movie.category }} · {{ movie.duration }} phút</p><div class="mt-4 flex flex-wrap gap-2"><button v-for="item in schedules(movie.id).slice(0, 4)" :key="item.id" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-xs hover:border-red-500 hover:bg-red-600" @click="chooseShowtime(movie, item)">{{ item.time }} · {{ item.date.slice(5).replace('-', '/') }}</button></div></div></article></div>
         <div v-else class="empty">Không tìm thấy phim đang mở bán phù hợp với rạp hoặc từ khóa.</div>
       </section>
 
