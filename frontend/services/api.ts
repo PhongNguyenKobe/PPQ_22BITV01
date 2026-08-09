@@ -12,18 +12,37 @@ const apiClient = axios.create({
 // accidentally bake the localhost fallback into the browser bundle.
 apiClient.interceptors.request.use((config) => {
   let apiBase = 'http://localhost:8000/api/v1'
-  try {
-    const runtimeConfig = useRuntimeConfig()
-    if (runtimeConfig.public?.apiBase) apiBase = runtimeConfig.public.apiBase
-  } catch {
-    // Keep the local fallback for non-Nuxt contexts such as isolated tests.
+
+  // 1. Trên server-side (SSR), truy cập process.env trực tiếp để tránh lỗi mất context của Nuxt
+  if (import.meta.server) {
+    if (process.env.NUXT_PUBLIC_API_BASE) {
+      apiBase = process.env.NUXT_PUBLIC_API_BASE
+    } else {
+      try {
+        const runtimeConfig = useRuntimeConfig()
+        if (runtimeConfig.public?.apiBase) apiBase = runtimeConfig.public.apiBase
+      } catch {
+        // Fallback
+      }
+    }
+  } else {
+    // 2. Trên client-side (trình duyệt), lấy từ runtime config của Nuxt
+    try {
+      const runtimeConfig = useRuntimeConfig()
+      if (runtimeConfig.public?.apiBase) apiBase = runtimeConfig.public.apiBase
+    } catch {
+      // Fallback
+    }
   }
 
-  config.baseURL = import.meta.server
+  // Chỉ đổi sang tên miền mạng nội bộ 'backend:8000' nếu đang chạy trong môi trường Docker local
+  const isVercel = !!(process.env.VERCEL || process.env.NOW_BUILDER)
+  config.baseURL = (import.meta.server && !isVercel)
     ? apiBase
         .replace('localhost:8000', 'backend:8000')
         .replace('127.0.0.1:8000', 'backend:8000')
     : apiBase
+
   return config
 })
 
@@ -1486,6 +1505,8 @@ export const mockTickets: UserTicket[] = [
     screenName: 'IMAX Phòng A',
     date: '2026-06-20',
     time: '15:30',
+    startsAt: '2026-06-20T15:30:00+07:00',
+    endsAt: '2026-06-20T17:30:00+07:00',
     seats: ['F5', 'F6'],
     totalAmount: 416000,
     paymentMethod: 'Ví Momo',
@@ -1963,6 +1984,11 @@ export const checkoutService = {
       const showtime = mockShowtimes.find(s => s.id === bookingDetails.showtimeId)
       const movie = mockMovies.find(m => m.id === showtime?.movieId)
 
+      const startsAt = showtime ? `${showtime.date}T${showtime.time}:00+07:00` : new Date().toISOString()
+      const endsAt = showtime
+        ? new Date(new Date(`${showtime.date}T${showtime.time}:00+07:00`).getTime() + 120 * 60 * 1000).toISOString()
+        : new Date(Date.now() + 120 * 60 * 1000).toISOString()
+
       const newTicket: UserTicket = {
         id: `t-${Math.floor(1000 + Math.random() * 9000)}`,
         movieTitle: movie?.title || 'Phim đã đặt',
@@ -1971,6 +1997,8 @@ export const checkoutService = {
         screenName: showtime?.screenName || 'Phòng 1',
         date: showtime?.date || '2026-06-25',
         time: showtime?.time || '20:00',
+        startsAt,
+        endsAt,
         seats: bookingDetails.seats,
         totalAmount: bookingDetails.totalAmount,
         paymentMethod: bookingDetails.paymentMethod,
@@ -2008,6 +2036,8 @@ export const checkoutService = {
       screenName: bookingDetails.screenName || 'Phòng chiếu',
       date: bookingDetails.date || String(booking.booking_date).slice(0, 10),
       time: bookingDetails.time || String(booking.booking_date).slice(11, 16),
+      startsAt: booking.starts_at || (bookingDetails.date && bookingDetails.time ? `${bookingDetails.date}T${bookingDetails.time}:00+07:00` : new Date().toISOString()),
+      endsAt: booking.ends_at || (bookingDetails.date && bookingDetails.time ? new Date(new Date(`${bookingDetails.date}T${bookingDetails.time}:00+07:00`).getTime() + 120 * 60 * 1000).toISOString() : new Date(Date.now() + 120 * 60 * 1000).toISOString()),
       seats: bookingDetails.seatLabels || booking.seats.map((seat: any) => `${seat.row}${seat.number}`),
       totalAmount: Number(payment.total_amount),
       paymentMethod: bookingDetails.paymentMethod,
@@ -2203,6 +2233,10 @@ export const adminService = {
               booking_count: 15,
               sold_seats: 15,
               revenue: showtime.price * 15,
+              total_seats: 100,
+              occupancy_rate: 15.0,
+              branch_is_active: true,
+              auditorium_is_active: true,
             }
           }),
         promotionsList: [
@@ -2261,6 +2295,10 @@ export const adminService = {
         booking_count: item.booking_count || 0,
         sold_seats: item.sold_seats || 0,
         revenue: item.revenue || 0,
+        total_seats: item.total_seats || item.totalSeats || 0,
+        occupancy_rate: item.occupancy_rate || item.occupancyRate || 0,
+        branch_is_active: item.branch_is_active !== undefined ? item.branch_is_active : (item.branchIsActive !== undefined ? item.branchIsActive : true),
+        auditorium_is_active: item.auditorium_is_active !== undefined ? item.auditorium_is_active : (item.auditoriumIsActive !== undefined ? item.auditoriumIsActive : true),
       })),
       promotionsList: rawData.promotionsList || [],
     }

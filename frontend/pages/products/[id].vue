@@ -221,18 +221,48 @@ function reviewDate(value: string) {
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
+const getAbsoluteImageUrl = (url: string | null | undefined) => {
+  if (!url) return ''
+  let result = url
+  if (result.includes('localhost:8000') || result.includes('127.0.0.1:8000')) {
+    try {
+      const config = useRuntimeConfig()
+      const apiBase = config.public.apiBase
+      const backendOrigin = new URL(apiBase).origin
+      result = result
+        .replace('http://localhost:8000', backendOrigin)
+        .replace('http://127.0.0.1:8000', backendOrigin)
+    } catch (e) {}
+  }
+  if (result.startsWith('http://') || result.startsWith('https://')) {
+    return result
+  }
+  if (result.startsWith('/api/')) {
+    try {
+      const config = useRuntimeConfig()
+      const apiBase = config.public.apiBase
+      const backendOrigin = new URL(apiBase).origin
+      return `${backendOrigin}${result}`
+    } catch (e) {}
+  }
+  const origin = requestUrl.origin
+  return `${origin}${result.startsWith('/') ? '' : '/'}${result}`
+}
+
 useSeoMeta({
   title: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
   ogTitle: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
   description: () => currentProduct.value?.description || '',
   ogDescription: () => currentProduct.value?.description || '',
-  ogImage: () => currentProduct.value?.imageUrl || '',
+  ogImage: () => getAbsoluteImageUrl(currentProduct.value?.imageUrl),
+  ogImageWidth: 600,
+  ogImageHeight: 900,
   ogUrl: () => requestUrl.href,
   fbAppId: '844524511361538',
   twitterCard: 'summary_large_image',
   twitterTitle: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
   twitterDescription: () => currentProduct.value?.description || '',
-  twitterImage: () => currentProduct.value?.imageUrl || '',
+  twitterImage: () => getAbsoluteImageUrl(currentProduct.value?.imageUrl),
 })
 </script>
 
@@ -263,6 +293,9 @@ useSeoMeta({
       <span class="material-symbols-outlined text-6xl text-gray-600 mb-4">movie_off</span>
       <h2 class="text-2xl font-bold text-white mb-2">Không tìm thấy tác phẩm</h2>
       <p class="text-gray-400 text-sm mb-6">Bộ phim bạn tìm kiếm không tồn tại hoặc đã ngừng chiếu.</p>
+      <div v-if="movieError" class="text-red-400 text-xs mb-6 bg-red-950/40 p-3 rounded-lg border border-red-900/30 max-w-md mx-auto">
+        Lỗi liên kết: {{ movieError.message || movieError }}
+      </div>
       <NuxtLink :to="{ path: '/products', query: listQuery }"
         class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-red-600/30">
         <span class="material-symbols-outlined text-sm">arrow_back</span>

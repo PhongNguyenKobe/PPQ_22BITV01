@@ -115,18 +115,48 @@ function changeBranch(branch: string) {
   }
 }
 
+const getAbsoluteImageUrl = (url: string | null | undefined) => {
+  if (!url) return ''
+  let result = url
+  if (result.includes('localhost:8000') || result.includes('127.0.0.1:8000')) {
+    try {
+      const config = useRuntimeConfig()
+      const apiBase = config.public.apiBase
+      const backendOrigin = new URL(apiBase).origin
+      result = result
+        .replace('http://localhost:8000', backendOrigin)
+        .replace('http://127.0.0.1:8000', backendOrigin)
+    } catch (e) {}
+  }
+  if (result.startsWith('http://') || result.startsWith('https://')) {
+    return result
+  }
+  if (result.startsWith('/api/')) {
+    try {
+      const config = useRuntimeConfig()
+      const apiBase = config.public.apiBase
+      const backendOrigin = new URL(apiBase).origin
+      return `${backendOrigin}${result}`
+    } catch (e) {}
+  }
+  const origin = requestUrl.origin
+  return `${origin}${result.startsWith('/') ? '' : '/'}${result}`
+}
+
 useSeoMeta({
   title: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
   ogTitle: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
   description: () => tmdbDetail.value?.description || '',
   ogDescription: () => tmdbDetail.value?.description || '',
-  ogImage: () => tmdbDetail.value?.poster || '',
+  ogImage: () => getAbsoluteImageUrl(tmdbDetail.value?.poster),
+  ogImageWidth: 600,
+  ogImageHeight: 900,
   ogUrl: () => requestUrl.href,
   fbAppId: '844524511361538',
   twitterCard: 'summary_large_image',
   twitterTitle: () => tmdbDetail.value ? `${tmdbDetail.value.title} - CineAI` : 'CineAI',
   twitterDescription: () => tmdbDetail.value?.description || '',
-  twitterImage: () => tmdbDetail.value?.poster || '',
+  twitterImage: () => getAbsoluteImageUrl(tmdbDetail.value?.poster),
 })
 </script>
 

@@ -65,6 +65,15 @@ async def upsert_demo_users(session: AsyncSession) -> None:
         if role is None:
             continue
 
+        # Tránh lỗi UniqueViolationError của số điện thoại trên hệ thống database thực tế
+        if payload["phone"]:
+            dup_user = await session.scalar(
+                select(User).where(User.phone == payload["phone"], User.email != payload["email"])
+            )
+            if dup_user is not None:
+                dup_user.phone = None
+                await session.flush()
+
         user_result = await session.execute(
             select(User).where(User.email == payload["email"])
         )
