@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const route = useRoute()
-const apiBase = import.meta.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
+const config = useRuntimeConfig()
+const apiBase = config.public.apiBase
 const { data: ticket, error } = await useFetch<any>(`${apiBase}/bookings/tickets/verify/${encodeURIComponent(String(route.params.code))}`, { server: false })
 const labels: Record<string, string> = { VALID: 'Vé hợp lệ', TOO_EARLY: 'Chưa đến giờ soát vé', ALREADY_USED: 'Vé đã sử dụng', EXPIRED: 'Vé đã hết hạn', CANCELLED: 'Vé đã hủy', NOT_CONFIRMED: 'Vé chưa xác nhận' }
 </script>

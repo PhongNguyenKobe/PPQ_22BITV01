@@ -2,13 +2,29 @@ import axios from 'axios'
 
 // Set this to false when backend (FastAPI) is running
 const USE_MOCK = false
-const API_BASE_URL = import.meta.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
-
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+})
+
+// Resolve the public API URL from Nuxt at runtime so production builds do not
+// accidentally bake the localhost fallback into the browser bundle.
+apiClient.interceptors.request.use((config) => {
+  let apiBase = 'http://localhost:8000/api/v1'
+  try {
+    const runtimeConfig = useRuntimeConfig()
+    if (runtimeConfig.public?.apiBase) apiBase = runtimeConfig.public.apiBase
+  } catch {
+    // Keep the local fallback for non-Nuxt contexts such as isolated tests.
+  }
+
+  config.baseURL = import.meta.server
+    ? apiBase
+        .replace('localhost:8000', 'backend:8000')
+        .replace('127.0.0.1:8000', 'backend:8000')
+    : apiBase
+  return config
 })
 
 function notify(message: string, type: 'success' | 'error') {
@@ -1768,7 +1784,14 @@ export const movieService = {
   },
 
   watchSeats(showtimeId: string, onUpdate: () => void): WebSocket {
-    const apiUrl = new URL(API_BASE_URL)
+    let apiBase = 'http://localhost:8000/api/v1'
+    try {
+      const runtimeConfig = useRuntimeConfig()
+      if (runtimeConfig.public?.apiBase) apiBase = runtimeConfig.public.apiBase
+    } catch {
+      // Keep the local fallback for non-Nuxt contexts.
+    }
+    const apiUrl = new URL(apiBase)
     const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'
     const token = process.client ? sessionStorage.getItem('cineai_token') || '' : ''
     const socket = new WebSocket(`${protocol}//${apiUrl.host}${apiUrl.pathname}/showtimes/${showtimeId}/ws?token=${encodeURIComponent(token)}`)
