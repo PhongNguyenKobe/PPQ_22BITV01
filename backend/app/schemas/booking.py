@@ -62,6 +62,7 @@ class BookingRead(BaseModel):
     branch_name: str
     auditorium_name: str
     starts_at: datetime
+    ends_at: datetime
     booking_date: datetime
     seats: list[dict] = Field(default_factory=list)  # [{'row': 'A', 'number': 1}, ...]
     quantity: int
@@ -72,6 +73,7 @@ class BookingRead(BaseModel):
     status: str  # 'PENDING', 'CONFIRMED', 'CANCEL_REQUESTED', 'CANCELLED', 'EXPIRED'
     ticket_code: str | None = None
     qr_code: str | None = None
+    tickets: list[dict] = Field(default_factory=list)
     checked_in_at: datetime | None = None
     cancellation_reason: str | None = None
     cancellation_requested_at: datetime | None = None

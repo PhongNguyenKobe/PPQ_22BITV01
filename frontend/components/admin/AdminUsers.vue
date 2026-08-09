@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { adminBackendService, type UserProfile, type AdminBranchManage } from '~/services/api'
+import { useUserStore } from '~/store/user'
+import { storeToRefs } from 'pinia'
+
+const { currentUser } = storeToRefs(useUserStore())
 
 const users = ref<UserProfile[]>([])
 const branches = ref<AdminBranchManage[]>([])
@@ -9,7 +13,11 @@ const error = ref('')
 const accountGroup = ref<'ADMIN' | 'CUSTOMER'>('ADMIN')
 const userSearch = ref('')
 const statusFilter = ref<'ALL' | 'ACTIVE' | 'LOCKED'>('ALL')
-const roleFilter = ref<'ALL' | 'admin' | 'branch-admin' | 'staff' | 'customer'>('ALL')
+const roleFilter = ref<'ALL' | 'admin' | 'branch-admin' | 'customer'>('ALL')
+const branchFilter = ref('ALL')
+const verificationFilter = ref<'ALL' | 'VERIFIED' | 'UNVERIFIED'>('ALL')
+const currentPage = ref(1)
+const pageSize = 10
 const adminUsers = computed(() => users.value.filter(user => user.role !== 'customer'))
 const customerUsers = computed(() => users.value.filter(user => user.role === 'customer'))
 const activeBranches = computed(() => branches.value.filter(branch => branch.is_active))
@@ -25,12 +33,24 @@ const filteredUsers = computed(() => {
   if (statusFilter.value === 'ACTIVE') result = result.filter(user => user.isActive)
   if (statusFilter.value === 'LOCKED') result = result.filter(user => !user.isActive)
   if (roleFilter.value !== 'ALL') result = result.filter(user => user.role === roleFilter.value)
+  if (accountGroup.value === 'ADMIN' && branchFilter.value !== 'ALL') {
+    result = result.filter(user => user.branchId === branchFilter.value)
+  }
+  if (accountGroup.value === 'CUSTOMER' && verificationFilter.value !== 'ALL') {
+    result = result.filter(user => verificationFilter.value === 'VERIFIED' ? user.isVerified : !user.isVerified)
+  }
   return result
 })
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredUsers.value.length / pageSize)))
+const paginatedUsers = computed(() => filteredUsers.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
 
 watch(accountGroup, () => {
   roleFilter.value = 'ALL'
+  branchFilter.value = 'ALL'
+  verificationFilter.value = 'ALL'
+  currentPage.value = 1
 })
+watch([userSearch, statusFilter, roleFilter, branchFilter, verificationFilter], () => { currentPage.value = 1 })
 
 const showCreateForm = ref(false)
 const creating = ref(false)
@@ -51,14 +71,14 @@ const userForm = ref({
   email: '',
   password: '',
   phone: '',
-  roleCode: 'CUSTOMER' as 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN',
+  roleCode: 'BRANCH_ADMIN' as 'BRANCH_ADMIN' | 'SUPER_ADMIN',
   branchId: '',
 })
 
 // Edit User State
 const editingUser = ref<UserProfile | null>(null)
 const editForm = ref({
-  roleCode: 'CUSTOMER' as 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN',
+  roleCode: 'CUSTOMER' as 'CUSTOMER' | 'BRANCH_ADMIN' | 'SUPER_ADMIN',
   branchId: '',
 })
 
@@ -95,7 +115,7 @@ async function createUser() {
     return
   }
   if (
-    (userForm.value.roleCode === 'BRANCH_ADMIN' || userForm.value.roleCode === 'STAFF')
+    userForm.value.roleCode === 'BRANCH_ADMIN'
     && !userForm.value.branchId
   ) {
     error.value = 'Vui lòng chọn chi nhánh phụ trách.'
@@ -113,7 +133,7 @@ async function createUser() {
     })
     
     // Reset
-    userForm.value = { fullName: '', email: '', password: '', phone: '', roleCode: 'CUSTOMER', branchId: '' }
+    userForm.value = { fullName: '', email: '', password: '', phone: '', roleCode: 'BRANCH_ADMIN', branchId: '' }
     showCreateForm.value = false
     
     // Reload users
@@ -150,7 +170,7 @@ async function saveUserRole() {
   if (!editingUser.value) return
   error.value = ''
   if (
-    (editForm.value.roleCode === 'BRANCH_ADMIN' || editForm.value.roleCode === 'STAFF')
+    editForm.value.roleCode === 'BRANCH_ADMIN'
     && !editForm.value.branchId
   ) {
     error.value = 'Vui lòng chọn chi nhánh phụ trách.'
@@ -185,10 +205,9 @@ function resolveUserBranchName(branchId: string | null | undefined) {
   return branch ? branch.name : branchId
 }
 
-function roleToCode(role: UserProfile['role']): 'CUSTOMER' | 'BRANCH_ADMIN' | 'STAFF' | 'SUPER_ADMIN' {
+function roleToCode(role: UserProfile['role']): 'CUSTOMER' | 'BRANCH_ADMIN' | 'SUPER_ADMIN' {
   if (role === 'admin') return 'SUPER_ADMIN'
   if (role === 'branch-admin') return 'BRANCH_ADMIN'
-  if (role === 'staff') return 'STAFF'
   return 'CUSTOMER'
 }
 
@@ -199,6 +218,21 @@ function roleBadgeClass(role: UserProfile['role']) {
   return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
 }
 
+function formatCreatedAt(value?: string) {
+  if (!value) return '-'
+  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(new Date(value))
+}
+
+const pendingAction = ref<{ type: 'STATUS'; user: UserProfile } | { type: 'ROLE' } | null>(null)
+
+async function executeConfirmedAction() {
+  const action = pendingAction.value
+  pendingAction.value = null
+  if (!action) return
+  if (action.type === 'STATUS') await updateUserActive(action.user)
+  else await saveUserRole()
+}
+
 onMounted(() => {
   loadData()
 })
@@ -206,9 +240,9 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="panel flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
       <div>
-        <h2 class="text-xl font-bold text-on-surface">Quản lý Tài khoản</h2>
+        <h2 class="text-xl font-bold text-on-surface">Quản lý tài khoản</h2>
         <p class="text-sm text-on-surface-variant mt-1">
           {{ adminUsers.length }} tài khoản quản trị · {{ customerUsers.length }} khách hàng
         </p>
@@ -219,7 +253,7 @@ onMounted(() => {
         :class="{'!bg-surface-variant !text-on-surface hover:!bg-white/10': showCreateForm}"
       >
         <span class="material-symbols-outlined">{{ showCreateForm ? 'close' : 'person_add' }}</span>
-        {{ showCreateForm ? 'Đóng' : 'Tạo tài khoản mới' }}
+        {{ showCreateForm ? 'Đóng' : 'Tạo tài khoản quản trị' }}
       </button>
     </div>
 
@@ -259,14 +293,22 @@ onMounted(() => {
         <option value="ACTIVE">Đang hoạt động</option>
         <option value="LOCKED">Đã khóa</option>
       </select>
-      <select v-model="roleFilter" class="field-input" aria-label="Lọc vai trò">
+      <select v-if="accountGroup === 'ADMIN'" v-model="roleFilter" class="field-input" aria-label="Lọc vai trò">
         <option value="ALL">Tất cả vai trò</option>
         <option v-if="accountGroup === 'CUSTOMER'" value="customer">Khách hàng</option>
         <template v-else>
           <option value="admin">Super Admin</option>
           <option value="branch-admin">Branch Admin</option>
-          <option value="staff">Nhân viên</option>
         </template>
+      </select>
+      <select v-else v-model="verificationFilter" class="field-input" aria-label="Lọc xác thực email">
+        <option value="ALL">Tất cả xác thực</option>
+        <option value="VERIFIED">Đã xác thực email</option>
+        <option value="UNVERIFIED">Chưa xác thực email</option>
+      </select>
+      <select v-if="accountGroup === 'ADMIN'" v-model="branchFilter" class="field-input md:col-start-3" aria-label="Lọc chi nhánh">
+        <option value="ALL">Tất cả chi nhánh</option>
+        <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
       </select>
     </div>
 
@@ -303,13 +345,11 @@ onMounted(() => {
           <div class="space-y-1">
             <label class="text-xs font-semibold text-on-surface-variant uppercase">Phân quyền</label>
             <select v-model="userForm.roleCode" class="field-input font-medium">
-              <option value="CUSTOMER">Khách hàng (Customer)</option>
-              <option value="STAFF">Nhân viên (Staff)</option>
               <option value="BRANCH_ADMIN">Quản lý rạp (Branch Admin)</option>
               <option value="SUPER_ADMIN">Quản trị viên (Super Admin)</option>
             </select>
           </div>
-          <div class="space-y-1" v-if="userForm.roleCode === 'BRANCH_ADMIN' || userForm.roleCode === 'STAFF'">
+          <div class="space-y-1" v-if="userForm.roleCode === 'BRANCH_ADMIN'">
             <label class="text-xs font-semibold text-on-surface-variant uppercase">Cụm rạp trực thuộc</label>
             <select v-model="userForm.branchId" required class="field-input font-medium">
               <option value="">-- Chọn cụm rạp --</option>
@@ -344,10 +384,11 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
-            <tr v-for="u in filteredUsers" :key="u.id" class="group hover:bg-white/[0.02] transition-colors">
+            <tr v-for="u in paginatedUsers" :key="u.id" class="group hover:bg-white/[0.02] transition-colors">
               <td class="px-5 py-3">
                 <div class="font-bold text-on-surface">{{ u.name }}</div>
                 <div class="text-xs text-on-surface-variant">{{ u.email }}</div>
+                <div class="mt-1 text-[11px] text-on-surface-variant">Tạo ngày {{ formatCreatedAt(u.createdAt) }}<span v-if="u.phone"> · {{ u.phone }}</span></div>
               </td>
               <td class="px-5 py-3">
                 <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold" :class="roleBadgeClass(u.role)">
@@ -361,15 +402,22 @@ onMounted(() => {
                     {{ u.isActive ? 'Đang hoạt động' : 'Đã khoá' }}
                   </span>
                 </div>
+                <div v-if="u.role === 'customer'" class="mt-1 text-[11px]" :class="u.isVerified ? 'text-sky-300' : 'text-amber-300'">
+                  {{ u.isVerified ? 'Đã xác thực email' : 'Chưa xác thực email' }}
+                </div>
               </td>
-              <td class="px-5 py-3 text-on-surface-variant">{{ resolveUserBranchName(u.branchId) }}</td>
+              <td class="px-5 py-3 text-on-surface-variant">
+                <span v-if="u.role === 'branch-admin' && !u.branchId" class="font-bold text-rose-300">Chưa phân công</span>
+                <span v-else>{{ resolveUserBranchName(u.branchId) }}</span>
+              </td>
               <td class="px-5 py-3">
                 <div class="flex flex-wrap items-center gap-2">
-                  <button @click="openEditModal(u)" class="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-300 transition hover:bg-sky-500/20" title="Đổi vai trò và chi nhánh">
+                  <span v-if="u.id === currentUser?.id" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-on-surface-variant">Tài khoản của bạn</span>
+                  <button v-if="u.id !== currentUser?.id" @click="openEditModal(u)" class="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-300 transition hover:bg-sky-500/20" title="Đổi vai trò và chi nhánh">
                     <span class="material-symbols-outlined text-[18px]">manage_accounts</span>
                     Đổi quyền
                   </button>
-                  <button @click="updateUserActive(u)" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition" :class="u.isActive ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'" :title="u.isActive ? 'Chặn tài khoản đăng nhập' : 'Cho phép tài khoản đăng nhập lại'">
+                  <button v-if="u.id !== currentUser?.id" @click="pendingAction = { type: 'STATUS', user: u }" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition" :class="u.isActive ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'" :title="u.isActive ? 'Chặn tài khoản đăng nhập' : 'Cho phép tài khoản đăng nhập lại'">
                     <span class="material-symbols-outlined text-[18px]">{{ u.isActive ? 'lock' : 'lock_open' }}</span>
                     {{ u.isActive ? 'Khóa' : 'Mở khóa' }}
                   </button>
@@ -381,6 +429,13 @@ onMounted(() => {
         <p v-if="!filteredUsers.length" class="p-10 text-center text-sm text-on-surface-variant">
           Không tìm thấy tài khoản phù hợp.
         </p>
+      </div>
+      <div v-if="totalPages > 1" class="flex items-center justify-between border-t border-white/10 px-5 py-3 text-sm">
+        <span class="text-on-surface-variant">Trang {{ currentPage }}/{{ totalPages }} · {{ filteredUsers.length }} tài khoản</span>
+        <div class="flex gap-2">
+          <button class="rounded-lg border border-white/10 px-3 py-1.5 disabled:opacity-30" :disabled="currentPage === 1" @click="currentPage--">Trước</button>
+          <button class="rounded-lg border border-white/10 px-3 py-1.5 disabled:opacity-30" :disabled="currentPage === totalPages" @click="currentPage++">Sau</button>
+        </div>
       </div>
     </div>
 
@@ -402,12 +457,11 @@ onMounted(() => {
             <label class="text-xs font-semibold text-on-surface-variant uppercase">Vai trò mới</label>
             <select v-model="editForm.roleCode" class="field-input">
               <option value="CUSTOMER">Khách hàng (Customer)</option>
-              <option value="STAFF">Nhân viên (Staff)</option>
               <option value="BRANCH_ADMIN">Quản lý rạp (Branch Admin)</option>
               <option value="SUPER_ADMIN">Quản trị viên (Super Admin)</option>
             </select>
           </div>
-          <div class="space-y-1" v-if="editForm.roleCode === 'BRANCH_ADMIN' || editForm.roleCode === 'STAFF'">
+          <div class="space-y-1" v-if="editForm.roleCode === 'BRANCH_ADMIN'">
             <label class="text-xs font-semibold text-on-surface-variant uppercase">Cụm rạp trực thuộc</label>
             <select v-model="editForm.branchId" required class="field-input">
               <option value="">-- Chọn cụm rạp --</option>
@@ -417,7 +471,27 @@ onMounted(() => {
         </div>
         <div class="p-4 border-t border-white/10 bg-black/20 flex justify-end gap-3">
           <button @click="closeEditModal" class="px-5 py-2 rounded-xl font-bold text-on-surface-variant hover:bg-white/5 transition">Hủy</button>
-          <button @click="saveUserRole" class="action-primary px-6">Lưu thay đổi</button>
+          <button @click="pendingAction = { type: 'ROLE' }" class="action-primary px-6">Lưu thay đổi</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="pendingAction" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div class="w-full max-w-md rounded-2xl border border-amber-500/30 bg-[#1a1c1c] p-6 shadow-2xl">
+        <h3 class="text-lg font-black text-white">Xác nhận thay đổi tài khoản</h3>
+        <p class="mt-3 text-sm leading-relaxed text-on-surface-variant">
+          <template v-if="pendingAction.type === 'STATUS'">
+            {{ pendingAction.user.isActive ? 'Khóa' : 'Mở khóa' }} tài khoản <strong class="text-white">{{ pendingAction.user.email }}</strong>?
+            Hồ sơ, vé và lịch sử giao dịch vẫn được giữ nguyên.
+          </template>
+          <template v-else>
+            Xác nhận đổi quyền của <strong class="text-white">{{ editingUser?.email }}</strong>.
+            Quyền truy cập và phân công chi nhánh cũ sẽ được cập nhật ngay.
+          </template>
+        </p>
+        <div class="mt-6 flex justify-end gap-3">
+          <button @click="pendingAction = null" class="rounded-xl px-5 py-2.5 font-bold text-on-surface-variant hover:bg-white/5">Hủy</button>
+          <button @click="executeConfirmedAction" class="action-primary px-6">Xác nhận</button>
         </div>
       </div>
     </div>

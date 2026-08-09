@@ -1,75 +1,71 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { adminBackendService, adminService, type AdminAuditorium, type AdminBranchManage, type AdminSeatType } from '~/services/api'
-import { useUserStore } from '~/store/user'
+import { computed, onMounted, ref } from 'vue'
+import { adminBackendService, adminService, type AdminAuditorium, type AdminBranchManage } from '~/services/api'
 
-const userStore = useUserStore()
-const isBranchAdmin = computed(() => userStore.currentUser?.role === 'branch-admin')
-
+const router = useRouter()
 const auditoriums = ref<AdminAuditorium[]>([])
 const branches = ref<AdminBranchManage[]>([])
-const seatTypes = ref<AdminSeatType[]>([])
 const loading = ref(false)
 const error = ref('')
-
+const search = ref('')
+const statusFilter = ref('ALL')
+const screenFilter = ref('ALL')
 const showCreateForm = ref(false)
 const creating = ref(false)
-
-const auditoriumForm = ref({
-  branchId: '',
-  code: '',
-  name: '',
-  rows: 8,
-  seatsPerRow: 12,
-  screenType: '2D',
-})
-
+const saving = ref(false)
+const actionConfirmItem = ref<AdminAuditorium | null>(null)
 const editingAuditorium = ref<AdminAuditorium | null>(null)
-const editForm = ref({
-  name: '',
-  screenType: '2D',
+
+const auditoriumForm = ref({ branchId: '', code: '', name: '', rows: 8, seatsPerRow: 12, screenType: '2D' })
+const editForm = ref({ name: '', screenType: '2D' })
+const formatDefaults: Record<string, { rows: number; columns: number; note: string }> = {
+  '2D': { rows: 8, columns: 12, note: 'Mẫu phòng tiêu chuẩn' },
+  '3D': { rows: 9, columns: 14, note: 'Mẫu phòng 3D mở rộng' },
+  'IMAX': { rows: 10, columns: 16, note: 'Mẫu phòng màn hình lớn' },
+  '4DX': { rows: 8, columns: 12, note: 'Mẫu phòng hiệu ứng chuyển động' },
+}
+
+function applyCreateFormatDefaults() {
+  const preset = formatDefaults[auditoriumForm.value.screenType] || formatDefaults['2D']
+  auditoriumForm.value.rows = preset.rows
+  auditoriumForm.value.seatsPerRow = preset.columns
+}
+
+const totals = computed(() => ({
+  rooms: auditoriums.value.length,
+  ready: auditoriums.value.filter(item => item.is_ready).length,
+  attention: auditoriums.value.filter(item => !item.is_ready).length,
+  seats: auditoriums.value.reduce((sum, item) => sum + (item.active_seats_count ?? item.total_seats), 0),
+}))
+
+const filteredAuditoriums = computed(() => {
+  const keyword = search.value.trim().toLocaleLowerCase('vi')
+  return auditoriums.value.filter((item) => {
+    const matchesSearch = !keyword || `${item.name} ${item.code}`.toLocaleLowerCase('vi').includes(keyword)
+    const matchesScreen = screenFilter.value === 'ALL' || item.screen_type === screenFilter.value
+    const status = !item.is_active ? 'INACTIVE' : item.is_ready ? 'READY' : 'NEEDS_SETUP'
+    return matchesSearch && matchesScreen && (statusFilter.value === 'ALL' || statusFilter.value === status)
+  })
 })
+
+function roomState(item: AdminAuditorium) {
+  if (!item.is_active) return { label: 'Tạm ngưng', cls: 'border-slate-500/30 bg-slate-500/10 text-slate-300', icon: 'pause_circle' }
+  if (!item.is_ready) return { label: 'Cần cấu hình ghế', cls: 'border-amber-500/30 bg-amber-500/10 text-amber-300', icon: 'warning' }
+  if (item.future_showtimes_count > 0) return { label: 'Đang vận hành', cls: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300', icon: 'check_circle' }
+  return { label: 'Sẵn sàng', cls: 'border-sky-500/30 bg-sky-500/10 text-sky-300', icon: 'task_alt' }
+}
 
 async function loadData() {
   loading.value = true
   error.value = ''
   try {
-    if (isBranchAdmin.value) {
-      const [statsData, auditoriumData, seatTypeData] = await Promise.all([
-        adminService.getBranchAdminStats(),
-        adminBackendService.getAuditoriums(),
-        adminBackendService.getSeatTypes(),
-      ])
-      branches.value = [{
-        id: statsData.branchId,
-        vendor_id: '',
-        code: '',
-        name: statsData.branchName,
-        address_line: '',
-        city: '',
-        district: null,
-        phone: null,
-        is_active: true,
-        auditoriums_count: auditoriumData.length,
-      }]
-      auditoriums.value = auditoriumData
-      seatTypes.value = seatTypeData
-    } else {
-      // Super Admin shouldn't ideally be creating auditoriums without branches, but we handle it just in case.
-      // However, Super Admin DOES NOT see auditoriums tab in current UI logic.
-      const [auditoriumData, branchData, seatTypeData] = await Promise.all([
-        adminBackendService.getAuditoriums(),
-        adminBackendService.getBranchesManage(),
-        adminBackendService.getSeatTypes(),
-      ])
-      auditoriums.value = auditoriumData
-      branches.value = branchData
-      seatTypes.value = seatTypeData
-    }
-    
-    if (branches.value.length > 0 && !auditoriumForm.value.branchId) {
-      auditoriumForm.value.branchId = branches.value[0].id
-    }
+    const [statsData, auditoriumData] = await Promise.all([
+      adminService.getBranchAdminStats(),
+      adminBackendService.getAuditoriums(),
+    ])
+    branches.value = [{ id: statsData.branchId, vendor_id: '', code: '', name: statsData.branchName, address_line: '', city: '', district: null, phone: null, is_active: true, auditoriums_count: auditoriumData.length, active_staff_count: 0, future_showtimes_count: 0, is_ready: true, can_delete: false }]
+    auditoriums.value = auditoriumData
+    auditoriumForm.value.branchId = statsData.branchId
   } catch (e: any) {
     error.value = e?.message || 'Không thể tải dữ liệu phòng chiếu.'
   } finally {
@@ -77,46 +73,31 @@ async function loadData() {
   }
 }
 
-function seatTypeByCode(code: string) {
-  return seatTypes.value.find((item) => item.code === code) || seatTypes.value[0]
+function validateCreate() {
+  const code = auditoriumForm.value.code.trim().toUpperCase()
+  if (auditoriums.value.some(item => item.code.toUpperCase() === code)) return 'Mã phòng đã tồn tại trong chi nhánh.'
+  if (!/^[A-Z0-9_-]+$/.test(code)) return 'Mã phòng chỉ gồm chữ in hoa, số, dấu gạch ngang hoặc gạch dưới.'
+  return ''
 }
 
 async function createAuditorium() {
-  error.value = ''
+  error.value = validateCreate()
+  if (error.value) return
   creating.value = true
   try {
-    const created = await adminBackendService.createAuditorium({
+    await adminBackendService.createAuditorium({
       branch_id: auditoriumForm.value.branchId,
       code: auditoriumForm.value.code.trim().toUpperCase(),
       name: auditoriumForm.value.name.trim(),
       total_seats: auditoriumForm.value.rows * auditoriumForm.value.seatsPerRow,
+      rows: auditoriumForm.value.rows,
+      seats_per_row: auditoriumForm.value.seatsPerRow,
       screen_type: auditoriumForm.value.screenType,
       is_active: true,
     })
-    
-    const standard = seatTypeByCode('STANDARD')
-    if (standard) {
-      const initialSeats = []
-      for (let rowIndex = 0; rowIndex < auditoriumForm.value.rows; rowIndex += 1) {
-        for (let number = 1; number <= auditoriumForm.value.seatsPerRow; number += 1) {
-          initialSeats.push({
-            seat_row: String.fromCharCode(65 + rowIndex),
-            seat_number: number,
-            seat_type_id: standard.id,
-            is_active: true,
-          })
-        }
-      }
-      await adminBackendService.saveSeatLayout(created.id, initialSeats)
-    }
-    
-    auditoriumForm.value.code = ''
-    auditoriumForm.value.name = ''
-    auditoriumForm.value.rows = 8
-    auditoriumForm.value.seatsPerRow = 12
+    auditoriumForm.value = { branchId: auditoriumForm.value.branchId, code: '', name: '', rows: 8, seatsPerRow: 12, screenType: '2D' }
     showCreateForm.value = false
-    
-    auditoriums.value = await adminBackendService.getAuditoriums()
+    await loadData()
   } catch (e: any) {
     error.value = e?.message || 'Không thể tạo phòng chiếu mới.'
   } finally {
@@ -126,277 +107,146 @@ async function createAuditorium() {
 
 function openEditModal(item: AdminAuditorium) {
   editingAuditorium.value = item
-  editForm.value = {
-    name: item.name,
-    screenType: item.screen_type || '2D',
-  }
-}
-
-function closeEditModal() {
-  editingAuditorium.value = null
+  editForm.value = { name: item.name, screenType: item.screen_type || '2D' }
 }
 
 async function saveAuditoriumEdit() {
-  if (!editingAuditorium.value) return
+  if (!editingAuditorium.value || !editForm.value.name.trim()) return
+  saving.value = true
   error.value = ''
   try {
-    await adminBackendService.updateAuditorium(editingAuditorium.value.id, {
-      name: editForm.value.name.trim(),
-      screen_type: editForm.value.screenType.toUpperCase(),
-    })
-    auditoriums.value = await adminBackendService.getAuditoriums()
-    closeEditModal()
+    await adminBackendService.updateAuditorium(editingAuditorium.value.id, { name: editForm.value.name.trim(), screen_type: editForm.value.screenType })
+    editingAuditorium.value = null
+    await loadData()
   } catch (e: any) {
-    error.value = e?.message || 'Không thể cập nhật thông tin phòng chiếu.'
+    error.value = e?.message || 'Không thể cập nhật phòng chiếu.'
+  } finally {
+    saving.value = false
   }
 }
 
-const actionConfirmItem = ref<AdminAuditorium | null>(null)
+async function toggleActive(item: AdminAuditorium) {
+  error.value = ''
+  try {
+    await adminBackendService.updateAuditorium(item.id, { is_active: !item.is_active })
+    await loadData()
+  } catch (e: any) {
+    error.value = e?.message || 'Không thể thay đổi trạng thái phòng.'
+  }
+}
 
 async function executeDelete() {
   if (!actionConfirmItem.value) return
   try {
     await adminBackendService.deleteAuditorium(actionConfirmItem.value.id)
-    auditoriums.value = await adminBackendService.getAuditoriums()
     actionConfirmItem.value = null
+    await loadData()
   } catch (e: any) {
-    error.value = e?.message || 'Không thể xoá phòng chiếu.'
+    error.value = e?.message || 'Không thể xóa phòng chiếu.'
+    actionConfirmItem.value = null
   }
 }
 
-onMounted(() => {
-  loadData()
-})
+function openSeatMap(item: AdminAuditorium) {
+  router.push({ query: { tab: 'seats', auditorium: item.id } })
+}
+
+onMounted(loadData)
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <h2 class="text-xl font-bold text-on-surface">Phòng chiếu rạp</h2>
-        <p class="text-sm text-on-surface-variant mt-1">Quản lý danh sách phòng chiếu và khởi tạo kích thước sơ đồ ghế.</p>
+        <p class="text-xs font-black uppercase tracking-[0.2em] text-primary">Cấu hình cơ sở vật chất</p>
+        <h2 class="mt-1 text-2xl font-black text-on-surface">Phòng chiếu</h2>
+        <p class="mt-1 text-sm text-on-surface-variant">Tạo phòng, thiết lập sơ đồ ghế và kiểm soát trạng thái trước khi xếp lịch chiếu.</p>
       </div>
-      <button 
-        @click="showCreateForm = !showCreateForm" 
-        class="action-primary flex items-center gap-2"
-        :class="{'!bg-surface-variant !text-on-surface hover:!bg-white/10': showCreateForm}"
-      >
+      <button class="action-primary flex items-center gap-2" @click="showCreateForm = !showCreateForm">
         <span class="material-symbols-outlined">{{ showCreateForm ? 'close' : 'meeting_room' }}</span>
-        {{ showCreateForm ? 'Đóng' : 'Tạo phòng mới' }}
+        {{ showCreateForm ? 'Đóng biểu mẫu' : 'Tạo phòng mới' }}
       </button>
-    </div>
+    </header>
 
-    <p v-if="error" class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-400">
-      {{ error }}
-    </p>
+    <p v-if="error" class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-300">{{ error }}</p>
 
-    <!-- Create Form Toggle -->
-    <div v-if="showCreateForm" class="panel p-6 shadow-xl border-primary/20 animate-fade-in relative overflow-hidden">
-      <div class="absolute -right-20 -top-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
-      
-      <form class="space-y-5 relative z-10" @submit.prevent="createAuditorium">
-        <h3 class="text-lg font-black text-on-surface flex items-center gap-2 border-b border-white/10 pb-3">
-          <span class="material-symbols-outlined text-primary">add_box</span>
-          Thiết lập phòng chiếu mới
-        </h3>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="space-y-1 md:col-span-2">
-            <label class="text-xs font-semibold text-on-surface-variant uppercase">Chi nhánh</label>
-            <select v-model="auditoriumForm.branchId" class="field-input font-medium" required>
-              <option value="" disabled>Chọn chi nhánh</option>
-              <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
-            </select>
-          </div>
-          
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-on-surface-variant uppercase">Mã phòng</label>
-            <input v-model="auditoriumForm.code" required placeholder="VD: P01" class="field-input uppercase" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-on-surface-variant uppercase">Tên hiển thị</label>
-            <input v-model="auditoriumForm.name" required placeholder="VD: Cinema 1" class="field-input" />
-          </div>
-          
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-on-surface-variant uppercase">Loại màn hình</label>
-            <select v-model="auditoriumForm.screenType" class="field-input font-medium" required>
-              <option value="2D">Tiêu chuẩn (2D)</option>
-              <option value="3D">Màn hình 3D (3D)</option>
-              <option value="IMAX">Màn hình siêu lớn (IMAX)</option>
-              <option value="4DX">Phòng chiếu 4DX</option>
-            </select>
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-on-surface-variant uppercase">Số Hàng ghế</label>
-            <input v-model.number="auditoriumForm.rows" type="number" min="1" max="26" class="field-input" required />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-on-surface-variant uppercase">Số Cột ghế</label>
-            <input v-model.number="auditoriumForm.seatsPerRow" type="number" min="1" max="50" class="field-input" required />
-          </div>
-          <div class="space-y-1 flex items-end">
-            <div class="w-full bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col items-center justify-center">
-              <span class="text-xs text-on-surface-variant">Tổng số ghế</span>
-              <span class="text-lg font-black text-primary">{{ auditoriumForm.rows * auditoriumForm.seatsPerRow }}</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="flex justify-end gap-3 pt-4 border-t border-white/10 mt-2">
-          <button type="button" @click="showCreateForm = false" class="px-5 py-2.5 rounded-xl font-bold text-on-surface-variant hover:bg-white/5 transition">Hủy</button>
-          <button type="submit" class="action-primary px-8" :disabled="creating">
-            {{ creating ? 'Đang tạo...' : 'Lưu và sinh sơ đồ ghế' }}
-          </button>
-        </div>
-      </form>
-    </div>
+    <section class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <article class="metric"><span class="material-symbols-outlined text-primary">meeting_room</span><div><p>Tổng phòng</p><strong>{{ totals.rooms }}</strong></div></article>
+      <article class="metric"><span class="material-symbols-outlined text-emerald-400">task_alt</span><div><p>Sẵn sàng</p><strong>{{ totals.ready }}</strong></div></article>
+      <article class="metric"><span class="material-symbols-outlined text-amber-400">construction</span><div><p>Cần xử lý</p><strong>{{ totals.attention }}</strong></div></article>
+      <article class="metric"><span class="material-symbols-outlined text-sky-400">event_seat</span><div><p>Ghế hoạt động</p><strong>{{ totals.seats }}</strong></div></article>
+    </section>
 
-    <!-- Auditorium List -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-      <div v-for="item in auditoriums" :key="item.id" class="panel p-0 overflow-hidden flex flex-col group hover:border-white/20 transition-all hover:shadow-2xl">
-        <div class="p-5 flex justify-between items-start border-b border-white/5 relative overflow-hidden">
-          <div class="absolute -right-4 -top-4 w-20 h-20 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-colors"></div>
-          
-          <div class="relative z-10 w-full flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 shadow-inner">
-                <span class="material-symbols-outlined text-white/50 text-[24px]">chair</span>
-              </div>
-              <div>
-                <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">{{ item.branch_name }}</p>
-                <h3 class="font-bold text-lg text-on-surface flex items-center gap-2">
-                  {{ item.name }}
-                  <span class="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-black/40 text-on-surface-variant uppercase tracking-widest">{{ item.code }}</span>
-                </h3>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="p-5 bg-black/20 grid grid-cols-2 gap-4 flex-1">
-          <div>
-            <span class="text-xs text-on-surface-variant block mb-1">Màn hình</span>
-            <span class="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-white/10 text-on-surface border border-white/10">{{ item.screen_type || '2D' }}</span>
-          </div>
-          <div>
-            <span class="text-xs text-on-surface-variant block mb-1">Sức chứa</span>
-            <span class="text-on-surface font-bold text-sm">{{ item.total_seats }} ghế</span>
-          </div>
-        </div>
-        
-        <div class="p-4 bg-black/40 border-t border-white/5 flex justify-end gap-2 shrink-0">
-          <button @click="openEditModal(item)" class="px-4 py-2 rounded-lg font-bold text-sky-400 hover:bg-sky-400/10 transition text-sm flex items-center gap-1.5">
-            <span class="material-symbols-outlined text-[18px]">edit</span> Sửa
-          </button>
-          <button @click="actionConfirmItem = item" class="px-4 py-2 rounded-lg font-bold text-rose-400 hover:bg-rose-400/10 transition text-sm flex items-center gap-1.5">
-            <span class="material-symbols-outlined text-[18px]">delete</span> Xoá
-          </button>
-        </div>
+    <form v-if="showCreateForm" class="panel space-y-5 p-6" @submit.prevent="createAuditorium">
+      <div>
+        <h3 class="text-lg font-black text-on-surface">Thiết lập phòng mới</h3>
+        <p class="text-sm text-on-surface-variant">Hệ thống sẽ tạo phòng và toàn bộ ghế thường trong cùng một giao dịch.</p>
       </div>
-      
-      <div v-if="auditoriums.length === 0 && !loading" class="col-span-full py-12 flex flex-col items-center justify-center text-on-surface-variant border-2 border-dashed border-white/10 rounded-2xl bg-black/20">
-        <span class="material-symbols-outlined text-[48px] mb-3 opacity-50">meeting_room</span>
-        <p>Chi nhánh hiện chưa có phòng chiếu nào.</p>
-        <button @click="showCreateForm = true" class="mt-4 px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-bold transition">Tạo phòng chiếu đầu tiên</button>
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <label class="field"><span>Chi nhánh phụ trách</span><input :value="branches[0]?.name || 'Đang tải...'" class="field-input" disabled /></label>
+        <label class="field"><span>Mã phòng nội bộ</span><input v-model="auditoriumForm.code" maxlength="30" required placeholder="Ví dụ: P01" class="field-input uppercase" /><small>Duy nhất, không đổi sau khi tạo.</small></label>
+        <label class="field"><span>Tên hiển thị</span><input v-model="auditoriumForm.name" maxlength="100" required placeholder="Ví dụ: Cinema 1" class="field-input" /></label>
+        <label class="field"><span>Định dạng phòng</span><select v-model="auditoriumForm.screenType" class="field-input" @change="applyCreateFormatDefaults"><option>2D</option><option>3D</option><option>IMAX</option><option>4DX</option></select><small>{{ formatDefaults[auditoriumForm.screenType]?.note }} · Có thể chỉnh lại số ghế.</small></label>
+        <label class="field"><span>Số hàng ghế</span><input v-model.number="auditoriumForm.rows" type="number" min="1" max="26" required class="field-input" /></label>
+        <label class="field"><span>Số ghế mỗi hàng</span><input v-model.number="auditoriumForm.seatsPerRow" type="number" min="1" max="50" required class="field-input" /></label>
+        <div class="seat-total"><span>Sức chứa khởi tạo</span><strong>{{ auditoriumForm.rows * auditoriumForm.seatsPerRow }} ghế</strong></div>
+      </div>
+      <div class="flex justify-end gap-3 border-t border-white/10 pt-4">
+        <button type="button" class="action-ghost" @click="showCreateForm = false">Hủy</button>
+        <button class="action-primary" :disabled="creating">{{ creating ? 'Đang tạo...' : 'Tạo phòng và sơ đồ ghế' }}</button>
+      </div>
+    </form>
+
+    <section class="panel grid gap-3 p-4 lg:grid-cols-[1fr_220px_220px]">
+      <label class="search-box"><span class="material-symbols-outlined">search</span><input v-model="search" placeholder="Tìm theo tên hoặc mã phòng..." /></label>
+      <select v-model="statusFilter" class="field-input"><option value="ALL">Tất cả trạng thái</option><option value="READY">Sẵn sàng</option><option value="NEEDS_SETUP">Cần cấu hình</option><option value="INACTIVE">Tạm ngưng</option></select>
+      <select v-model="screenFilter" class="field-input"><option value="ALL">Tất cả màn hình</option><option>2D</option><option>3D</option><option>IMAX</option><option>4DX</option></select>
+    </section>
+
+    <div v-if="loading" class="panel py-16 text-center text-on-surface-variant">Đang tải danh sách phòng chiếu...</div>
+    <div v-else class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <article v-for="item in filteredAuditoriums" :key="item.id" class="room-card">
+        <div class="flex items-start justify-between gap-3 p-5">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="room-icon"><span class="material-symbols-outlined">theaters</span></div>
+            <div class="min-w-0"><p class="truncate text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{{ item.branch_name }}</p><h3 class="truncate text-lg font-black text-on-surface">{{ item.name }}</h3><p class="text-xs text-on-surface-variant">Mã phòng: <b class="text-on-surface">{{ item.code }}</b></p></div>
+          </div>
+          <span class="status-chip" :class="roomState(item).cls"><span class="material-symbols-outlined">{{ roomState(item).icon }}</span>{{ roomState(item).label }}</span>
+        </div>
+        <div class="grid grid-cols-3 border-y border-white/5 bg-black/20">
+          <div class="room-stat"><span>Màn hình</span><b>{{ item.screen_type || '2D' }}</b></div>
+          <div class="room-stat"><span>Ghế hoạt động</span><b>{{ item.active_seats_count ?? item.total_seats }}</b></div>
+          <div class="room-stat"><span>Suất sắp tới</span><b>{{ item.future_showtimes_count }}</b></div>
+        </div>
+        <div v-if="!item.is_ready && item.is_active" class="mx-5 mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">Phòng chưa có ghế hoạt động. Hãy hoàn thiện sơ đồ ghế trước khi tạo suất chiếu.</div>
+        <div class="flex flex-wrap items-center gap-2 p-4">
+          <button class="room-action primary" @click="openSeatMap(item)"><span class="material-symbols-outlined">event_seat</span>Sơ đồ ghế</button>
+          <button class="room-action" @click="openEditModal(item)"><span class="material-symbols-outlined">edit</span>Sửa</button>
+          <button class="room-action" :class="item.is_active ? 'warning' : 'success'" :disabled="item.is_active && item.future_showtimes_count > 0" :title="item.is_active && item.future_showtimes_count > 0 ? 'Hãy xử lý các suất chiếu tương lai trước' : ''" @click="toggleActive(item)"><span class="material-symbols-outlined">{{ item.is_active ? 'pause_circle' : 'play_circle' }}</span>{{ item.is_active && item.future_showtimes_count > 0 ? 'Đang có lịch' : item.is_active ? 'Tạm ngưng' : 'Mở lại' }}</button>
+          <button v-if="item.can_delete" class="room-action danger ml-auto" @click="actionConfirmItem = item"><span class="material-symbols-outlined">delete</span>Xóa</button>
+        </div>
+      </article>
+      <div v-if="filteredAuditoriums.length === 0" class="panel col-span-full py-14 text-center text-on-surface-variant"><span class="material-symbols-outlined mb-2 block text-5xl opacity-40">meeting_room</span>Không tìm thấy phòng chiếu phù hợp.</div>
+    </div>
+
+    <div v-if="editingAuditorium" class="modal-backdrop">
+      <div class="modal-card">
+        <div class="flex items-center justify-between border-b border-white/10 p-5"><div><h3 class="text-lg font-black">Chỉnh sửa {{ editingAuditorium.name }}</h3><p class="text-xs text-on-surface-variant">Mã {{ editingAuditorium.code }} không thể thay đổi.</p></div><button @click="editingAuditorium = null"><span class="material-symbols-outlined">close</span></button></div>
+        <div class="space-y-4 p-6"><label class="field"><span>Tên hiển thị</span><input v-model="editForm.name" class="field-input" /></label><label class="field"><span>Loại màn hình</span><select v-model="editForm.screenType" class="field-input"><option>2D</option><option>3D</option><option>IMAX</option><option>4DX</option></select></label><p v-if="editingAuditorium.future_showtimes_count" class="rounded-xl bg-amber-500/10 p-3 text-xs text-amber-200">Phòng có {{ editingAuditorium.future_showtimes_count }} suất tương lai. Hãy chắc chắn loại màn hình mới đúng với lịch đã bán.</p></div>
+        <div class="flex justify-end gap-3 border-t border-white/10 p-4"><button class="action-ghost" @click="editingAuditorium = null">Hủy</button><button class="action-primary" :disabled="saving" @click="saveAuditoriumEdit">{{ saving ? 'Đang lưu...' : 'Lưu thay đổi' }}</button></div>
       </div>
     </div>
 
-    <!-- Edit Modal -->
-    <div v-if="editingAuditorium" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div class="bg-[#1a1c1c] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" @click.stop>
-        <div class="p-5 border-b border-white/10 flex items-center justify-between">
-          <h3 class="text-lg font-bold text-on-surface">Chỉnh sửa phòng chiếu</h3>
-          <button @click="closeEditModal" class="text-on-surface-variant hover:text-white transition">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div class="p-6 space-y-4">
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-on-surface-variant uppercase">Tên hiển thị</label>
-            <input v-model="editForm.name" required class="field-input" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-on-surface-variant uppercase">Loại màn hình</label>
-            <select v-model="editForm.screenType" class="field-input" required>
-              <option value="2D">Tiêu chuẩn (2D)</option>
-              <option value="3D">Màn hình 3D (3D)</option>
-              <option value="IMAX">Màn hình siêu lớn (IMAX)</option>
-              <option value="4DX">Phòng chiếu 4DX</option>
-            </select>
-          </div>
-        </div>
-        <div class="p-4 border-t border-white/10 bg-black/20 flex justify-end gap-3">
-          <button @click="closeEditModal" class="px-5 py-2 rounded-xl font-bold text-on-surface-variant hover:bg-white/5 transition">Hủy</button>
-          <button @click="saveAuditoriumEdit" class="action-primary px-6">Lưu thay đổi</button>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Delete Confirm Modal -->
-    <div v-if="actionConfirmItem" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div class="bg-[#1a1c1c] border border-rose-500/30 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden text-center p-6">
-        <div class="w-16 h-16 bg-rose-500/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span class="material-symbols-outlined text-[32px]">warning</span>
-        </div>
-        <h3 class="text-xl font-bold text-on-surface mb-2">Xoá phòng chiếu?</h3>
-        <p class="text-sm text-on-surface-variant mb-6">Bạn có chắc chắn muốn xoá phòng chiếu <strong>{{ actionConfirmItem.name }}</strong> không? Thao tác này sẽ xoá luôn sơ đồ ghế của phòng này.</p>
-        
-        <div class="flex gap-3">
-          <button @click="actionConfirmItem = null" class="flex-1 py-2.5 rounded-xl font-bold border border-white/10 text-on-surface hover:bg-white/5 transition">Hủy bỏ</button>
-          <button @click="executeDelete" class="flex-1 py-2.5 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-500 transition shadow-[0_0_20px_rgba(225,29,72,0.4)]">Xoá vĩnh viễn</button>
-        </div>
-      </div>
+    <div v-if="actionConfirmItem" class="modal-backdrop">
+      <div class="modal-card max-w-sm p-6 text-center"><div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-500/15 text-rose-400"><span class="material-symbols-outlined text-3xl">delete_forever</span></div><h3 class="text-xl font-black">Xóa phòng chưa sử dụng?</h3><p class="my-3 text-sm text-on-surface-variant">Phòng <b>{{ actionConfirmItem.name }}</b> chưa có lịch chiếu. Thao tác sẽ xóa cả sơ đồ ghế và không thể hoàn tác.</p><div class="mt-5 flex gap-3"><button class="action-ghost flex-1" @click="actionConfirmItem = null">Giữ lại</button><button class="flex-1 rounded-xl bg-rose-600 px-4 py-2 font-bold text-white" @click="executeDelete">Xóa vĩnh viễn</button></div></div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.panel {
-  background: var(--card, #1a1c1c);
-  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
-  border-radius: 1rem;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.24);
-}
-
-.field-input {
-  background: rgba(30, 32, 32, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.875rem;
-  color: #f5f5f5;
-  transition: all 0.2s ease;
-  width: 100%;
-}
-
-.field-input:focus {
-  outline: none;
-  border-color: rgba(229, 9, 20, 0.65);
-  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.15);
-}
-
-.action-primary {
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, #e50914 0%, #be0812 100%);
-  padding: 0.6rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #fff;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.action-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px -16px rgba(229, 9, 20, 0.95);
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out forwards;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
-}
+.panel,.room-card,.modal-card{border:1px solid rgba(255,255,255,.08);border-radius:1rem;background:#1a1c1c;box-shadow:0 14px 36px rgba(0,0,0,.2)}
+.metric{display:flex;align-items:center;gap:.8rem;min-height:92px;padding:1rem;border:1px solid rgba(255,255,255,.08);border-radius:1rem;background:linear-gradient(145deg,#1d2020,#171919)}.metric>span{font-size:1.8rem}.metric p{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#999}.metric strong{font-size:1.35rem;color:#f3f3f3}
+.field{display:flex;flex-direction:column;gap:.35rem}.field>span{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#aaa}.field small{font-size:.65rem;color:#777}.field-input,.search-box{width:100%;border:1px solid rgba(255,255,255,.12);border-radius:.75rem;background:rgba(20,22,22,.9);padding:.7rem .8rem;color:#f5f5f5}.field-input:focus,.search-box:focus-within{outline:none;border-color:rgba(229,9,20,.7);box-shadow:0 0 0 3px rgba(229,9,20,.12)}.field-input:disabled{color:#999}.search-box{display:flex;align-items:center;gap:.6rem}.search-box input{width:100%;background:transparent;outline:none}.seat-total{display:flex;flex-direction:column;justify-content:center;border:1px solid rgba(229,9,20,.2);border-radius:.75rem;background:rgba(229,9,20,.06);padding:.7rem 1rem}.seat-total span{font-size:.7rem;color:#aaa}.seat-total strong{color:#ff6971}
+.room-card{overflow:hidden;transition:.2s}.room-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.16)}.room-icon{display:flex;width:48px;height:48px;flex:none;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(255,255,255,.05);color:#ff4f57}.status-chip{display:inline-flex;flex:none;align-items:center;gap:.25rem;border:1px solid;border-radius:999px;padding:.3rem .5rem;font-size:.62rem;font-weight:800}.status-chip span{font-size:.9rem}.room-stat{padding:1rem;border-right:1px solid rgba(255,255,255,.05)}.room-stat:last-child{border:0}.room-stat span{display:block;font-size:.62rem;text-transform:uppercase;color:#888}.room-stat b{font-size:.9rem;color:#eee}.room-action{display:inline-flex;align-items:center;gap:.3rem;border-radius:.65rem;padding:.48rem .65rem;font-size:.72rem;font-weight:800;color:#bbb;transition:.15s}.room-action span{font-size:1rem}.room-action:hover{background:rgba(255,255,255,.06);color:white}.room-action.primary{background:rgba(14,165,233,.1);color:#59c7fa}.room-action.warning{color:#fbbf24}.room-action.success{color:#34d399}.room-action.danger{color:#fb7185}
+.room-action:disabled{cursor:not-allowed;opacity:.42}.room-action:disabled:hover{background:transparent;color:#fbbf24}.action-primary,.action-ghost{border-radius:.75rem;padding:.65rem 1rem;font-size:.82rem;font-weight:800}.action-primary{background:linear-gradient(135deg,#e50914,#bd0710);color:white}.action-primary:disabled{opacity:.55}.action-ghost{border:1px solid rgba(255,255,255,.1);color:#ccc}.modal-backdrop{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.72);backdrop-filter:blur(8px)}.modal-card{width:100%;max-width:460px;color:#eee}
 </style>

@@ -14,7 +14,13 @@ class PromotionBase(BaseModel):
     min_order_amount: Decimal = Field(default=Decimal("0"), ge=0)
     starts_at: datetime
     ends_at: datetime
-    usage_limit: int | None = Field(default=None, ge=0)
+    usage_limit: int | None = Field(default=None, ge=1)
+    per_user_limit: int | None = Field(default=None, ge=1)
+    budget_amount: Decimal | None = Field(default=None, gt=0)
+    branch_ids: list[str] = Field(default_factory=list)
+    movie_ids: list[str] = Field(default_factory=list)
+    payment_methods: list[str] = Field(default_factory=list)
+    excluded_dates: list[str] = Field(default_factory=list)
     is_active: bool = True
 
     @field_validator("code")
@@ -51,7 +57,13 @@ class PromotionUpdate(BaseModel):
     min_order_amount: Decimal | None = Field(default=None, ge=0)
     starts_at: datetime | None = None
     ends_at: datetime | None = None
-    usage_limit: int | None = Field(default=None, ge=0)
+    usage_limit: int | None = Field(default=None, ge=1)
+    per_user_limit: int | None = Field(default=None, ge=1)
+    budget_amount: Decimal | None = Field(default=None, gt=0)
+    branch_ids: list[str] | None = None
+    movie_ids: list[str] | None = None
+    payment_methods: list[str] | None = None
+    excluded_dates: list[str] | None = None
     is_active: bool | None = None
 
 
@@ -60,6 +72,7 @@ class PromotionRead(PromotionBase):
 
     id: UUID
     used_count: int
+    used_amount: Decimal
     created_at: datetime
     updated_at: datetime
 
@@ -67,6 +80,8 @@ class PromotionRead(PromotionBase):
 class PromotionValidation(BaseModel):
     code: str
     subtotal: Decimal = Field(gt=0)
+    showtime_id: UUID
+    payment_method: str = Field(min_length=2, max_length=30)
 
 
 class PromotionQuote(BaseModel):

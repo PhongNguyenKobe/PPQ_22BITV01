@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, time as time_type
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, Time, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -14,9 +14,15 @@ from app.db.base import Base
 
 class Booking(Base):
     __tablename__ = "bookings"
+    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_bookings_user_idempotency"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100))
+    sales_channel: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'ONLINE'"))
+    customer_name: Mapped[str | None] = mapped_column(String(150))
+    customer_email: Mapped[str | None] = mapped_column(String(255))
+    customer_phone: Mapped[str | None] = mapped_column(String(20))
     showtime_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("showtimes.id", ondelete="RESTRICT"), nullable=False)
     total_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     subtotal_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default=text("0"))
@@ -32,7 +38,7 @@ class Booking(Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ticket_code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    ticket_code: Mapped[str | None] = mapped_column(String(32), unique=True, index=True)
     checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     checked_in_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -43,6 +49,7 @@ class Booking(Base):
     payments = relationship("Payment", back_populates="booking", lazy="selectin")
     promotion = relationship("Promotion", lazy="selectin")
     combos = relationship("BookingCombo", back_populates="booking", cascade="all, delete-orphan", lazy="selectin")
+    tickets = relationship("Ticket", back_populates="booking", cascade="all, delete-orphan", lazy="selectin")
 
 
 class Combo(Base):
@@ -73,6 +80,7 @@ class BookingCombo(Base):
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    inventory_status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'RESERVED'"))
 
     booking = relationship("Booking", back_populates="combos")
     combo = relationship("Combo", lazy="selectin")
@@ -86,22 +94,59 @@ class BookingSeat(Base):
     booking_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
     showtime_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("showtimes.id", ondelete="RESTRICT"), nullable=False)
     seat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("seats.id", ondelete="RESTRICT"), nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default=text("0"))
+    pricing_details: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
 
     booking = relationship("Booking", back_populates="seats")
     seat = relationship("Seat", lazy="selectin")
 
 
+class Ticket(Base):
+    __tablename__ = "tickets"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    booking_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, index=True)
+    booking_seat_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("booking_seats.id", ondelete="SET NULL"), unique=True)
+    seat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("seats.id", ondelete="RESTRICT"), nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default=text("0"))
+    pricing_details: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    ticket_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
+    scan_code: Mapped[str] = mapped_column(String(12), unique=True, nullable=False, index=True)
+    qr_nonce: Mapped[str] = mapped_column(String(32), nullable=False)
+    seat_row: Mapped[str] = mapped_column(String(5), nullable=False)
+    seat_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'ISSUED'"))
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_in_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+
+    booking = relationship("Booking", back_populates="tickets")
+    booking_seat = relationship("BookingSeat", lazy="selectin")
+    seat = relationship("Seat", lazy="selectin")
+
+
 class Payment(Base):
     __tablename__ = "payments"
+    __table_args__ = (
+        Index(
+            "uq_payments_active_booking",
+            "booking_id",
+            unique=True,
+            postgresql_where=text("status IN ('PENDING', 'SUCCESS', 'RECONCILIATION_REQUIRED')"),
+        ),
+        UniqueConstraint("user_id", "idempotency_key", name="uq_payments_user_idempotency"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
     booking_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="RESTRICT"), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     payment_method: Mapped[str] = mapped_column(String(30), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'PENDING'"))
     transaction_id: Mapped[str | None] = mapped_column(String(150), unique=True)
     provider_ref: Mapped[str | None] = mapped_column(String(100), unique=True)
+    checkout_url: Mapped[str | None] = mapped_column(Text)
     provider_transaction_no: Mapped[str | None] = mapped_column(String(30), index=True)
     bank_transaction_no: Mapped[str | None] = mapped_column(String(255))
     bank_code: Mapped[str | None] = mapped_column(String(30))
@@ -175,7 +220,78 @@ class Promotion(Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     usage_limit: Mapped[int | None] = mapped_column(Integer)
     used_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    per_user_limit: Mapped[int | None] = mapped_column(Integer)
+    budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    used_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, server_default=text("0"))
+    branch_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    movie_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    payment_methods: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    excluded_dates: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class PromotionRedemption(Base):
+    __tablename__ = "promotion_redemptions"
+    __table_args__ = (UniqueConstraint("payment_id", name="uq_promotion_redemptions_payment"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    promotion_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("promotions.id", ondelete="RESTRICT"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    booking_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    payment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("payments.id", ondelete="CASCADE"), nullable=False)
+    discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'RESERVED'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class PricingRule(Base):
+    __tablename__ = "pricing_rules"
+    __table_args__ = (
+        CheckConstraint("multiplier > 0", name="ck_pricing_rules_multiplier_positive"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id", ondelete="CASCADE"), index=True)
+    screen_type: Mapped[str | None] = mapped_column(String(30))
+    day_of_week: Mapped[int | None] = mapped_column(Integer)
+    starts_on: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ends_on: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    time_from: Mapped[time_type | None] = mapped_column(Time())
+    time_to: Mapped[time_type | None] = mapped_column(Time())
+    multiplier: Mapped[Decimal] = mapped_column(Numeric(6, 3), nullable=False, server_default=text("1"))
+    surcharge: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default=text("0"))
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class NotificationOutbox(Base):
+    __tablename__ = "notification_outbox"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'EMAIL'"))
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'PENDING'"), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    entity_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    old_data: Mapped[dict | None] = mapped_column(JSONB)
+    new_data: Mapped[dict | None] = mapped_column(JSONB)
+    transaction_id: Mapped[str | None] = mapped_column(String(50))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)

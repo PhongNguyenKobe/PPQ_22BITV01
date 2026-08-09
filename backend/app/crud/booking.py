@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import secrets
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.tickets import build_ticket_code, ticket_code_prefix, ticket_qr_payload
+from app.core.tickets import build_ticket_code, new_ticket_scan_code, ticket_code_prefix, ticket_qr_payload
+from app.core.config import settings
 from app.models.catalog import Auditorium, Branch, Seat, Showtime
-from app.models.commerce import Booking, BookingSeat, Payment, SeatHold
+from app.models.commerce import Booking, BookingCombo, BookingSeat, Combo, Payment, PricingRule, SeatHold, Ticket
 
 HOLD_MINUTES = 5
 SINGLE_SEAT_GAP_MESSAGE = (
@@ -82,6 +85,7 @@ async def cleanup_expired_reservations(db: AsyncSession) -> None:
     expired = list(expired_result.scalars().all())
     if expired:
         ids = [item.id for item in expired]
+        await release_booking_combo_inventory(db, ids)
         seat_rows = await db.execute(
             select(BookingSeat)
             .options(selectinload(BookingSeat.seat))
@@ -105,6 +109,92 @@ async def cleanup_expired_reservations(db: AsyncSession) -> None:
         for payment in pending_payments.scalars().all():
             payment.status = "EXPIRED"
     await db.flush()
+
+
+async def release_booking_combo_inventory(
+    db: AsyncSession,
+    booking_ids: list[UUID],
+    *,
+    include_sold: bool = False,
+) -> None:
+    if not booking_ids:
+        return
+    statuses = ["RESERVED", "SOLD"] if include_sold else ["RESERVED"]
+    rows = await db.execute(
+        select(BookingCombo)
+        .where(BookingCombo.booking_id.in_(booking_ids), BookingCombo.inventory_status.in_(statuses))
+        .order_by(BookingCombo.combo_id)
+        .with_for_update()
+    )
+    for item in rows.scalars().all():
+        combo = await db.get(Combo, item.combo_id, with_for_update=True)
+        if combo is not None and combo.stock_quantity is not None:
+            combo.stock_quantity += item.quantity
+        item.inventory_status = "RELEASED"
+    await db.flush()
+
+
+async def confirm_booking_combo_inventory(db: AsyncSession, booking_id: UUID) -> None:
+    rows = await db.execute(
+        select(BookingCombo)
+        .where(BookingCombo.booking_id == booking_id, BookingCombo.inventory_status == "RESERVED")
+        .with_for_update()
+    )
+    for item in rows.scalars().all():
+        item.inventory_status = "SOLD"
+    await db.flush()
+
+
+async def issue_booking_ticket(db: AsyncSession, booking: Booking) -> str:
+    """Issue a ticket only after a payment has been verified."""
+    showtime = await db.get(Showtime, booking.showtime_id)
+    if showtime is None:
+        raise ValueError("SHOWTIME_NOT_FOUND")
+    branch = (
+        await db.execute(
+            select(Branch)
+            .join(Auditorium, Auditorium.branch_id == Branch.id)
+            .where(Auditorium.id == showtime.auditorium_id)
+            .with_for_update()
+        )
+    ).scalar_one()
+    if not booking.ticket_code:
+        prefix = ticket_code_prefix(branch.code, showtime.starts_at)
+        latest_code = await db.scalar(
+            select(Booking.ticket_code)
+            .where(Booking.ticket_code.like(f"{prefix}%"))
+            .order_by(Booking.ticket_code.desc())
+            .limit(1)
+        )
+        sequence = int(latest_code[-3:]) + 1 if latest_code else 1
+        booking.ticket_code = build_ticket_code(branch.code, showtime.starts_at, sequence)
+        await db.flush()
+    seat_result = await db.execute(
+        select(BookingSeat)
+        .options(selectinload(BookingSeat.seat))
+        .where(BookingSeat.booking_id == booking.id)
+        .order_by(BookingSeat.id)
+    )
+    for position, booking_seat in enumerate(seat_result.scalars().all(), start=1):
+        existing_ticket = await db.scalar(
+            select(Ticket.id).where(Ticket.booking_seat_id == booking_seat.id)
+        )
+        if existing_ticket is not None:
+            continue
+        db.add(Ticket(
+            id=uuid4(), booking_id=booking.id, booking_seat_id=booking_seat.id,
+            seat_id=booking_seat.seat_id,
+            unit_price=booking_seat.unit_price,
+            pricing_details=booking_seat.pricing_details,
+            ticket_code=f"{booking.ticket_code}-{position:02d}",
+            scan_code=new_ticket_scan_code(),
+            qr_nonce=secrets.token_hex(16),
+            seat_row=booking_seat.seat.seat_row,
+            seat_number=booking_seat.seat.seat_number,
+            status="ISSUED",
+        ))
+    await db.flush()
+    return booking.ticket_code
 
 
 async def list_showtime_available_seats(db: AsyncSession, showtime_id: UUID, user_id: UUID | None = None) -> list[dict]:
@@ -315,6 +405,7 @@ def booking_to_dict(booking: Booking) -> dict:
         "branch_name": auditorium.branch.name,
         "auditorium_name": auditorium.name,
         "starts_at": showtime.starts_at,
+        "ends_at": showtime.ends_at,
         "booking_date": booking.created_at,
         "seats": (
             [{"row": item.seat.seat_row, "number": item.seat.seat_number} for item in booking.seats]
@@ -327,7 +418,28 @@ def booking_to_dict(booking: Booking) -> dict:
         "promotion_code": booking.promotion.code if booking.promotion else None,
         "status": booking.status,
         "ticket_code": booking.ticket_code,
-        "qr_code": ticket_qr_payload(booking.ticket_code) if booking.ticket_code else None,
+        "qr_code": (
+            ticket_qr_payload(booking.ticket_code)
+            if booking.status == "CONFIRMED" and booking.ticket_code
+            else None
+        ),
+        "tickets": [
+            {
+                "id": str(ticket.id),
+                "ticket_code": ticket.ticket_code,
+                "seat": f"{ticket.seat_row}{ticket.seat_number}",
+                "unit_price": ticket.unit_price,
+                "pricing_details": ticket.pricing_details,
+                "status": ticket.status,
+                "qr_code": (
+                    f"{settings.frontend_url.rstrip('/')}/t/{ticket.scan_code}"
+                    if booking.status == "CONFIRMED" and ticket.status == "ISSUED"
+                    else None
+                ),
+                "checked_in_at": ticket.checked_in_at,
+            }
+            for ticket in booking.tickets
+        ],
         "checked_in_at": booking.checked_in_at,
         "cancellation_reason": booking.cancellation_reason,
         "cancellation_requested_at": booking.cancellation_requested_at,
@@ -346,13 +458,25 @@ async def get_user_booking(db: AsyncSession, booking_id: UUID, user_id: UUID) ->
             selectinload(Booking.seats).selectinload(BookingSeat.seat),
             selectinload(Booking.payments),
             selectinload(Booking.promotion),
+            selectinload(Booking.tickets),
         )
         .where(Booking.id == booking_id, Booking.user_id == user_id)
     )
     return result.scalar_one_or_none()
 
 
-async def create_user_booking(db: AsyncSession, user_id: UUID, showtime_id: UUID, seat_ids: list[UUID]) -> Booking:
+async def create_user_booking(
+    db: AsyncSession,
+    user_id: UUID,
+    showtime_id: UUID,
+    seat_ids: list[UUID],
+    combo_items: dict[UUID, int] | None = None,
+    idempotency_key: str | None = None,
+    require_hold: bool = True,
+    sales_channel: str = "ONLINE",
+    customer: dict | None = None,
+    commit: bool = True,
+) -> Booking:
     await cleanup_expired_reservations(db)
     showtime_result = await db.execute(
         select(Showtime).where(
@@ -373,47 +497,106 @@ async def create_user_booking(db: AsyncSession, user_id: UUID, showtime_id: UUID
             SeatHold.expires_at > datetime.now(timezone.utc),
         )
     )
-    if set(holds_result.scalars().all()) != set(seat_ids):
+    if require_hold and set(holds_result.scalars().all()) != set(seat_ids):
         raise ValueError("SEAT_HOLD_REQUIRED")
     seat_result = await db.execute(
-        select(Seat).options(selectinload(Seat.seat_type)).where(Seat.id.in_(seat_ids))
-    )
-    subtotal = sum(
-        (
-            Decimal(str(showtime.base_price))
-            * Decimal(str(seat.seat_type.price_multiplier if seat.seat_type else 1))
-            for seat in seat_result.scalars().all()
-        ),
-        Decimal("0"),
-    )
-    booking_id = uuid4()
-    branch = (
-        await db.execute(
-            select(Branch)
-        .join(Auditorium, Auditorium.branch_id == Branch.id)
-        .where(Auditorium.id == showtime.auditorium_id)
-        .with_for_update()
+        select(Seat).options(selectinload(Seat.seat_type)).where(
+            Seat.id.in_(seat_ids),
+            Seat.auditorium_id == showtime.auditorium_id,
+            Seat.is_active.is_(True),
         )
-    ).scalar_one()
-    code_prefix = ticket_code_prefix(branch.code, showtime.starts_at)
-    latest_code = await db.scalar(
-        select(Booking.ticket_code)
-        .where(Booking.ticket_code.like(f"{code_prefix}%"))
-        .order_by(Booking.ticket_code.desc())
-        .limit(1)
     )
-    daily_sequence = int(latest_code[-3:]) + 1 if latest_code else 1
+    seats = list(seat_result.scalars().all())
+    if len(seats) != len(set(seat_ids)):
+        raise ValueError("INVALID_SEATS")
+    auditorium = await db.get(Auditorium, showtime.auditorium_id)
+    rules_result = await db.execute(
+        select(PricingRule).where(
+            PricingRule.is_active.is_(True),
+            (PricingRule.branch_id.is_(None)) | (PricingRule.branch_id == auditorium.branch_id),
+        ).order_by(PricingRule.priority.desc())
+    )
+    local_start = showtime.starts_at.astimezone(ZoneInfo(settings.business_timezone))
+    applicable_rules = [
+        rule for rule in rules_result.scalars().all()
+        if (rule.screen_type is None or rule.screen_type == auditorium.screen_type)
+        and (rule.day_of_week is None or rule.day_of_week == local_start.weekday())
+        and (rule.starts_on is None or rule.starts_on <= showtime.starts_at)
+        and (rule.ends_on is None or rule.ends_on >= showtime.starts_at)
+        and (rule.time_from is None or rule.time_from <= local_start.time().replace(tzinfo=None))
+        and (rule.time_to is None or rule.time_to >= local_start.time().replace(tzinfo=None))
+    ]
+    pricing_rule = applicable_rules[0] if applicable_rules else None
+    booking_seats: list[BookingSeat] = []
+    subtotal = Decimal("0")
+    for seat in seats:
+        seat_multiplier = Decimal(str(seat.seat_type.price_multiplier if seat.seat_type else 1))
+        rule_multiplier = Decimal(str(pricing_rule.multiplier)) if pricing_rule else Decimal("1")
+        surcharge = Decimal(str(pricing_rule.surcharge)) if pricing_rule else Decimal("0")
+        unit_price = (Decimal(str(showtime.base_price)) * seat_multiplier * rule_multiplier + surcharge).quantize(Decimal("0.01"))
+        subtotal += unit_price
+        booking_seats.append(BookingSeat(
+            showtime_id=showtime_id,
+            seat_id=seat.id,
+            unit_price=unit_price,
+            pricing_details={
+                "base_price": str(showtime.base_price),
+                "seat_multiplier": str(seat_multiplier),
+                "pricing_rule_id": str(pricing_rule.id) if pricing_rule else None,
+                "pricing_rule": pricing_rule.name if pricing_rule else None,
+                "rule_multiplier": str(rule_multiplier),
+                "surcharge": str(surcharge),
+            },
+        ))
+    booking_combos: list[BookingCombo] = []
+    requested = combo_items or {}
+    if requested:
+        branch_id = await db.scalar(
+            select(Auditorium.branch_id).where(Auditorium.id == showtime.auditorium_id)
+        )
+        combo_result = await db.execute(
+            select(Combo)
+            .where(Combo.id.in_(requested), Combo.branch_id == branch_id, Combo.is_active.is_(True))
+            .with_for_update()
+        )
+        combos = list(combo_result.scalars().all())
+        if len(combos) != len(requested):
+            raise ValueError("COMBO_UNAVAILABLE")
+        for combo in combos:
+            quantity = requested[combo.id]
+            if combo.stock_quantity is not None and combo.stock_quantity < quantity:
+                raise ValueError(f"COMBO_OUT_OF_STOCK:{combo.name}")
+            if combo.stock_quantity is not None:
+                combo.stock_quantity -= quantity
+            line_total = Decimal(str(combo.price)) * quantity
+            subtotal += line_total
+            booking_combos.append(BookingCombo(
+                combo_id=combo.id,
+                combo_name=combo.name,
+                unit_price=combo.price,
+                quantity=quantity,
+                line_total=line_total,
+                inventory_status="RESERVED",
+            ))
+
+    booking_id = uuid4()
     booking = Booking(
         id=booking_id,
         user_id=user_id,
+        idempotency_key=idempotency_key,
+        sales_channel=sales_channel,
+        customer_name=(customer or {}).get("name"),
+        customer_email=(customer or {}).get("email"),
+        customer_phone=(customer or {}).get("phone"),
         showtime_id=showtime_id,
         subtotal_price=subtotal,
         discount_amount=Decimal("0"),
         total_price=subtotal,
         status="PENDING",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=HOLD_MINUTES),
-        ticket_code=build_ticket_code(branch.code, showtime.starts_at, daily_sequence),
-        seats=[BookingSeat(showtime_id=showtime_id, seat_id=seat_id) for seat_id in seat_ids],
+        ticket_code=None,
+        seats=booking_seats,
+        combos=booking_combos,
     )
     db.add(booking)
     await db.execute(
@@ -424,7 +607,10 @@ async def create_user_booking(db: AsyncSession, user_id: UUID, showtime_id: UUID
         )
     )
     try:
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
     except IntegrityError:
         await db.rollback()
         raise ValueError("SEAT_ALREADY_BOOKED") from None
@@ -441,6 +627,7 @@ async def list_user_booking_rows(db: AsyncSession, user_id: UUID, skip: int, lim
             selectinload(Booking.seats).selectinload(BookingSeat.seat),
             selectinload(Booking.payments),
             selectinload(Booking.promotion),
+            selectinload(Booking.tickets),
         )
         .where(Booking.user_id == user_id)
         .order_by(Booking.created_at.desc())

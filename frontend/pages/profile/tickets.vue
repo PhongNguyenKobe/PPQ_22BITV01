@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTicketsStore } from '~/store/tickets'
 import { useUserStore } from '~/store/user'
@@ -20,6 +20,8 @@ const { currentUser, isAuthenticated } = storeToRefs(userStore)
 const selectedTicket = ref<UserTicket | null>(null)
 const cancellationLoading = ref(false)
 const cancellationError = ref('')
+const now = ref(Date.now())
+let refreshTimer: ReturnType<typeof setInterval> | undefined
 
 // Phân trang
 const currentPage = ref(1)
@@ -54,10 +56,35 @@ watch(ticketHistory, () => {
 
 const canRequestCancellation = computed(() => {
   if (!selectedTicket.value || selectedTicket.value.status !== 'CONFIRMED') return false
-  const bookingTime = new Date(selectedTicket.value.bookingDate).getTime()
-  const limitMs = 24 * 60 * 60 * 1000 // 24 hours
-  const showtime = new Date(`${selectedTicket.value.date}T${selectedTicket.value.time}`).getTime()
-  return (Date.now() - bookingTime <= limitMs) && (Date.now() < showtime)
+  const cutoffMs = 120 * 60 * 1000
+  return new Date(selectedTicket.value.startsAt).getTime() - cutoffMs > now.value
+})
+
+function usedCount(ticket: UserTicket) { return (ticket.perSeatTickets || []).filter(item => item.status === 'USED').length }
+function ticketState(ticket: UserTicket) {
+  if (ticket.status === 'CANCELLED') return { label: 'Đã hủy', icon: 'cancel', cls: 'border-red-500/30 bg-red-500/10 text-red-300' }
+  if (ticket.status === 'CANCEL_REQUESTED') return { label: 'Đang chờ hủy', icon: 'pending_actions', cls: 'border-amber-500/30 bg-amber-500/10 text-amber-300' }
+  const count = ticket.perSeatTickets?.length || ticket.seats.length
+  const used = usedCount(ticket)
+  if (count > 0 && used === count) return { label: 'Đã check-in', icon: 'how_to_reg', cls: 'border-sky-500/30 bg-sky-500/10 text-sky-300' }
+  if (used > 0) return { label: `Đã vào ${used}/${count} ghế`, icon: 'groups', cls: 'border-sky-500/30 bg-sky-500/10 text-sky-300' }
+  const starts = new Date(ticket.startsAt).getTime()
+  const ends = new Date(ticket.endsAt).getTime()
+  if (now.value > ends) return { label: 'Suất chiếu đã kết thúc', icon: 'history', cls: 'border-zinc-500/30 bg-zinc-500/10 text-zinc-400' }
+  if (now.value >= starts - 60 * 60 * 1000) return { label: 'Có thể check-in', icon: 'qr_code_scanner', cls: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' }
+  if (now.value >= starts - 24 * 60 * 60 * 1000) return { label: 'Sắp chiếu', icon: 'notifications_active', cls: 'border-violet-500/30 bg-violet-500/10 text-violet-300' }
+  return { label: 'Đã xác nhận', icon: 'verified', cls: 'border-primary-container/20 bg-primary-container/10 text-primary-container' }
+}
+const nextTicket = computed(() => ticketHistory.value
+  .filter(ticket => ticket.status === 'CONFIRMED' && usedCount(ticket) < (ticket.perSeatTickets?.length || ticket.seats.length) && new Date(ticket.endsAt).getTime() > now.value)
+  .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0] || null)
+const reminder = computed(() => {
+  if (!nextTicket.value) return null
+  const minutes = Math.ceil((new Date(nextTicket.value.startsAt).getTime() - now.value) / 60000)
+  if (minutes > 24 * 60) return null
+  if (minutes <= 0) return `Suất chiếu ${nextTicket.value.movieTitle} đang diễn ra. Hãy đến đúng phòng ${nextTicket.value.screenName}.`
+  if (minutes <= 60) return `${nextTicket.value.movieTitle} sẽ chiếu sau ${minutes} phút. Vé đã có thể check-in tại rạp.`
+  return `${nextTicket.value.movieTitle} sắp chiếu lúc ${nextTicket.value.time} hôm nay tại ${nextTicket.value.branchName}.`
 })
 
 function closeTicketDetails() {
@@ -76,7 +103,7 @@ async function requestCancellation() {
   cancellationLoading.value = true
   cancellationError.value = ''
   try {
-    const bookingId = selectedTicket.value.id
+    const bookingId = selectedTicket.value.bookingId || selectedTicket.value.id
     await ticketsStore.requestCancellation(bookingId, reason)
     selectedTicket.value = ticketHistory.value.find(ticket => ticket.id === bookingId) || null
   } catch (error: any) {
@@ -92,7 +119,15 @@ onMounted(async () => {
     return
   }
   await ticketsStore.loadTicketHistory()
+  refreshTimer = setInterval(async () => {
+    now.value = Date.now()
+    if (!document.hidden && !historyLoading.value) {
+      await ticketsStore.loadTicketHistory()
+      if (selectedTicket.value) selectedTicket.value = ticketHistory.value.find(item => item.id === selectedTicket.value?.id) || null
+    }
+  }, 30000)
 })
+onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 </script>
 
 <template>
@@ -113,6 +148,12 @@ onMounted(async () => {
           Lưu trữ thông tin vé và quét mã QR tại quầy soát vé để vào phòng chiếu.
         </p>
       </div>
+
+      <button v-if="reminder && nextTicket" class="flex w-full items-center gap-4 rounded-2xl border border-violet-400/25 bg-gradient-to-r from-violet-500/15 to-primary-container/10 p-4 text-left shadow-lg" @click="selectedTicket = nextTicket">
+        <span class="material-symbols-outlined rounded-xl bg-violet-500/20 p-3 text-2xl text-violet-300">notifications_active</span>
+        <span class="min-w-0 flex-1"><b class="block text-sm text-white">Nhắc lịch chiếu</b><span class="mt-1 block text-xs text-on-surface-variant">{{ reminder }}</span></span>
+        <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+      </button>
 
       <!-- Tickets container -->
       <div v-if="historyError && ticketHistory.length > 0"
@@ -160,24 +201,9 @@ onMounted(async () => {
                 <img :src="ticket.poster" :alt="ticket.movieTitle"
                   class="w-20 h-28 object-cover rounded-xl border border-glass-stroke flex-shrink-0" />
                 <div>
-                  <div class="flex flex-wrap gap-1.5">
-                    <span v-if="ticket.status === 'CANCELLED'"
-                      class="text-[10px] bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold uppercase">
-                      Đã Hủy
-                    </span>
-                    <span v-else-if="ticket.status === 'CANCEL_REQUESTED'"
-                      class="text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold uppercase">
-                      Chờ Hủy
-                    </span>
-                    <span v-else-if="ticket.checkedInAt"
-                      class="text-[10px] bg-gray-500/10 border border-gray-500/20 text-gray-400 px-2 py-0.5 rounded font-bold uppercase">
-                      Đã Sử Dụng
-                    </span>
-                    <span v-else
-                      class="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">
-                      Chưa Sử Dụng
-                    </span>
-                  </div>
+                  <span class="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-bold uppercase" :class="ticketState(ticket).cls">
+                    <span class="material-symbols-outlined text-[12px]">{{ ticketState(ticket).icon }}</span>{{ ticketState(ticket).label }}
+                  </span>
                   <h3 class="font-black text-base text-on-surface line-clamp-2 mt-1 leading-snug">{{ ticket.movieTitle }}
                   </h3>
                   <p class="text-[11px] text-on-surface-variant mt-1">Mã đặt vé: <span
@@ -218,12 +244,23 @@ onMounted(async () => {
             <!-- QR code panel (Right 35%) -->
             <div
               class="p-6 md:w-[35%] bg-surface-container/20 flex flex-col items-center justify-center text-center space-y-4">
-              <div class="w-32 h-32 bg-white p-2 rounded-2xl border border-glass-stroke shadow-md">
+              <div v-if="ticket.perSeatTickets?.length" class="grid grid-cols-2 gap-2">
+                <div v-for="item in ticket.perSeatTickets" :key="item.id" class="relative rounded-xl bg-white p-1.5 text-black shadow-md" :class="item.status === 'USED' ? 'opacity-55 grayscale' : ''">
+                  <QrCodeImage v-if="item.qrCode" :value="item.qrCode" :size="82" />
+                  <span v-else class="flex h-[82px] w-[82px] items-center justify-center"><span class="material-symbols-outlined text-3xl">{{ item.status === 'USED' ? 'check_circle' : 'block' }}</span></span>
+                  <p class="mt-1 text-[9px] font-black">Ghế {{ item.seat }}</p>
+                  <p v-if="item.status === 'USED'" class="text-[8px] font-black text-emerald-700">ĐÃ CHECK-IN</p>
+                </div>
+              </div>
+              <div v-else-if="ticket.qrCode" class="w-32 h-32 bg-white p-2 rounded-2xl border border-glass-stroke shadow-md">
                 <QrCodeImage :value="ticket.qrCode" :size="120" />
+              </div>
+              <div v-else class="w-32 h-32 rounded-2xl border border-glass-stroke bg-white/5 flex items-center justify-center text-xs text-on-surface-variant">
+                Vé không còn hiệu lực
               </div>
               <div>
                 <span class="text-[10px] text-on-surface-variant uppercase tracking-wider block">Quét tại quầy vé</span>
-                <span class="text-xs font-bold text-on-surface mt-0.5 block font-mono">{{ ticket.ticketCode || ticket.id }}</span>
+                <span class="text-xs font-bold text-on-surface mt-0.5 block font-mono">{{ usedCount(ticket) }}/{{ ticket.perSeatTickets?.length || ticket.seats.length }} ghế đã vào</span>
               </div>
             </div>
 
@@ -286,24 +323,7 @@ onMounted(async () => {
             <img :src="selectedTicket.poster"
               class="w-24 h-36 md:w-28 md:h-40 rounded-xl border border-glass-stroke shadow-2xl object-cover z-10" />
             <div class="pb-1 z-10 flex-1">
-              <div class="flex flex-wrap gap-1.5">
-                <span v-if="selectedTicket.status === 'CANCELLED'"
-                  class="bg-red-500 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">
-                  Đã Hủy
-                </span>
-                <span v-else-if="selectedTicket.status === 'CANCEL_REQUESTED'"
-                  class="bg-amber-500 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">
-                  Chờ Hủy
-                </span>
-                <span v-else-if="selectedTicket.checkedInAt"
-                  class="bg-gray-500 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">
-                  Đã Sử Dụng
-                </span>
-                <span v-else
-                  class="bg-emerald-600 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-md tracking-wider">
-                  Chưa Sử Dụng
-                </span>
-              </div>
+              <span class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-wider" :class="ticketState(selectedTicket).cls"><span class="material-symbols-outlined text-xs">{{ ticketState(selectedTicket).icon }}</span>{{ ticketState(selectedTicket).label }}</span>
               <h2 class="text-xl md:text-2xl font-black text-white mt-2 leading-tight line-clamp-2">{{
                 selectedTicket.movieTitle }}</h2>
             </div>
@@ -314,9 +334,21 @@ onMounted(async () => {
         <div class="p-6 overflow-y-auto custom-scrollbar flex-1">
           <!-- Big QR Code -->
           <div class="flex flex-col items-center justify-center mb-6">
-            <div class="bg-white p-3 rounded-2xl border border-glass-stroke shadow-lg mb-3">
-              <QrCodeImage :value="selectedTicket.qrCode" :size="250"
-                class="w-40 h-40 md:w-48 md:h-48" />
+            <div v-if="selectedTicket.perSeatTickets?.length" class="grid w-full gap-4 sm:grid-cols-2">
+              <div v-for="item in selectedTicket.perSeatTickets" :key="item.id" class="rounded-2xl border border-glass-stroke bg-black/20 p-4 text-center" :class="item.status === 'USED' ? 'opacity-60' : ''">
+                <div v-if="item.qrCode" class="mx-auto mb-2 w-fit rounded-xl bg-white p-2">
+                  <QrCodeImage :value="item.qrCode" :size="150" />
+                </div>
+                <div v-else class="mb-2 flex h-[166px] flex-col items-center justify-center rounded-xl bg-white/5 text-xs text-on-surface-variant"><span class="material-symbols-outlined mb-1 text-3xl">{{ item.status === 'USED' ? 'check_circle' : 'block' }}</span>{{ item.status === 'USED' ? 'Đã check-in' : 'Vé không còn hiệu lực' }}<small v-if="item.checkedInAt" class="mt-1">{{ formatDateTime(item.checkedInAt) }}</small></div>
+                <strong class="block text-lg text-primary">Ghế {{ item.seat }}</strong>
+                <span class="font-mono text-xs">{{ item.ticketCode }}</span>
+              </div>
+            </div>
+            <div v-else-if="selectedTicket.qrCode" class="bg-white p-3 rounded-2xl border border-glass-stroke shadow-lg mb-3">
+              <QrCodeImage :value="selectedTicket.qrCode" :size="250" class="w-40 h-40 md:w-48 md:h-48" />
+            </div>
+            <div v-else class="w-48 h-48 rounded-2xl border border-glass-stroke bg-white/5 flex items-center justify-center text-sm text-on-surface-variant mb-3">
+              Vé không còn hiệu lực
             </div>
             <p class="text-center text-xs text-on-surface-variant uppercase tracking-widest">Mã đặt vé</p>
             <p class="text-center text-lg font-bold text-white font-mono mt-0.5">{{ selectedTicket.ticketCode || selectedTicket.id }}</p>
@@ -341,18 +373,6 @@ onMounted(async () => {
               <div>
                 <p class="text-on-surface-variant text-[11px] uppercase tracking-wider mb-1">Ghế Ngồi</p>
                 <p class="font-bold text-white">{{ selectedTicket.seats.join(', ') }}</p>
-              </div>
-              <div>
-                <p class="text-on-surface-variant text-[11px] uppercase tracking-wider mb-1">Trạng Thái Vé</p>
-                <p v-if="selectedTicket.status === 'CANCELLED'" class="font-bold text-red-400">Đã Hủy</p>
-                <p v-else-if="selectedTicket.status === 'CANCEL_REQUESTED'" class="font-bold text-amber-400">Chờ Hủy</p>
-                <p v-else-if="selectedTicket.checkedInAt" class="font-bold text-gray-400">
-                  Đã Sử Dụng
-                  <span class="block text-[10px] font-normal text-on-surface-variant/80 mt-0.5">
-                    Vào rạp: {{ formatDateTime(selectedTicket.checkedInAt) }}
-                  </span>
-                </p>
-                <p v-else class="font-bold text-emerald-400">Chưa Sử Dụng</p>
               </div>
             </div>
 
@@ -389,7 +409,7 @@ onMounted(async () => {
               {{ cancellationLoading ? 'Đang gửi...' : 'Yêu cầu hủy vé' }}
             </button>
             <p v-if="selectedTicket.status === 'CONFIRMED'" class="mt-2 text-[11px] text-on-surface-variant">
-              Yêu cầu hủy phải được gửi trong vòng 24 giờ sau khi thanh toán và cần Quản trị phê duyệt.
+              Yêu cầu hủy phải được gửi trước giờ chiếu ít nhất 120 phút và cần Branch Admin phê duyệt.
             </p>
           </div>
         </div>

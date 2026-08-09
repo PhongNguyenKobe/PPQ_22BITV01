@@ -32,7 +32,7 @@ class BranchDetailRead(BranchRead):
 
 
 class UserRoleUpdate(BaseModel):
-    role_code: Literal["CUSTOMER", "BRANCH_ADMIN", "STAFF", "SUPER_ADMIN"]
+    role_code: Literal["CUSTOMER", "BRANCH_ADMIN", "SUPER_ADMIN"]
     branch_id: UUID | None = None
 
 
@@ -49,16 +49,23 @@ class AdminBreakdownItem(BaseModel):
 
 
 class AdminStatsResponse(BaseModel):
+    scopeName: str
     totalBranches: int
+    activeBranches: int = 0
+    totalAuditoriums: int = 0
     totalMovies: int
     totalUsers: int
     totalRevenue: int
+    refundedRevenue: int = 0
     todayRevenue: int = 0
     monthRevenue: int = 0
     ticketsSold: int = 0
     successfulBookings: int = 0
     cancelledBookings: int = 0
     pendingBookings: int = 0
+    expiredBookings: int = 0
+    occupancyRate: float = 0
+    generatedAt: datetime | None = None
     revenueChartData: list[RevenueDataPoint] = []
     branchPerformance: list[AdminBreakdownItem] = []
     topMovies: list[AdminBreakdownItem] = []
@@ -68,7 +75,7 @@ class MovieDraftPayload(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     original_title: str | None = Field(default=None, max_length=255)
     description: str | None = None
-    duration_min: int = Field(gt=0)
+    duration_min: int = Field(gt=0, le=600)
     release_date: date | None = None
     age_rating: str | None = Field(default=None, max_length=10)
     language: str | None = Field(default=None, max_length=50)
@@ -79,6 +86,16 @@ class MovieDraftPayload(BaseModel):
     director: str | None = Field(default=None, max_length=255)
     cast_names: list[str] = Field(default_factory=list)
 
+    @field_validator("title", "original_title", "description", "age_rating", "language", "trailer_url", "poster_url", "director", mode="before")
+    @classmethod
+    def trim_movie_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("genres")
+    @classmethod
+    def require_genre(cls, value: list[str]) -> list[str]:
+        return list(dict.fromkeys(item.strip() for item in value if item.strip()))
+
 
 class AdminUserCreate(BaseModel):
     email: str
@@ -87,7 +104,7 @@ class AdminUserCreate(BaseModel):
     phone: str | None = Field(default=None, max_length=20)
     date_of_birth: date | None = None
     gender: str | None = Field(default=None, max_length=10)
-    role_code: Literal["CUSTOMER", "BRANCH_ADMIN", "STAFF", "SUPER_ADMIN"] = "CUSTOMER"
+    role_code: Literal["BRANCH_ADMIN", "SUPER_ADMIN"] = "BRANCH_ADMIN"
     branch_id: UUID | None = None
 
     @field_validator("phone")
@@ -122,6 +139,10 @@ class BranchManageRead(BaseModel):
     phone: str | None = None
     is_active: bool
     auditoriums_count: int = 0
+    active_staff_count: int = 0
+    future_showtimes_count: int = 0
+    is_ready: bool = False
+    can_delete: bool = False
 
 
 class BranchManageCreate(BaseModel):
@@ -178,15 +199,32 @@ class AuditoriumRead(BaseModel):
     total_seats: int
     screen_type: str | None = None
     is_active: bool
+    active_seats_count: int = 0
+    total_showtimes_count: int = 0
+    future_showtimes_count: int = 0
+    is_ready: bool = False
+    can_delete: bool = False
 
 
 class AuditoriumCreate(BaseModel):
     branch_id: UUID
-    code: str = Field(min_length=1, max_length=30)
+    code: str = Field(min_length=1, max_length=30, pattern=r"^[A-Z0-9_-]+$")
     name: str = Field(min_length=1, max_length=100)
     total_seats: int = Field(gt=0)
     screen_type: str | None = Field(default=None, max_length=30)
     is_active: bool = True
+    rows: int | None = Field(default=None, ge=1, le=26)
+    seats_per_row: int | None = Field(default=None, ge=1, le=50)
+
+    @field_validator("code", "name", "screen_type", mode="before")
+    @classmethod
+    def normalize_auditorium_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def normalize_auditorium_code(cls, value):
+        return value.strip().upper() if isinstance(value, str) else value
 
 
 class AuditoriumUpdate(BaseModel):
@@ -264,6 +302,10 @@ class ShowtimeAdminRead(BaseModel):
     booking_count: int = 0
     sold_seats: int = 0
     revenue: float = 0
+    total_seats: int = 0
+    occupancy_rate: float = 0
+    branch_is_active: bool = True
+    auditorium_is_active: bool = True
 
 
 class ShowtimeAdminCreate(BaseModel):
@@ -319,6 +361,15 @@ class TmdbMovieImportResponse(BaseModel):
 class BranchAdminSalesPoint(BaseModel):
     label: str
     tickets: int
+    revenue: int = 0
+
+
+class BranchAdminTopMovie(BaseModel):
+    movie_id: UUID
+    title: str
+    poster_url: str | None = None
+    tickets_sold: int = 0
+    revenue: int = 0
 
 
 class BranchAdminPromoRead(BaseModel):
@@ -353,7 +404,16 @@ class BranchAdminStatsResponse(BaseModel):
     occupancyRate: float = 0
     movieCount: int = 0
     showtimeCount: int = 0
+    todayShowtimes: int = 0
+    showingNow: int = 0
+    upcomingToday: int = 0
+    attentionCount: int = 0
+    pendingPayments: int = 0
+    refundPending: int = 0
+    period: str = "today"
+    generatedAt: datetime
     salesChartData: list[BranchAdminSalesPoint] = Field(default_factory=list)
+    topMovies: list[BranchAdminTopMovie] = Field(default_factory=list)
     showtimesList: list[BranchAdminShowtimeRead] = Field(default_factory=list)
     promotionsList: list[BranchAdminPromoRead] = Field(default_factory=list)
 

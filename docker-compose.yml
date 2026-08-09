@@ -54,6 +54,8 @@ services:
       uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
+    volumes:
+      - combo_uploads:/app/uploads
 
   frontend:
     build:
@@ -73,3 +75,4 @@ services:
 
 volumes:
   pgdata:
+  combo_uploads:

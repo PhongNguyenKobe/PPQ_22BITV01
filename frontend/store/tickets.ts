@@ -275,6 +275,7 @@ export const useTicketsStore = defineStore('tickets', () => {
         seats: selectedSeats.value.map((seat) => seat.id),
         totalAmount: payableAmount ?? totalAmount.value,
         promotionCode,
+        comboItems: selectedCombos.value.map(item => ({ combo_id: item.combo.id, quantity: item.quantity })),
       })
       return payment
     } catch (e: any) {

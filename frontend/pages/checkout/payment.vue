@@ -70,7 +70,8 @@ async function applyVoucher() {
   }
 
   try {
-    const quote = await checkoutService.validatePromotion(code, totalAmount.value)
+    const paymentMethod = selectedPayment.value === 'Ví VNPAY' ? 'VNPAY' : 'PAYPAL'
+    const quote = await checkoutService.validatePromotion(code, totalAmount.value, selectedShowtime.value!.id, paymentMethod)
     voucherCode.value = quote.code
     voucherDiscount.value = Number(quote.discount_amount)
     isVoucherApplied.value = true
@@ -229,7 +230,7 @@ async function cancelPreparedVnpayPayment() {
                 :href="preparedVnpayPayment.paymentUrl"
                 class="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary-container px-5 py-3 font-bold text-on-primary-container"
               >
-                <span class="material-symbols-outlined">open_in_new</span>
+                <span class="material-symbols-outlined">payments</span>
                 Mở VNPAY để thanh toán
               </a>
               <button

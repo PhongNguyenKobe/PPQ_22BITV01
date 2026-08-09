@@ -41,7 +41,7 @@ const isBranchAdmin = computed(() => currentUser.value?.role === 'branch-admin')
 const tabItems = computed(() =>
   allTabItems.filter((tab) =>
     isBranchAdmin.value
-      ? ['auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(tab.key)
+      ? ['overview', 'auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(tab.key)
       : ['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'bookings', 'payments', 'reports'].includes(tab.key),
   ),
 )
@@ -49,7 +49,7 @@ const tabItems = computed(() =>
 const requestedTab = String(route.query.tab || '')
 const activeTab = ref<AdminTab>(
   currentUser.value?.role === 'branch-admin'
-    ? (['auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(requestedTab) ? requestedTab as AdminTab : 'auditoriums')
+    ? (['overview', 'auditoriums', 'seats', 'showtimes', 'combos', 'bookings', 'payments', 'ticket-scanner'].includes(requestedTab) ? requestedTab as AdminTab : 'overview')
     : (['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'bookings', 'payments', 'reports'].includes(requestedTab) ? requestedTab as AdminTab : 'overview'),
 )
 
@@ -87,26 +87,27 @@ function refreshActiveTab() {
 </script>
 <template>
   <div class="admin-page space-y-5 px-6 py-6 lg:px-8">
-    <section class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-4 gap-3">
-      <div>
-        <h1 class="text-xl font-black text-white flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-          {{ isBranchAdmin ? 'Vận Hành Chi Nhánh' : 'CineAI Super Admin' }}
-        </h1>
-        <p class="text-xs text-gray-400 mt-0.5">
-          {{ isBranchAdmin
-            ? 'Quản lý phòng chiếu, sơ đồ ghế và lịch chiếu được phân công.'
-            : 'Hệ thống quản trị tổng quan, phim, tài khoản và chi nhánh.' }}
-        </p>
+    <section v-if="!['overview', 'movies', 'users', 'branches', 'schedule-monitor', 'promotions', 'reports'].includes(activeTab)" class="hero-panel">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p class="hero-kicker">{{ isBranchAdmin ? 'CineAI Branch Admin' : 'CineAI Super Admin' }}</p>
+          <h1 class="hero-title">{{ isBranchAdmin ? 'Quản trị vận hành chi nhánh' : 'Quản trị hệ thống CineAI' }}</h1>
+          <p class="hero-subtitle">
+            {{ isBranchAdmin
+              ? 'Quản lý phòng chiếu, sơ đồ ghế và lịch chiếu thuộc chi nhánh được phân công.'
+              : 'Theo dõi tổng quan, quản lý phim, tài khoản người dùng và hệ thống chi nhánh.' }}
+          </p>
+        </div>
+        <button @click="refreshActiveTab" class="action-ghost">
+          <span class="material-symbols-outlined text-base">refresh</span>
+          Làm mới dữ liệu
+        </button>
       </div>
-      <button @click="refreshActiveTab" class="action-ghost px-4 py-2 border border-white/10 rounded-xl hover:bg-white/5 text-xs font-bold text-gray-300 hover:text-white flex items-center gap-1.5 transition-all">
-        <span class="material-symbols-outlined text-sm">sync</span>
-        Làm mới dữ liệu
-      </button>
     </section>
 
     <section v-if="activeTab === 'overview'" class="space-y-4">
-      <AdminOverview :key="tabRenderKeys.overview" />
+      <AdminBranchOverview v-if="isBranchAdmin" :key="tabRenderKeys.overview" />
+      <AdminOverview v-else :key="tabRenderKeys.overview" />
     </section>
 
     <section v-if="activeTab === 'promotions'" class="space-y-4">

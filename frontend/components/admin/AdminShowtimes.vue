@@ -8,6 +8,8 @@ const showtimes = ref<AdminShowtime[]>([])
 const movies = ref<Movie[]>([])
 const loading = ref(false)
 const error = ref('')
+const submittingSingle = ref(false)
+const singleTouched = ref(false)
 
 const showtimeMode = ref<'single' | 'bulk'>('bulk')
 
@@ -51,6 +53,34 @@ const selectedShowtimeMovie = computed(() =>
 
 const selectedMovieReleaseDate = ref('')
 const selectedMovieDuration = ref(120)
+
+type SingleField = 'movieId' | 'auditoriumId' | 'startsAt' | 'endsAt' | 'basePrice'
+const readyAuditoriums = computed(() => auditoriums.value.filter(room => room.is_ready))
+
+const singleFormErrors = computed<Partial<Record<SingleField, string>>>(() => {
+  const values = showtimeForm.value
+  const errors: Partial<Record<SingleField, string>> = {}
+  if (!values.movieId) errors.movieId = 'Hãy chọn phim cần chiếu.'
+  if (!values.auditoriumId) errors.auditoriumId = 'Hãy chọn phòng chiếu.'
+  const room = auditoriums.value.find(item => item.id === values.auditoriumId)
+  if (room && !room.is_ready) errors.auditoriumId = !room.is_active
+    ? 'Phòng đang tạm ngưng.'
+    : 'Phòng chưa có ghế hoạt động. Hãy hoàn thiện sơ đồ ghế trước.'
+  if (!Number.isFinite(Number(values.basePrice)) || Number(values.basePrice) < 1000) errors.basePrice = 'Giá vé phải từ 1.000đ trở lên.'
+  if (!values.startsAt) errors.startsAt = 'Hãy chọn giờ bắt đầu.'
+  if (!values.endsAt) errors.endsAt = 'Hãy chọn giờ kết thúc.'
+  if (values.startsAt && new Date(values.startsAt) < new Date(minimumShowtimeDate.value)) errors.startsAt = 'Giờ chiếu phải ở tương lai và không trước ngày khởi chiếu.'
+  if (values.startsAt && values.endsAt) {
+    const minutes = (new Date(values.endsAt).getTime() - new Date(values.startsAt).getTime()) / 60000
+    if (minutes <= 0) errors.endsAt = 'Giờ kết thúc phải sau giờ bắt đầu.'
+    else if (minutes < selectedMovieDuration.value) errors.endsAt = `Phim dài ${selectedMovieDuration.value} phút nên chưa thể kết thúc lúc này.`
+    else if (minutes > selectedMovieDuration.value + 60) errors.endsAt = 'Khoảng chiếu vượt thời lượng phim quá 60 phút.'
+  }
+  if (values.status === 'OPEN' && values.startsAt && new Date(values.startsAt).getTime() <= Date.now() + 15 * 60 * 1000) errors.startsAt = 'Mở bán ngay yêu cầu suất bắt đầu sau ít nhất 15 phút.'
+  return errors
+})
+const singleFormValid = computed(() => Object.keys(singleFormErrors.value).length === 0)
+function fieldError(field: SingleField) { return singleTouched.value ? singleFormErrors.value[field] : '' }
 
 watch(
   () => showtimeForm.value.movieId,
@@ -254,6 +284,12 @@ async function loadData() {
 
 async function createShowtime() {
   error.value = ''
+  singleTouched.value = true
+  if (!singleFormValid.value) {
+    error.value = 'Chưa thể tạo suất chiếu. Hãy sửa các trường được đánh dấu bên dưới.'
+    return
+  }
+  submittingSingle.value = true
   try {
     const movieId = showtimeForm.value.movieId
     if (new Date(showtimeForm.value.startsAt) < new Date(minimumShowtimeDate.value)) {
@@ -275,11 +311,22 @@ async function createShowtime() {
       status: showtimeForm.value.status,
     })
     showtimes.value = await adminBackendService.getShowtimes()
-    alert('Tạo suất chiếu thành công!')
+    singleTouched.value = false
   } catch (e: any) {
-    error.value = e?.message === 'The auditorium already has a showtime in this time range'
-      ? 'Phòng đã có phim trong khung giờ này. Hãy chọn giờ hoặc phòng khác.'
-      : e?.message || 'Không thể tạo suất chiếu.'
+    const message = e?.message || ''
+    error.value = message.includes('already has a showtime')
+      ? 'Phòng đã có suất chiếu trùng khung giờ (bao gồm thời gian vệ sinh giữa hai suất). Hãy đổi giờ hoặc chọn phòng khác.'
+      : message.includes('starts_at must be in the future')
+        ? 'Giờ bắt đầu phải ở tương lai.'
+        : message.includes('movie duration')
+          ? 'Giờ kết thúc không khớp thời lượng phim.'
+          : message.includes('AUDITORIUM_IS_INACTIVE')
+            ? 'Phòng đang tạm ngưng nên không thể xếp lịch.'
+            : message.includes('AUDITORIUM_NEEDS_ACTIVE_SEATS')
+              ? 'Phòng chưa có ghế hoạt động. Hãy hoàn thiện sơ đồ ghế trước.'
+              : message || 'Không thể tạo suất chiếu. Vui lòng kiểm tra lại dữ liệu.'
+  } finally {
+    submittingSingle.value = false
   }
 }
 
@@ -542,34 +589,40 @@ onMounted(() => {
       <form class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" @submit.prevent="createShowtime">
         <div class="space-y-1">
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Bộ phim</label>
-          <select v-model="showtimeForm.movieId" class="field-input" required>
+          <select v-model="showtimeForm.movieId" class="field-input" :class="{ 'field-input-error': fieldError('movieId') }" required>
             <option value="" disabled>-- Chọn phim --</option>
             <option v-for="m in showtimeMovieOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
           </select>
+          <p v-if="fieldError('movieId')" class="field-error">{{ fieldError('movieId') }}</p>
         </div>
         <div class="space-y-1">
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Phòng chiếu</label>
-          <select v-model="showtimeForm.auditoriumId" class="field-input" required>
+          <select v-model="showtimeForm.auditoriumId" class="field-input" :class="{ 'field-input-error': fieldError('auditoriumId') }" required>
             <option value="" disabled>-- Chọn phòng --</option>
-            <option v-for="a in auditoriums" :key="a.id" :value="a.id">{{ a.branch_name }} - {{ a.name }}</option>
+            <option v-for="a in readyAuditoriums" :key="a.id" :value="a.id">{{ a.branch_name }} - {{ a.name }} · {{ a.screen_type || '2D' }} · {{ a.active_seats_count }} ghế</option>
           </select>
+          <p v-if="!readyAuditoriums.length" class="field-error">Chưa có phòng sẵn sàng. Hãy mở phòng và tạo sơ đồ ghế trước.</p>
+          <p v-else-if="fieldError('auditoriumId')" class="field-error">{{ fieldError('auditoriumId') }}</p>
         </div>
         <div class="space-y-1">
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Giá cơ bản (VNĐ)</label>
-          <input v-model.number="showtimeForm.basePrice" type="number" min="1000" step="1000" placeholder="VD: 90000" class="field-input" required />
+          <input v-model.number="showtimeForm.basePrice" type="number" min="1000" step="1000" placeholder="VD: 90000" class="field-input" :class="{ 'field-input-error': fieldError('basePrice') }" required />
+          <p v-if="fieldError('basePrice')" class="field-error">{{ fieldError('basePrice') }}</p>
           <p v-if="selectedShowtimeMovie" class="text-[10px] text-primary mt-1">Gợi ý từ lịch sử: {{ fmtCurrency(selectedShowtimeMovie.suggestedPrice) }}</p>
         </div>
         
         <div class="space-y-1">
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Giờ bắt đầu chiếu</label>
-          <input v-model="showtimeForm.startsAt" :min="minimumShowtimeDate" type="datetime-local" class="field-input" required />
+          <input v-model="showtimeForm.startsAt" :min="minimumShowtimeDate" type="datetime-local" class="field-input" :class="{ 'field-input-error': fieldError('startsAt') }" required />
+          <p v-if="fieldError('startsAt')" class="field-error">{{ fieldError('startsAt') }}</p>
           <p v-if="selectedMovieReleaseDate" class="text-[10px] text-on-surface-variant mt-1">
             Ngày ra mắt phim: {{ formatDate(selectedMovieReleaseDate) }}
           </p>
         </div>
         <div class="space-y-1">
           <label class="text-xs font-semibold text-on-surface-variant uppercase">Giờ kết thúc (Dự kiến)</label>
-          <input v-model="showtimeForm.endsAt" :min="showtimeForm.startsAt" type="datetime-local" class="field-input" required />
+          <input v-model="showtimeForm.endsAt" :min="showtimeForm.startsAt" type="datetime-local" class="field-input" :class="{ 'field-input-error': fieldError('endsAt') }" required />
+          <p v-if="fieldError('endsAt')" class="field-error">{{ fieldError('endsAt') }}</p>
           <p class="text-[10px] text-on-surface-variant mt-1">
             Tự động tính bằng Thời lượng phim ({{ selectedMovieDuration }} phút)
           </p>
@@ -583,8 +636,8 @@ onMounted(() => {
         </div>
         
         <div class="xl:col-span-3 pt-3 border-t border-white/10 flex justify-end">
-          <button type="submit" class="action-primary px-8 flex items-center gap-2 text-base">
-            <span class="material-symbols-outlined">movie</span> Xác nhận tạo
+          <button type="submit" class="action-primary px-8 flex items-center gap-2 text-base" :disabled="submittingSingle || !readyAuditoriums.length">
+            <span class="material-symbols-outlined">movie</span> {{ submittingSingle ? 'Đang kiểm tra...' : 'Xác nhận tạo' }}
           </button>
         </div>
       </form>
@@ -1001,6 +1054,18 @@ onMounted(() => {
   outline: none;
   border-color: rgba(229, 9, 20, 0.65);
   box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.15);
+}
+
+.field-input-error {
+  border-color: rgba(251, 113, 133, 0.9) !important;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.12);
+}
+
+.field-error {
+  margin-top: 0.3rem;
+  color: #fda4af;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 .action-primary {

@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, SmallInteger, String, Table, Text, text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -58,16 +58,3 @@ class User(Base):
         secondary=user_roles_table,
         lazy="selectin",
     )
-
-
-class AuditEvent(Base):
-    __tablename__ = "audit_events"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
-    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    entity_id: Mapped[str] = mapped_column(String(50), nullable=False)
-    action: Mapped[str] = mapped_column(String(100), nullable=False)
-    new_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    transaction_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
