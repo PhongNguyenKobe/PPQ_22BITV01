@@ -121,6 +121,8 @@ useSeoMeta({
   description: () => tmdbDetail.value?.description || '',
   ogDescription: () => tmdbDetail.value?.description || '',
   ogImage: () => tmdbDetail.value?.poster || '',
+  ogImageWidth: 600,
+  ogImageHeight: 900,
   ogUrl: () => requestUrl.href,
   fbAppId: '844524511361538',
   twitterCard: 'summary_large_image',

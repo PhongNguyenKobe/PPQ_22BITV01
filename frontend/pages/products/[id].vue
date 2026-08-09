@@ -220,6 +220,8 @@ useSeoMeta({
   description: () => currentProduct.value?.description || '',
   ogDescription: () => currentProduct.value?.description || '',
   ogImage: () => currentProduct.value?.imageUrl || '',
+  ogImageWidth: 600,
+  ogImageHeight: 900,
   ogUrl: () => requestUrl.href,
   fbAppId: '844524511361538',
   twitterCard: 'summary_large_image',
