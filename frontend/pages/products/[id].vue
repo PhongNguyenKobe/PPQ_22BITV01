@@ -214,12 +214,40 @@ function reviewDate(value: string) {
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
+const getAbsoluteImageUrl = (url: string | null | undefined) => {
+  if (!url) return ''
+  let result = url
+  if (result.includes('localhost:8000') || result.includes('127.0.0.1:8000')) {
+    try {
+      const config = useRuntimeConfig()
+      const apiBase = config.public.apiBase
+      const backendOrigin = new URL(apiBase).origin
+      result = result
+        .replace('http://localhost:8000', backendOrigin)
+        .replace('http://127.0.0.1:8000', backendOrigin)
+    } catch (e) {}
+  }
+  if (result.startsWith('http://') || result.startsWith('https://')) {
+    return result
+  }
+  if (result.startsWith('/api/')) {
+    try {
+      const config = useRuntimeConfig()
+      const apiBase = config.public.apiBase
+      const backendOrigin = new URL(apiBase).origin
+      return `${backendOrigin}${result}`
+    } catch (e) {}
+  }
+  const origin = requestUrl.origin
+  return `${origin}${result.startsWith('/') ? '' : '/'}${result}`
+}
+
 useSeoMeta({
   title: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
   ogTitle: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
   description: () => currentProduct.value?.description || '',
   ogDescription: () => currentProduct.value?.description || '',
-  ogImage: () => currentProduct.value?.imageUrl || '',
+  ogImage: () => getAbsoluteImageUrl(currentProduct.value?.imageUrl),
   ogImageWidth: 600,
   ogImageHeight: 900,
   ogUrl: () => requestUrl.href,
@@ -227,7 +255,7 @@ useSeoMeta({
   twitterCard: 'summary_large_image',
   twitterTitle: () => currentProduct.value ? `${currentProduct.value.name} - CineAI` : 'CineAI',
   twitterDescription: () => currentProduct.value?.description || '',
-  twitterImage: () => currentProduct.value?.imageUrl || '',
+  twitterImage: () => getAbsoluteImageUrl(currentProduct.value?.imageUrl),
 })
 </script>
 
