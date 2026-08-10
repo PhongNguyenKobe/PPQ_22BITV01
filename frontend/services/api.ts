@@ -2134,7 +2134,7 @@ export const aiService = {
 }
 
 export const adminService = {
-  async getSuperAdminStats(branchId?: string): Promise<SuperAdminStats> {
+  async getSuperAdminStats(branchId?: string, period: string = '7d'): Promise<SuperAdminStats> {
     if (USE_MOCK) {
       return {
         scopeName: 'Toàn hệ thống',
@@ -2175,7 +2175,10 @@ export const adminService = {
       }
     }
     const res = await apiClient.get('/admin/stats', {
-      params: branchId ? { branch_id: branchId } : undefined
+      params: {
+        ...(branchId ? { branch_id: branchId } : {}),
+        period
+      }
     })
     return res.data
   },

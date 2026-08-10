@@ -85,7 +85,7 @@ async def get_admin_stats(db: AsyncSession) -> dict:
     }
 
 
-async def get_live_admin_stats(db: AsyncSession, branch_id: UUID | None = None) -> dict:
+async def get_live_admin_stats(db: AsyncSession, branch_id: UUID | None = None, period: str = "7d") -> dict:
     params = {"branch_id": branch_id}
     branch_filter = "AND a.branch_id = :branch_id" if branch_id else ""
     branch_where = "WHERE br.id = :branch_id" if branch_id else ""
@@ -204,34 +204,77 @@ async def get_live_admin_stats(db: AsyncSession, branch_id: UUID | None = None) 
             ), params
         )
     ).scalar() or 0
-    revenue_rows = (
-        await db.execute(
-            text(
-                f"""
-                WITH days AS (
-                    SELECT generate_series(
-                        (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - 6,
-                        (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,
-                        interval '1 day'
-                    )::date AS day
-                ), payment_facts AS (
-                    SELECT p.amount, COALESCE(p.paid_at, p.created_at) AS paid_time
-                    FROM payments p
-                    JOIN bookings b ON b.id = p.booking_id
-                    JOIN showtimes s ON s.id = b.showtime_id
-                    JOIN auditoriums a ON a.id = s.auditorium_id
-                    WHERE p.status = 'SUCCESS' {branch_filter}
-                )
-                SELECT to_char(days.day, 'DD/MM') AS label, COALESCE(SUM(p.amount), 0) AS value
-                FROM days
-                LEFT JOIN payment_facts p
-                  ON (p.paid_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = days.day
-                GROUP BY days.day
-                ORDER BY days.day
-                """
-            ), params
-        )
-    ).all()
+    if period == "today":
+        revenue_query = f"""
+            WITH hours AS (
+                SELECT generate_series(
+                    date_trunc('day', now() AT TIME ZONE 'Asia/Ho_Chi_Minh'),
+                    date_trunc('day', now() AT TIME ZONE 'Asia/Ho_Chi_Minh') + interval '23 hours',
+                    interval '1 hour'
+                ) AS hour
+            ), payment_facts AS (
+                SELECT p.amount, COALESCE(p.paid_at, p.created_at) AS paid_time
+                FROM payments p
+                JOIN bookings b ON b.id = p.booking_id
+                JOIN showtimes s ON s.id = b.showtime_id
+                JOIN auditoriums a ON a.id = s.auditorium_id
+                WHERE p.status = 'SUCCESS' {branch_filter}
+            )
+            SELECT to_char(hours.hour, 'HH24') || 'h' AS label, COALESCE(SUM(p.amount), 0) AS value
+            FROM hours
+            LEFT JOIN payment_facts p
+              ON date_trunc('hour', p.paid_time AT TIME ZONE 'Asia/Ho_Chi_Minh') = hours.hour
+            GROUP BY hours.hour
+            ORDER BY hours.hour
+        """
+    elif period in ("month", "30d"):
+        revenue_query = f"""
+            WITH days AS (
+                SELECT generate_series(
+                    (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - 29,
+                    (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,
+                    interval '1 day'
+                )::date AS day
+            ), payment_facts AS (
+                SELECT p.amount, COALESCE(p.paid_at, p.created_at) AS paid_time
+                FROM payments p
+                JOIN bookings b ON b.id = p.booking_id
+                JOIN showtimes s ON s.id = b.showtime_id
+                JOIN auditoriums a ON a.id = s.auditorium_id
+                WHERE p.status = 'SUCCESS' {branch_filter}
+            )
+            SELECT to_char(days.day, 'DD/MM') AS label, COALESCE(SUM(p.amount), 0) AS value
+            FROM days
+            LEFT JOIN payment_facts p
+              ON (p.paid_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = days.day
+            GROUP BY days.day
+            ORDER BY days.day
+        """
+    else:
+        revenue_query = f"""
+            WITH days AS (
+                SELECT generate_series(
+                    (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - 6,
+                    (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,
+                    interval '1 day'
+                )::date AS day
+            ), payment_facts AS (
+                SELECT p.amount, COALESCE(p.paid_at, p.created_at) AS paid_time
+                FROM payments p
+                JOIN bookings b ON b.id = p.booking_id
+                JOIN showtimes s ON s.id = b.showtime_id
+                JOIN auditoriums a ON a.id = s.auditorium_id
+                WHERE p.status = 'SUCCESS' {branch_filter}
+            )
+            SELECT to_char(days.day, 'DD/MM') AS label, COALESCE(SUM(p.amount), 0) AS value
+            FROM days
+            LEFT JOIN payment_facts p
+              ON (p.paid_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = days.day
+            GROUP BY days.day
+            ORDER BY days.day
+        """
+    
+    revenue_rows = (await db.execute(text(revenue_query), params)).all()
     branch_rows = (
         await db.execute(
             text(
@@ -264,6 +307,7 @@ async def get_live_admin_stats(db: AsyncSession, branch_id: UUID | None = None) 
             text(
                 f"""
                 SELECT m.title AS label,
+                       m.poster_url AS poster_url,
                        COALESCE(SUM(t.unit_price), 0) AS revenue,
                        COUNT(t.id) AS tickets
                 FROM movies m
@@ -273,7 +317,7 @@ async def get_live_admin_stats(db: AsyncSession, branch_id: UUID | None = None) 
                 JOIN payments p ON p.booking_id = b.id AND p.status = 'SUCCESS'
                 JOIN tickets t ON t.booking_id = b.id AND t.status IN ('ISSUED', 'USED')
                 WHERE TRUE {branch_filter}
-                GROUP BY m.id, m.title
+                GROUP BY m.id, m.title, m.poster_url
                 ORDER BY revenue DESC, tickets DESC
                 LIMIT 5
                 """
@@ -322,7 +366,7 @@ async def get_live_admin_stats(db: AsyncSession, branch_id: UUID | None = None) 
             for row in branch_rows
         ],
         "topMovies": [
-            {"label": row.label, "revenue": int(row.revenue), "tickets": int(row.tickets)}
+            {"label": row.label, "revenue": int(row.revenue), "tickets": int(row.tickets), "poster_url": row.poster_url}
             for row in movie_rows
         ],
     }

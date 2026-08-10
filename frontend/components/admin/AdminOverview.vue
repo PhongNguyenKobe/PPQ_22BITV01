@@ -6,13 +6,15 @@ const superStats = ref<SuperAdminStats | null>(null)
 const loading = ref(true)
 const error = ref('')
 const selectedBranch = useState<string>('admin-selected-branch', () => 'ALL')
+const selectedPeriod = ref<'today' | '7d' | 'month'>('7d')
 
 async function loadData() {
   loading.value = true
   error.value = ''
   try {
     superStats.value = await adminService.getSuperAdminStats(
-      selectedBranch.value !== 'ALL' ? selectedBranch.value : undefined
+      selectedBranch.value !== 'ALL' ? selectedBranch.value : undefined,
+      selectedPeriod.value
     )
   } catch (e: any) {
     error.value = e?.message || 'Không thể tải dữ liệu tổng quan.'
@@ -29,7 +31,7 @@ onMounted(() => {
   loadData()
 })
 
-watch(selectedBranch, () => loadData())
+watch([selectedBranch, selectedPeriod], () => loadData())
 
 const updatedAt = computed(() => {
   if (!superStats.value?.generatedAt) return ''
@@ -178,11 +180,40 @@ const maxChartValue = () => {
         
         <!-- Revenue Chart -->
         <div class="xl:col-span-2 panel overflow-hidden flex flex-col">
-          <div class="p-5 border-b border-white/5 flex items-center justify-between">
+          <div class="p-5 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
               <span class="material-symbols-outlined text-primary">bar_chart</span>
-              Doanh thu 7 ngày gần nhất
+              {{
+                selectedPeriod === 'today'
+                  ? 'Biểu đồ doanh thu hôm nay (theo giờ)'
+                  : selectedPeriod === 'month'
+                  ? 'Biểu đồ doanh thu 30 ngày gần nhất'
+                  : 'Biểu đồ doanh thu 7 ngày gần nhất'
+              }}
             </h3>
+            <div class="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
+              <button 
+                @click="selectedPeriod = 'today'"
+                class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all"
+                :class="selectedPeriod === 'today' ? 'bg-primary text-white shadow-md' : 'text-on-surface-variant hover:text-white'"
+              >
+                Hôm nay
+              </button>
+              <button 
+                @click="selectedPeriod = '7d'"
+                class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all"
+                :class="selectedPeriod === '7d' ? 'bg-primary text-white shadow-md' : 'text-on-surface-variant hover:text-white'"
+              >
+                7 ngày
+              </button>
+              <button 
+                @click="selectedPeriod = 'month'"
+                class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all"
+                :class="selectedPeriod === 'month' ? 'bg-primary text-white shadow-md' : 'text-on-surface-variant hover:text-white'"
+              >
+                30 ngày
+              </button>
+            </div>
           </div>
           
           <div class="p-6 flex-1 flex items-end justify-between gap-2 h-72">
@@ -277,10 +308,33 @@ const maxChartValue = () => {
                 <tr v-for="(movie, index) in superStats.topMovies" :key="movie.label" class="hover:bg-white/5 transition-colors group">
                   <td class="px-5 py-4">
                     <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-xs font-bold text-white/50 group-hover:bg-purple-500/20 group-hover:text-purple-400 transition-colors">
+                      <div 
+                        class="relative w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold flex-shrink-0 transition-colors"
+                        :class="{
+                          'bg-amber-400/20 text-amber-400 border border-amber-400/30': index === 0,
+                          'bg-slate-300/20 text-slate-300 border border-slate-300/30': index === 1,
+                          'bg-orange-700/20 text-orange-400 border border-orange-700/30': index === 2,
+                          'bg-white/10 text-white/50 group-hover:bg-purple-500/20 group-hover:text-purple-400': index >= 3
+                        }"
+                      >
                         #{{ index + 1 }}
                       </div>
-                      <span class="font-bold text-on-surface text-base">{{ movie.label }}</span>
+                      
+                      <!-- Movie poster image (only for Top 1, 2, 3) -->
+                      <img 
+                        v-if="index < 3 && movie.poster_url"
+                        :src="movie.poster_url" 
+                        class="w-10 h-14 rounded-lg object-cover border border-white/10 shadow-md flex-shrink-0"
+                        alt="Poster"
+                      />
+                      <div 
+                        v-else-if="index < 3"
+                        class="w-10 h-14 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center flex-shrink-0"
+                      >
+                        <span class="material-symbols-outlined text-xs text-white/30">movie</span>
+                      </div>
+                      
+                      <span class="font-bold text-on-surface text-base truncate">{{ movie.label }}</span>
                     </div>
                   </td>
                   <td class="px-5 py-4 text-right">

@@ -393,11 +393,12 @@ async def import_tmdb_movie(
 @router.get("/stats", response_model=AdminStatsResponse)
 async def read_admin_stats(
     branch_id: UUID | None = None,
+    period: str = "7d",
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles("SUPER_ADMIN")),
 ) -> AdminStatsResponse:
     try:
-        data = await get_live_admin_stats(db, branch_id=branch_id)
+        data = await get_live_admin_stats(db, branch_id=branch_id, period=period)
     except ValueError as exc:
         if str(exc) == "BRANCH_NOT_FOUND":
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found") from None
