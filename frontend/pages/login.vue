@@ -191,7 +191,8 @@ async function handleLogin() {
   if (success) {
     await redirectAfterAuth()
   } else {
-    if (userStore.authError === 'USER_NOT_VERIFIED') {
+    console.log("DEBUG LOGIN ERROR:", userStore.authError)
+    if (userStore.authError === 'USER_NOT_VERIFIED' || userStore.authError.includes('USER_NOT_VERIFIED')) {
       successMessage.value = 'Tài khoản chưa được xác thực. Đang gửi mã OTP đến email của bạn...'
       try {
         await authService.resendOtp(idValue)
