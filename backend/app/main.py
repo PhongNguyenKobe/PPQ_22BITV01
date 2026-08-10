@@ -14,7 +14,7 @@ from app.crud.booking import cleanup_expired_reservations
 from app.db.session import AsyncSessionLocal
 from app.models.commerce import Booking, SeatHold, NotificationOutbox
 from app.models.user import User
-from app.services.email import send_transactional_email
+from app.services.email import send_transactional_email, render_notification_email
 from sqlalchemy import select
 
 
@@ -46,13 +46,6 @@ async def cleanup_expired_seats(stop: asyncio.Event) -> None:
 
 
 async def process_notification_outbox(stop: asyncio.Event) -> None:
-    def render_msg(event_type: str, payload: dict) -> tuple[str, str]:
-        if event_type == "TICKET_ISSUED":
-            return "Vé CineAI đã được phát hành", f"Thanh toán thành công. Mã đặt vé: {payload.get('ticket_code')}."
-        if event_type == "PAYMENT_RECONCILIATION_REQUIRED":
-            return "Giao dịch CineAI đang được kiểm tra", "Khoản thanh toán đã được ghi nhận sau khi giữ chỗ hết hạn. CineAI đang đối soát và sẽ hoàn tiền nếu không thể cấp vé."
-        return "Thông báo từ CineAI", str(payload)
-
     while not stop.is_set():
         try:
             async with AsyncSessionLocal() as db:
@@ -66,7 +59,7 @@ async def process_notification_outbox(stop: asyncio.Event) -> None:
                 items = result.scalars().all()
                 for item in items:
                     user = await db.get(User, item.user_id)
-                    subject, body = render_msg(item.event_type, item.payload)
+                    subject, body = await render_notification_email(db, item.event_type, item.payload)
                     sent = False
                     if user and user.email:
                         try:

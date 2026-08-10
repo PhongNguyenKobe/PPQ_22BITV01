@@ -11,15 +11,7 @@ from sqlalchemy import select
 from app.db.session import AsyncSessionLocal
 from app.models.commerce import NotificationOutbox
 from app.models.user import User
-from app.services.email import send_transactional_email
-
-
-def render(event_type: str, payload: dict) -> tuple[str, str]:
-    if event_type == "TICKET_ISSUED":
-        return "Vé CineAI đã được phát hành", f"Thanh toán thành công. Mã đặt vé: {payload.get('ticket_code')}."
-    if event_type == "PAYMENT_RECONCILIATION_REQUIRED":
-        return "Giao dịch CineAI đang được kiểm tra", "Khoản thanh toán đã được ghi nhận sau khi giữ chỗ hết hạn. CineAI đang đối soát và sẽ hoàn tiền nếu không thể cấp vé."
-    return "Thông báo từ CineAI", str(payload)
+from app.services.email import send_transactional_email, render_notification_email
 
 
 async def main() -> None:
@@ -33,7 +25,7 @@ async def main() -> None:
         )
         for item in rows.scalars().all():
             user = await db.get(User, item.user_id)
-            subject, body = render(item.event_type, item.payload)
+            subject, body = await render_notification_email(db, item.event_type, item.payload)
             sent = bool(user) and await asyncio.to_thread(send_transactional_email, user.email, subject, body)
             item.attempts += 1
             if sent:
