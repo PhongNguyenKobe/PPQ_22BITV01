@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -12,7 +12,9 @@ from app.core.config import settings
 from app.core.seat_events import seat_events
 from app.crud.booking import cleanup_expired_reservations
 from app.db.session import AsyncSessionLocal
-from app.models.commerce import Booking, SeatHold
+from app.models.commerce import Booking, SeatHold, NotificationOutbox
+from app.models.user import User
+from app.services.email import send_transactional_email
 from sqlalchemy import select
 
 
@@ -43,15 +45,64 @@ async def cleanup_expired_seats(stop: asyncio.Event) -> None:
             continue
 
 
+async def process_notification_outbox(stop: asyncio.Event) -> None:
+    def render_msg(event_type: str, payload: dict) -> tuple[str, str]:
+        if event_type == "TICKET_ISSUED":
+            return "Vé CineAI đã được phát hành", f"Thanh toán thành công. Mã đặt vé: {payload.get('ticket_code')}."
+        if event_type == "PAYMENT_RECONCILIATION_REQUIRED":
+            return "Giao dịch CineAI đang được kiểm tra", "Khoản thanh toán đã được ghi nhận sau khi giữ chỗ hết hạn. CineAI đang đối soát và sẽ hoàn tiền nếu không thể cấp vé."
+        return "Thông báo từ CineAI", str(payload)
+
+    while not stop.is_set():
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(NotificationOutbox)
+                    .where(NotificationOutbox.status == "PENDING", NotificationOutbox.available_at <= datetime.now(timezone.utc))
+                    .order_by(NotificationOutbox.created_at)
+                    .limit(10)
+                    .with_for_update(skip_locked=True)
+                )
+                items = result.scalars().all()
+                for item in items:
+                    user = await db.get(User, item.user_id)
+                    subject, body = render_msg(item.event_type, item.payload)
+                    sent = False
+                    if user and user.email:
+                        try:
+                            sent = await asyncio.to_thread(send_transactional_email, user.email, subject, body)
+                        except Exception:
+                            pass
+                    item.attempts += 1
+                    if sent:
+                        item.status = "SENT"
+                        item.sent_at = datetime.now(timezone.utc)
+                        item.last_error = None
+                    elif item.attempts >= 5:
+                        item.status = "FAILED"
+                        item.last_error = "Delivery failed after five attempts"
+                    else:
+                        item.available_at = datetime.now(timezone.utc) + timedelta(minutes=2 ** item.attempts)
+                        item.last_error = "Delivery failed; retry scheduled"
+                await db.commit()
+        except Exception:
+            pass
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=15)
+        except TimeoutError:
+            continue
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     stop = asyncio.Event()
-    task = asyncio.create_task(cleanup_expired_seats(stop))
+    task1 = asyncio.create_task(cleanup_expired_seats(stop))
+    task2 = asyncio.create_task(process_notification_outbox(stop))
     try:
         yield
     finally:
         stop.set()
-        await task
+        await asyncio.gather(task1, task2, return_exceptions=True)
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
