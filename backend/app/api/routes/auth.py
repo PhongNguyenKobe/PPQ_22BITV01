@@ -45,8 +45,8 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> R
     db.add(user)
     await db.commit()
 
-    # Gửi mã xác nhận qua email
-    sent = send_verification_email(user.email, otp)
+    # Gửi mã xác nhận qua email (chạy phi tuần tự để tránh block event loop)
+    sent = await asyncio.to_thread(send_verification_email, user.email, otp)
     if not sent:
         # Nếu gửi thất bại, chúng ta có thể ghi log, nhưng vẫn tiếp tục để người dùng có thể gửi lại
         pass
@@ -155,7 +155,7 @@ async def resend_otp(payload: ResendOtpRequest, db: AsyncSession = Depends(get_d
     db.add(user)
     await db.commit()
 
-    sent = send_verification_email(user.email, otp)
+    sent = await asyncio.to_thread(send_verification_email, user.email, otp)
     if not sent:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Không thể gửi email OTP. Vui lòng thử lại sau.")
 
@@ -175,8 +175,8 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
     db.add(user)
     await db.commit()
 
-    # Gửi email SMTP
-    sent = send_verification_email(user.email, otp, email_type="forgot")
+    # Gửi email SMTP (chạy phi tuần tự)
+    sent = await asyncio.to_thread(send_verification_email, user.email, otp, email_type="forgot")
     if not sent:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Không thể gửi email chứa mã khôi phục. Vui lòng thử lại sau.")
 

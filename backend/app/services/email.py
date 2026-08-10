@@ -60,7 +60,7 @@ Trân trọng,
     msg.attach(MIMEText(body, "plain", "utf-8"))
 
     try:
-        server = smtplib.SMTP(smtp_host, settings.smtp_port)
+        server = smtplib.SMTP(smtp_host, settings.smtp_port, timeout=10)
         server.starttls()
         server.login(from_email, smtp_pass)
         server.sendmail(from_email, to_email, msg.as_string())
@@ -80,7 +80,7 @@ def send_transactional_email(to_email: str, subject: str, body: str) -> bool:
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain", "utf-8"))
     try:
-        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10)
         server.starttls()
         server.login(from_email, smtp_pass)
         server.sendmail(from_email, to_email, msg.as_string())
