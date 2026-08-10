@@ -103,6 +103,11 @@ async def render_notification_email(db: AsyncSession, event_type: str, payload: 
                     showtime_time = f"{local_starts_at.strftime('%H:%M')} - {weekday_name}, {local_starts_at.strftime('%d/%m/%Y')}"
                     
                     movie_title = booking.showtime.movie.title
+                    poster_url = booking.showtime.movie.poster_url
+                    poster_img_html = ""
+                    if poster_url:
+                        poster_img_html = f'<img src="{poster_url}" width="90" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); object-fit: cover; aspect-ratio: 2/3;" alt="{movie_title}" />'
+                    
                     branch_name = booking.showtime.auditorium.branch.name
                     auditorium_name = booking.showtime.auditorium.name
                     seats_list = ", ".join(f"{s.seat.seat_row}{s.seat.seat_number}" for s in booking.seats)
@@ -185,6 +190,9 @@ async def render_notification_email(db: AsyncSession, event_type: str, payload: 
             padding: 16px;
             margin-bottom: 24px;
             border-left: 4px solid #ff3344;
+            display: flex;
+            gap: 16px;
+            align-items: center;
         }}
         .movie-title {{
             font-size: 20px;
@@ -290,9 +298,12 @@ async def render_notification_email(db: AsyncSession, event_type: str, payload: 
             <p>Thanh toán thành công! Dưới đây là thông tin chi tiết vé xem phim của bạn:</p>
             
             <div class="movie-card">
-                <div class="movie-title">{movie_title}</div>
-                <div class="showtime-info"><strong>Rạp:</strong> {branch_name} - {auditorium_name}</div>
-                <div class="showtime-info"><strong>Suất chiếu:</strong> {showtime_time}</div>
+                {poster_img_html}
+                <div>
+                    <div class="movie-title">{movie_title}</div>
+                    <div class="showtime-info"><strong>Rạp:</strong> {branch_name} - {auditorium_name}</div>
+                    <div class="showtime-info"><strong>Suất chiếu:</strong> {showtime_time}</div>
+                </div>
             </div>
 
             <div class="ticket-code-box">
