@@ -122,18 +122,18 @@ async def render_notification_email(db: AsyncSession, event_type: str, payload: 
                         </tr>
                         """
                         
-                    # Build QR code cards for each ticket
+                    # Build single QR code card for the booking (using the first ticket's scan code)
                     qr_cards_html = []
                     if booking.tickets:
-                        for ticket in booking.tickets:
-                            qr_data = f"{settings.frontend_url.rstrip('/')}/t/{ticket.scan_code}"
-                            qr_img_src = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={qr_data}"
-                            qr_cards_html.append(f"""
-                            <div class="qr-card">
-                                <img src="{qr_img_src}" width="150" height="150" alt="Mã QR Ghế {ticket.seat_row}{ticket.seat_number}" />
-                                <span>Ghế {ticket.seat_row}{ticket.seat_number}</span>
-                            </div>
-                            """)
+                        first_ticket = booking.tickets[0]
+                        qr_data = f"{settings.frontend_url.rstrip('/')}/t/{first_ticket.scan_code}"
+                        qr_img_src = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={qr_data}"
+                        qr_cards_html.append(f"""
+                        <div class="qr-card">
+                            <img src="{qr_img_src}" width="150" height="150" alt="Mã QR Vé" />
+                            <span>Quét tại quầy vé</span>
+                        </div>
+                        """)
                     else:
                         # Fallback to single QR code for booking
                         qr_data = booking.ticket_code or str(booking.id)

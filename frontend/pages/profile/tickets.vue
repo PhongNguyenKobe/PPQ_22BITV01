@@ -244,15 +244,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
             <!-- QR code panel (Right 35%) -->
             <div
               class="p-6 md:w-[35%] bg-surface-container/20 flex flex-col items-center justify-center text-center space-y-4">
-              <div v-if="ticket.perSeatTickets?.length" class="grid grid-cols-2 gap-2">
-                <div v-for="item in ticket.perSeatTickets" :key="item.id" class="relative rounded-xl bg-white p-1.5 text-black shadow-md" :class="item.status === 'USED' ? 'opacity-55 grayscale' : ''">
-                  <QrCodeImage v-if="item.qrCode" :value="item.qrCode" :size="82" />
-                  <span v-else class="flex h-[82px] w-[82px] items-center justify-center"><span class="material-symbols-outlined text-3xl">{{ item.status === 'USED' ? 'check_circle' : 'block' }}</span></span>
-                  <p class="mt-1 text-[9px] font-black">Ghế {{ item.seat }}</p>
-                  <p v-if="item.status === 'USED'" class="text-[8px] font-black text-emerald-700">ĐÃ CHECK-IN</p>
-                </div>
-              </div>
-              <div v-else-if="ticket.qrCode" class="w-32 h-32 bg-white p-2 rounded-2xl border border-glass-stroke shadow-md">
+              <div v-if="ticket.qrCode" class="w-32 h-32 bg-white p-2 rounded-2xl border border-glass-stroke shadow-md">
                 <QrCodeImage :value="ticket.qrCode" :size="120" />
               </div>
               <div v-else class="w-32 h-32 rounded-2xl border border-glass-stroke bg-white/5 flex items-center justify-center text-xs text-on-surface-variant">
@@ -334,17 +326,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
         <div class="p-6 overflow-y-auto custom-scrollbar flex-1">
           <!-- Big QR Code -->
           <div class="flex flex-col items-center justify-center mb-6">
-            <div v-if="selectedTicket.perSeatTickets?.length" class="grid w-full gap-4 sm:grid-cols-2">
-              <div v-for="item in selectedTicket.perSeatTickets" :key="item.id" class="rounded-2xl border border-glass-stroke bg-black/20 p-4 text-center" :class="item.status === 'USED' ? 'opacity-60' : ''">
-                <div v-if="item.qrCode" class="mx-auto mb-2 w-fit rounded-xl bg-white p-2">
-                  <QrCodeImage :value="item.qrCode" :size="150" />
-                </div>
-                <div v-else class="mb-2 flex h-[166px] flex-col items-center justify-center rounded-xl bg-white/5 text-xs text-on-surface-variant"><span class="material-symbols-outlined mb-1 text-3xl">{{ item.status === 'USED' ? 'check_circle' : 'block' }}</span>{{ item.status === 'USED' ? 'Đã check-in' : 'Vé không còn hiệu lực' }}<small v-if="item.checkedInAt" class="mt-1">{{ formatDateTime(item.checkedInAt) }}</small></div>
-                <strong class="block text-lg text-primary">Ghế {{ item.seat }}</strong>
-                <span class="font-mono text-xs">{{ item.ticketCode }}</span>
-              </div>
-            </div>
-            <div v-else-if="selectedTicket.qrCode" class="bg-white p-3 rounded-2xl border border-glass-stroke shadow-lg mb-3">
+            <div v-if="selectedTicket.qrCode" class="bg-white p-3 rounded-2xl border border-glass-stroke shadow-lg mb-3">
               <QrCodeImage :value="selectedTicket.qrCode" :size="250" class="w-40 h-40 md:w-48 md:h-48" />
             </div>
             <div v-else class="w-48 h-48 rounded-2xl border border-glass-stroke bg-white/5 flex items-center justify-center text-sm text-on-surface-variant mb-3">
@@ -352,6 +334,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
             </div>
             <p class="text-center text-xs text-on-surface-variant uppercase tracking-widest">Mã đặt vé</p>
             <p class="text-center text-lg font-bold text-white font-mono mt-0.5">{{ selectedTicket.ticketCode || selectedTicket.id }}</p>
+            <p class="text-center text-xs font-bold text-primary mt-1 font-mono">{{ usedCount(selectedTicket) }}/{{ selectedTicket.perSeatTickets?.length || selectedTicket.seats.length }} ghế đã vào</p>
           </div>
 
           <!-- Detailed Info Grid -->
