@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useTicketsStore } from '~/store/tickets'
 import { aiDiscoveryService } from '~/services/api'
 import { isShowtimeExpired } from '~/utils/showtime'
-import { getMovieSlugUrl } from '~/utils/slug'
+import { getProductSlugUrl } from '~/utils/slug'
 
 definePageMeta({
   layout: 'default',
@@ -336,7 +336,7 @@ onMounted(() => {
                           <h4 class="font-bold text-white text-base truncate">{{ m.title }}</h4>
                           <p class="text-xs text-gray-400 mt-1 line-clamp-3 leading-relaxed">{{ m.description || 'Chưa có mô tả chi tiết cho phim này.' }}</p>
                         </div>
-                        <NuxtLink :to="getMovieSlugUrl(m)" class="text-xs font-bold text-purple-400 hover:underline flex items-center gap-0.5 mt-2">
+                        <NuxtLink :to="getProductSlugUrl(m)" class="inline-flex items-center gap-1.5 px-4 py-2.5 mt-2 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl shadow-md shadow-purple-600/20 transition-all w-fit group-hover:scale-105 duration-200">
                           Xem chi tiết lịch chiếu <span class="material-symbols-outlined text-xs">arrow_forward</span>
                         </NuxtLink>
                       </div>
